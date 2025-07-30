@@ -82,6 +82,7 @@ type StatusResponse struct {
 	Staged    []string `json:"staged"`
 	Modified  []string `json:"modified"`
 	Untracked []string `json:"untracked"`
+	Clean     bool     `json:"clean"`
 }
 
 type TransactionResponse struct {
@@ -107,4 +108,16 @@ type SuccessResponse struct {
 	Status  string      `json:"status"`
 	Message string      `json:"message,omitempty"`
 	Data    interface{} `json:"data,omitempty"`
+}
+
+// Additional response types for tests
+
+type LogResponse struct {
+	Commits []CommitResponse `json:"commits"`
+	Total   int              `json:"total"`
+}
+
+type BranchListResponse struct {
+	Branches []BranchResponse `json:"branches"`
+	Current  string           `json:"current"`
 }

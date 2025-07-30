@@ -70,8 +70,34 @@ func (s *Server) createBranch(c *gin.Context) {
 		return
 	}
 
-	// If 'from' is specified, checkout that branch first
+	// If 'from' is specified, verify it exists and checkout that branch first
 	if req.From != "" {
+		// Check if source branch exists
+		branches, err := repo.ListBranches()
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, ErrorResponse{
+				Error: fmt.Sprintf("failed to list branches: %v", err),
+				Code:  "LIST_BRANCHES_FAILED",
+			})
+			return
+		}
+		
+		branchExists := false
+		for _, branch := range branches {
+			if branch.Name == req.From {
+				branchExists = true
+				break
+			}
+		}
+		
+		if !branchExists {
+			c.JSON(http.StatusNotFound, ErrorResponse{
+				Error: fmt.Sprintf("source branch '%s' not found", req.From),
+				Code:  "BRANCH_NOT_FOUND",
+			})
+			return
+		}
+		
 		if err := repo.Checkout(req.From); err != nil {
 			c.JSON(http.StatusBadRequest, ErrorResponse{
 				Error: fmt.Sprintf("failed to checkout source branch %s: %v", req.From, err),
@@ -81,6 +107,27 @@ func (s *Server) createBranch(c *gin.Context) {
 		}
 	}
 
+	// Check if branch already exists
+	branches, err := repo.ListBranches()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, ErrorResponse{
+			Error: fmt.Sprintf("failed to list branches: %v", err),
+			Code:  "LIST_BRANCHES_FAILED",
+		})
+		return
+	}
+	
+	for _, branch := range branches {
+		branchName := strings.TrimPrefix(branch.Name, "refs/heads/")
+		if branchName == req.Name {
+			c.JSON(http.StatusConflict, ErrorResponse{
+				Error: fmt.Sprintf("branch '%s' already exists", req.Name),
+				Code:  "BRANCH_EXISTS",
+			})
+			return
+		}
+	}
+	
 	// Create the branch
 	if err := repo.Branch(req.Name).Create(); err != nil {
 		c.JSON(http.StatusInternalServerError, ErrorResponse{

@@ -104,6 +104,17 @@ func (m *MemoryRefStore) GetHEAD() (string, error) {
 		return "", fmt.Errorf("HEAD not set")
 	}
 
+	// Handle symbolic references (e.g., "ref: refs/heads/main")
+	if strings.HasPrefix(m.head, "ref: ") {
+		ref := strings.TrimPrefix(m.head, "ref: ")
+		hash, exists := m.refs[ref]
+		if !exists {
+			return "", fmt.Errorf("HEAD points to non-existent ref: %s", ref)
+		}
+		return hash, nil
+	}
+
+	// Handle direct references that start with refs/
 	if strings.HasPrefix(m.head, "refs/") {
 		hash, exists := m.refs[m.head]
 		if !exists {
@@ -407,18 +418,38 @@ func (r *RefManager) SetHEADToCommit(commitHash string) error {
 }
 
 func (r *RefManager) GetCurrentBranch() (string, error) {
-	// Use the store interface to get HEAD
-	head, err := r.store.GetHEAD()
-	if err != nil {
-		return "", fmt.Errorf("failed to get HEAD: %v", err)
+	// We need to get the raw HEAD value, not the resolved one
+	// For MemoryRefStore, we need to access the head field directly
+	if memStore, ok := r.store.(*MemoryRefStore); ok {
+		memStore.mu.RLock()
+		head := memStore.head
+		memStore.mu.RUnlock()
+		
+		if strings.HasPrefix(head, "ref: refs/heads/") {
+			return strings.TrimPrefix(head, "ref: refs/heads/"), nil
+		}
+		return "", fmt.Errorf("HEAD is detached")
 	}
-
-	// HEAD could be a ref or a direct commit hash
-	if strings.HasPrefix(head, "ref: refs/heads/") {
-		return strings.TrimPrefix(head, "ref: refs/heads/"), nil
+	
+	// For FileRefStore, read HEAD file directly
+	if fileStore, ok := r.store.(*FileRefStore); ok {
+		fileStore.mu.RLock()
+		defer fileStore.mu.RUnlock()
+		
+		headPath := filepath.Join(fileStore.path, "HEAD")
+		data, err := os.ReadFile(headPath)
+		if err != nil {
+			return "", fmt.Errorf("failed to read HEAD: %v", err)
+		}
+		
+		content := strings.TrimSpace(string(data))
+		if strings.HasPrefix(content, "ref: refs/heads/") {
+			return strings.TrimPrefix(content, "ref: refs/heads/"), nil
+		}
+		return "", fmt.Errorf("HEAD is detached")
 	}
-
-	return "", fmt.Errorf("HEAD is detached")
+	
+	return "", fmt.Errorf("unknown ref store type")
 }
 
 func (r *RefManager) UpdateRef(name string, newHash string, oldHash string) error {

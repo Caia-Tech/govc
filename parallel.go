@@ -142,6 +142,7 @@ type TransactionalCommit struct {
 	author   object.Author
 	changes  map[string][]byte
 	validated bool
+	mu       sync.Mutex
 }
 
 // Transaction creates a new transactional commit.
@@ -162,6 +163,9 @@ func (r *Repository) Transaction() *TransactionalCommit {
 // Add stages a file in the transaction.
 // Nothing is written to disk until Commit() is called.
 func (tc *TransactionalCommit) Add(path string, content []byte) {
+	tc.mu.Lock()
+	defer tc.mu.Unlock()
+	
 	tc.changes[path] = content
 	hash, _ := tc.repo.store.StoreBlob(content)
 	tc.staging.Add(path, hash)
@@ -170,6 +174,9 @@ func (tc *TransactionalCommit) Add(path string, content []byte) {
 // Validate checks if the transaction is valid.
 // This is where you can run tests, linting, security checks, etc.
 func (tc *TransactionalCommit) Validate() error {
+	tc.mu.Lock()
+	defer tc.mu.Unlock()
+	
 	// Memory-first benefit: We can validate the entire state
 	// before any permanent changes are made
 	for path, content := range tc.changes {
@@ -185,6 +192,9 @@ func (tc *TransactionalCommit) Validate() error {
 // Commit finalizes the transaction if validation passed.
 // Only now do changes become "real" in the repository.
 func (tc *TransactionalCommit) Commit(message string) (*object.Commit, error) {
+	tc.mu.Lock()
+	defer tc.mu.Unlock()
+	
 	if !tc.validated {
 		return nil, fmt.Errorf("transaction not validated")
 	}
@@ -202,6 +212,9 @@ func (tc *TransactionalCommit) Commit(message string) (*object.Commit, error) {
 // Rollback discards all changes in the transaction.
 // Because we're memory-first, this is instant and leaves no trace.
 func (tc *TransactionalCommit) Rollback() {
+	tc.mu.Lock()
+	defer tc.mu.Unlock()
+	
 	tc.changes = make(map[string][]byte)
 	tc.staging = NewStagingArea()
 	tc.validated = false
