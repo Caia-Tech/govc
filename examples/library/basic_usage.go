@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"log"
 
-	"github.com/caia-tech/govc"
+	"github.com/caiatech/govc"
 )
 
 func main() {

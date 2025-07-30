@@ -5,7 +5,7 @@ import (
 	"log"
 	"sync"
 
-	"github.com/caia-tech/govc"
+	"github.com/caiatech/govc"
 )
 
 // This example demonstrates how govc's memory-first approach enables

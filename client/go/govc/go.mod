@@ -1,4 +1,4 @@
-module github.com/caia-tech/govc/client/go/govc
+module github.com/caiatech/govc/client/go/govc
 
 go 1.21
 

@@ -5,13 +5,13 @@ govc is designed as a library-first Git implementation. The CLI is just one way 
 ## Installation
 
 ```bash
-go get github.com/caia-tech/govc
+go get github.com/caiatech/govc
 ```
 
 ## Quick Start
 
 ```go
-import "github.com/caia-tech/govc"
+import "github.com/caiatech/govc"
 
 // Create a memory-first repository
 repo := govc.New()
@@ -204,6 +204,6 @@ func debugIncident(repo *govc.Repository, incidentTime time.Time) {
 
 ## See Also
 
-- [Full API Documentation](https://pkg.go.dev/github.com/caia-tech/govc)
+- [Full API Documentation](https://pkg.go.dev/github.com/caiatech/govc)
 - [Infrastructure Examples](../infrastructure/)
 - [Parallel Testing Guide](../parallel-testing/)

@@ -6,12 +6,12 @@ import (
 	"sync"
 	"time"
 
-	"github.com/caia-tech/govc"
-	"github.com/caia-tech/govc/auth"
-	"github.com/caia-tech/govc/config"
-	"github.com/caia-tech/govc/logging"
-	"github.com/caia-tech/govc/metrics"
-	"github.com/caia-tech/govc/pool"
+	"github.com/caiatech/govc"
+	"github.com/caiatech/govc/auth"
+	"github.com/caiatech/govc/config"
+	"github.com/caiatech/govc/logging"
+	"github.com/caiatech/govc/metrics"
+	"github.com/caiatech/govc/pool"
 	"github.com/gin-gonic/gin"
 )
 
@@ -238,6 +238,9 @@ func (s *Server) RegisterRoutes(router *gin.Engine) {
 		poolRoutes.GET("/stats", s.getPoolStats)
 		poolRoutes.POST("/cleanup", s.cleanupPool)
 	}
+
+	// AI and smart features routes
+	s.setupAIRoutes(v1)
 
 	// Add Prometheus middleware for automatic metrics collection
 	router.Use(s.prometheusMetrics.GinMiddleware())

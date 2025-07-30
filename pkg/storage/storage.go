@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 	"sync"
 
-	"github.com/caia-tech/govc/pkg/object"
+	"github.com/caiatech/govc/pkg/object"
 )
 
 type Backend interface {

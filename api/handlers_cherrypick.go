@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/caia-tech/govc/pkg/object"
+	"github.com/caiatech/govc/pkg/object"
 	"github.com/gin-gonic/gin"
 )
 

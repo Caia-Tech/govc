@@ -5,7 +5,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/caia-tech/govc"
+	"github.com/caiatech/govc"
 )
 
 // RepositoryPool manages a pool of repository connections

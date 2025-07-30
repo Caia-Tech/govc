@@ -6,7 +6,7 @@ import (
 	"log"
 	"os"
 
-	"github.com/caia-tech/govc/client/go/govc"
+	"github.com/caiatech/govc/client/go/govc"
 )
 
 func main() {

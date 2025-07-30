@@ -1,0 +1,356 @@
+package llm
+
+import (
+	"context"
+	"strings"
+	"testing"
+)
+
+func TestNewLLMProvider_Local(t *testing.T) {
+	provider, err := NewLLMProvider("local", "")
+	if err != nil {
+		t.Fatalf("Failed to create local LLM provider: %v", err)
+	}
+	
+	if provider == nil {
+		t.Fatal("Provider should not be nil")
+	}
+	
+	info := provider.GetModelInfo()
+	if info.Provider != "local" {
+		t.Errorf("Expected provider 'local', got %s", info.Provider)
+	}
+}
+
+func TestNewLLMProvider_OpenAI(t *testing.T) {
+	provider, err := NewLLMProvider("openai", "test-key")
+	if err != nil {
+		t.Fatalf("Failed to create OpenAI LLM provider: %v", err)
+	}
+	
+	if provider == nil {
+		t.Fatal("Provider should not be nil")
+	}
+	
+	info := provider.GetModelInfo()
+	if info.Provider != "openai" {
+		t.Errorf("Expected provider 'openai', got %s", info.Provider)
+	}
+}
+
+func TestNewLLMProvider_InvalidProvider(t *testing.T) {
+	_, err := NewLLMProvider("invalid", "")
+	if err == nil {
+		t.Error("Expected error for invalid provider, got nil")
+	}
+}
+
+func TestLocalLLMProvider_GetModelInfo(t *testing.T) {
+	provider := &LocalLLMProvider{}
+	
+	info := provider.GetModelInfo()
+	if info.Provider != "local" {
+		t.Errorf("Expected provider 'local', got %s", info.Provider)
+	}
+	
+	if info.Model != "local-llm" {
+		t.Errorf("Expected model 'local-llm', got %s", info.Model)
+	}
+	
+	if info.MaxTokens != 4096 {
+		t.Errorf("Expected MaxTokens 4096, got %d", info.MaxTokens)
+	}
+}
+
+func TestLocalLLMProvider_GenerateText(t *testing.T) {
+	provider := &LocalLLMProvider{}
+	
+	ctx := context.Background()
+	prompt := "Write a simple function that adds two numbers"
+	options := GenerationOptions{
+		MaxTokens:   100,
+		Temperature: 0.7,
+		TopP:        0.9,
+	}
+	
+	response, err := provider.GenerateText(ctx, prompt, options)
+	if err != nil {
+		t.Fatalf("Failed to generate text: %v", err)
+	}
+	
+	if response == "" {
+		t.Error("Response should not be empty")
+	}
+	
+	// Local provider should return a response that indicates it's a mock
+	if !strings.Contains(response, "mock") && !strings.Contains(response, "local") {
+		t.Error("Local provider response should indicate it's a mock implementation")
+	}
+}
+
+func TestLocalLLMProvider_GenerateStructuredOutput(t *testing.T) {
+	provider := &LocalLLMProvider{}
+	
+	ctx := context.Background()
+	prompt := "Generate a JSON object with name and age fields"
+	schema := map[string]interface{}{
+		"type": "object",
+		"properties": map[string]interface{}{
+			"name": map[string]interface{}{"type": "string"},
+			"age":  map[string]interface{}{"type": "number"},
+		},
+	}
+	options := GenerationOptions{MaxTokens: 50}
+	
+	response, err := provider.GenerateStructuredOutput(ctx, prompt, schema, options)
+	if err != nil {
+		t.Fatalf("Failed to generate structured output: %v", err)
+	}
+	
+	if response == "" {
+		t.Error("Response should not be empty")
+	}
+	
+	// Should return JSON-like structure
+	if !strings.Contains(response, "{") || !strings.Contains(response, "}") {
+		t.Error("Structured output should contain JSON-like structure")
+	}
+}
+
+func TestOpenAILLMProvider_GetModelInfo(t *testing.T) {
+	provider := &OpenAILLMProvider{
+		apiKey: "test-key",
+		model:  "gpt-4o-mini",
+	}
+	
+	info := provider.GetModelInfo()
+	if info.Provider != "openai" {
+		t.Errorf("Expected provider 'openai', got %s", info.Provider)
+	}
+	
+	if info.Model != "gpt-4o-mini" {
+		t.Errorf("Expected model 'gpt-4o-mini', got %s", info.Model)
+	}
+}
+
+func TestOpenAILLMProvider_MissingAPIKey(t *testing.T) {
+	provider := &OpenAILLMProvider{
+		apiKey: "",
+		model:  "gpt-4o-mini",
+	}
+	
+	ctx := context.Background()
+	options := GenerationOptions{MaxTokens: 50}
+	
+	_, err := provider.GenerateText(ctx, "test prompt", options)
+	if err == nil {
+		t.Error("Expected error for missing API key, got nil")
+	}
+}
+
+func TestGenerationOptions_Validation(t *testing.T) {
+	testCases := []struct {
+		name    string
+		options GenerationOptions
+		valid   bool
+	}{
+		{
+			name: "valid options",
+			options: GenerationOptions{
+				MaxTokens:   100,
+				Temperature: 0.7,
+				TopP:        0.9,
+			},
+			valid: true,
+		},
+		{
+			name: "zero max tokens",
+			options: GenerationOptions{
+				MaxTokens:   0,
+				Temperature: 0.7,
+				TopP:        0.9,
+			},
+			valid: false,
+		},
+		{
+			name: "negative temperature",
+			options: GenerationOptions{
+				MaxTokens:   100,
+				Temperature: -0.1,
+				TopP:        0.9,
+			},
+			valid: false,
+		},
+		{
+			name: "temperature too high",
+			options: GenerationOptions{
+				MaxTokens:   100,
+				Temperature: 2.1,
+				TopP:        0.9,
+			},
+			valid: false,
+		},
+		{
+			name: "TopP too low",
+			options: GenerationOptions{
+				MaxTokens:   100,
+				Temperature: 0.7,
+				TopP:        -0.1,
+			},
+			valid: false,
+		},
+		{
+			name: "TopP too high",
+			options: GenerationOptions{
+				MaxTokens:   100,
+				Temperature: 0.7,
+				TopP:        1.1,
+			},
+			valid: false,
+		},
+	}
+	
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			err := validateGenerationOptions(tc.options)
+			if tc.valid && err != nil {
+				t.Errorf("Expected valid options, got error: %v", err)
+			}
+			if !tc.valid && err == nil {
+				t.Error("Expected validation error, got nil")
+			}
+		})
+	}
+}
+
+func TestContextCancellation(t *testing.T) {
+	provider := &LocalLLMProvider{}
+	
+	// Create a cancelled context
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	
+	options := GenerationOptions{MaxTokens: 50}
+	
+	_, err := provider.GenerateText(ctx, "test", options)
+	if err == nil {
+		t.Error("Expected error for cancelled context, got nil")
+	}
+}
+
+func TestModelInfoComparison(t *testing.T) {
+	localProvider := &LocalLLMProvider{}
+	openaiProvider := &OpenAILLMProvider{
+		apiKey: "test",
+		model:  "gpt-4",
+	}
+	
+	localInfo := localProvider.GetModelInfo()
+	openaiInfo := openaiProvider.GetModelInfo()
+	
+	if localInfo.Provider == openaiInfo.Provider {
+		t.Error("Different providers should have different provider names")
+	}
+	
+	if localInfo.MaxTokens == 0 {
+		t.Error("Local provider should have MaxTokens set")
+	}
+	
+	if openaiInfo.MaxTokens == 0 {
+		t.Error("OpenAI provider should have MaxTokens set")
+	}
+}
+
+// Helper function for validation (would be implemented in the actual code)
+func validateGenerationOptions(options GenerationOptions) error {
+	if options.MaxTokens <= 0 {
+		return &ValidationError{Field: "MaxTokens", Message: "must be positive"}
+	}
+	
+	if options.Temperature < 0 || options.Temperature > 2 {
+		return &ValidationError{Field: "Temperature", Message: "must be between 0 and 2"}
+	}
+	
+	if options.TopP < 0 || options.TopP > 1 {
+		return &ValidationError{Field: "TopP", Message: "must be between 0 and 1"}
+	}
+	
+	return nil
+}
+
+type ValidationError struct {
+	Field   string
+	Message string
+}
+
+func (e *ValidationError) Error() string {
+	return e.Field + ": " + e.Message
+}
+
+// Benchmark tests
+func BenchmarkLocalLLMProvider_GenerateText(b *testing.B) {
+	provider := &LocalLLMProvider{}
+	ctx := context.Background()
+	prompt := "Write a function that calculates fibonacci numbers"
+	options := GenerationOptions{
+		MaxTokens:   100,
+		Temperature: 0.7,
+		TopP:        0.9,
+	}
+	
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_, err := provider.GenerateText(ctx, prompt, options)
+		if err != nil {
+			b.Fatalf("GenerateText failed: %v", err)
+		}
+	}
+}
+
+func BenchmarkLocalLLMProvider_GenerateStructuredOutput(b *testing.B) {
+	provider := &LocalLLMProvider{}
+	ctx := context.Background()
+	prompt := "Generate user data"
+	schema := map[string]interface{}{
+		"type": "object",
+		"properties": map[string]interface{}{
+			"name": map[string]interface{}{"type": "string"},
+			"age":  map[string]interface{}{"type": "number"},
+		},
+	}
+	options := GenerationOptions{MaxTokens: 50}
+	
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_, err := provider.GenerateStructuredOutput(ctx, prompt, schema, options)
+		if err != nil {
+			b.Fatalf("GenerateStructuredOutput failed: %v", err)
+		}
+	}
+}
+
+// Test concurrent access
+func TestLLMProvider_ConcurrentAccess(t *testing.T) {
+	provider := &LocalLLMProvider{}
+	ctx := context.Background()
+	options := GenerationOptions{MaxTokens: 50}
+	
+	done := make(chan bool, 5)
+	
+	for i := 0; i < 5; i++ {
+		go func(id int) {
+			defer func() { done <- true }()
+			
+			prompt := "Test prompt " + string(rune('A'+id))
+			_, err := provider.GenerateText(ctx, prompt, options)
+			if err != nil {
+				t.Errorf("Concurrent generation failed: %v", err)
+			}
+		}(i)
+	}
+	
+	// Wait for all goroutines to complete
+	for i := 0; i < 5; i++ {
+		<-done
+	}
+}

@@ -5,7 +5,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/caia-tech/govc"
+	"github.com/caiatech/govc"
 )
 
 // This example demonstrates the future of govc: distributed reality synchronization.

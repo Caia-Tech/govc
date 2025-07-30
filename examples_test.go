@@ -5,7 +5,7 @@ import (
 	"log"
 	"time"
 
-	"github.com/caia-tech/govc"
+	"github.com/caiatech/govc"
 )
 
 // Example demonstrates basic govc usage as a library

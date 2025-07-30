@@ -5,7 +5,7 @@ The official Go client library for interacting with govc servers.
 ## Installation
 
 ```bash
-go get github.com/caia-tech/govc/client/go/govc
+go get github.com/caiatech/govc/client/go/govc
 ```
 
 ## Quick Start
@@ -18,7 +18,7 @@ import (
     "fmt"
     "log"
     
-    "github.com/caia-tech/govc/client/go/govc"
+    "github.com/caiatech/govc/client/go/govc"
 )
 
 func main() {
@@ -261,7 +261,7 @@ See the [examples](examples/) directory for more complete examples:
 
 ## API Reference
 
-For complete API documentation, see the [GoDoc](https://pkg.go.dev/github.com/caia-tech/govc/client/go/govc).
+For complete API documentation, see the [GoDoc](https://pkg.go.dev/github.com/caiatech/govc/client/go/govc).
 
 ## Contributing
 

@@ -5,12 +5,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/caia-tech/govc"
-	"github.com/caia-tech/govc/auth"
-	"github.com/caia-tech/govc/config"
-	"github.com/caia-tech/govc/logging"
-	"github.com/caia-tech/govc/metrics"
-	"github.com/caia-tech/govc/pool"
+	"github.com/caiatech/govc"
+	"github.com/caiatech/govc/auth"
+	"github.com/caiatech/govc/config"
+	"github.com/caiatech/govc/logging"
+	"github.com/caiatech/govc/metrics"
+	"github.com/caiatech/govc/pool"
 )
 
 // BenchmarkSimpleOperations tests basic operations

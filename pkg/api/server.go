@@ -7,8 +7,8 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/caia-tech/govc"
-	"github.com/caia-tech/govc/pkg/object"
+	"github.com/caiatech/govc"
+	"github.com/caiatech/govc/pkg/object"
 	"github.com/gorilla/mux"
 )
 

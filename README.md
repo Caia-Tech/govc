@@ -4,7 +4,7 @@
 
 [![Go](https://img.shields.io/badge/Go-1.20+-blue.svg)](https://golang.org)
 [![License](https://img.shields.io/badge/License-Apache%202.0-green.svg)](LICENSE)
-[![Tests](https://img.shields.io/badge/Tests-Passing-brightgreen.svg)](https://github.com/caia-tech/govc)
+[![Tests](https://img.shields.io/badge/Tests-Passing-brightgreen.svg)](https://github.com/caiatech/govc)
 
 ## 🚀 What is govc?
 
@@ -38,7 +38,7 @@ govc is a complete Git implementation written in pure Go, featuring:
 
 ```bash
 # Clone the repository
-git clone https://github.com/caia-tech/govc.git
+git clone https://github.com/caiatech/govc.git
 cd govc
 
 # Build the server
@@ -62,7 +62,7 @@ package main
 
 import (
     "log"
-    "github.com/caia-tech/govc"
+    "github.com/caiatech/govc"
 )
 
 func main() {
@@ -363,7 +363,7 @@ All logs are in JSON format with correlation:
 ### From Source
 
 ```bash
-git clone https://github.com/caia-tech/govc.git
+git clone https://github.com/caiatech/govc.git
 cd govc
 go build -o govc-server ./cmd/govc-server
 ```
@@ -371,7 +371,7 @@ go build -o govc-server ./cmd/govc-server
 ### As Go Module
 
 ```bash
-go get github.com/caia-tech/govc
+go get github.com/caiatech/govc
 ```
 
 ### Docker (Coming Soon)
@@ -553,7 +553,7 @@ We welcome contributions! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for guid
 ### Development Setup
 
 ```bash
-git clone https://github.com/caia-tech/govc.git
+git clone https://github.com/caiatech/govc.git
 cd govc
 go mod download
 go test ./...

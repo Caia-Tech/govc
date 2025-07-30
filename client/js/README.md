@@ -5,17 +5,17 @@ The official JavaScript/TypeScript client library for interacting with govc serv
 ## Installation
 
 ```bash
-npm install @caia-tech/govc-client
+npm install @caiatech/govc-client
 # or
-yarn add @caia-tech/govc-client
+yarn add @caiatech/govc-client
 # or
-pnpm add @caia-tech/govc-client
+pnpm add @caiatech/govc-client
 ```
 
 ## Quick Start
 
 ```typescript
-import { GovcClient } from '@caia-tech/govc-client';
+import { GovcClient } from '@caiatech/govc-client';
 
 // Create a client
 const client = new GovcClient('https://govc.example.com');
@@ -262,7 +262,7 @@ console.log(`Commit: ${snapshot.commit.message} by ${snapshot.commit.author}`);
 The SDK provides typed errors for better error handling:
 
 ```typescript
-import { GovcError } from '@caia-tech/govc-client';
+import { GovcError } from '@caiatech/govc-client';
 
 try {
   const repo = await client.getRepo('non-existent');
@@ -300,7 +300,7 @@ import {
   Branch,
   CreateRepoOptions,
   RepositoryEvent
-} from '@caia-tech/govc-client';
+} from '@caiatech/govc-client';
 
 // All types are fully typed
 const handleEvent = (event: RepositoryEvent): void => {
@@ -356,7 +356,7 @@ async function runCI() {
 ```typescript
 // useRepository.ts
 import { useEffect, useState } from 'react';
-import { GovcClient, RepositoryClient, RepositoryEvent } from '@caia-tech/govc-client';
+import { GovcClient, RepositoryClient, RepositoryEvent } from '@caiatech/govc-client';
 
 export function useRepository(repoId: string) {
   const [repo, setRepo] = useState<RepositoryClient | null>(null);
@@ -390,7 +390,7 @@ The SDK works in both Node.js and browser environments. For browsers, ensure you
 
 ## API Reference
 
-For detailed API documentation, see the [TypeScript definitions](https://github.com/caia-tech/govc/tree/main/client/js/src/types.ts).
+For detailed API documentation, see the [TypeScript definitions](https://github.com/caiatech/govc/tree/main/client/js/src/types.ts).
 
 ## Contributing
 

@@ -1,0 +1,674 @@
+package llm
+
+import (
+	"context"
+	"strings"
+	"testing"
+	"time"
+)
+
+// Mock repository for conflict resolution testing
+type mockConflictRepository struct {
+	status       *mockConflictStatus
+	files        map[string][]byte
+	commits      []*mockConflictCommit
+}
+
+type mockConflictStatus struct {
+	Modified []string
+	Staged   []string
+}
+
+type mockConflictCommit struct {
+	hash    string
+	message string
+	author  mockConflictAuthor
+}
+
+type mockConflictAuthor struct {
+	Name string
+	Time time.Time
+}
+
+func (m *mockConflictRepository) Status() (*mockConflictStatus, error) {
+	return m.status, nil
+}
+
+func (m *mockConflictRepository) ReadFile(path string) ([]byte, error) {
+	if content, exists := m.files[path]; exists {
+		return content, nil
+	}
+	return nil, &FileNotFoundError{Path: path}
+}
+
+func (m *mockConflictRepository) Log(limit int) ([]*mockConflictCommit, error) {
+	if limit > len(m.commits) {
+		limit = len(m.commits)
+	}
+	return m.commits[:limit], nil
+}
+
+type FileNotFoundError struct {
+	Path string
+}
+
+func (e *FileNotFoundError) Error() string {
+	return "file not found: " + e.Path
+}
+
+func TestDefaultConflictResolutionConfig(t *testing.T) {
+	config := DefaultConflictResolutionConfig()
+	
+	if config.Provider != "local" {
+		t.Errorf("Expected default provider 'local', got %s", config.Provider)
+	}
+	
+	if config.Confidence != 0.8 {
+		t.Errorf("Expected default confidence 0.8, got %f", config.Confidence)
+	}
+	
+	if config.MaxContextLines != 10 {
+		t.Errorf("Expected default MaxContextLines 10, got %d", config.MaxContextLines)
+	}
+	
+	if config.AutoApply {
+		t.Error("Expected AutoApply to be false by default")
+	}
+	
+	if !config.BackupEnabled {
+		t.Error("Expected BackupEnabled to be true by default")
+	}
+}
+
+func TestNewConflictResolver(t *testing.T) {
+	provider := &mockLLMProvider{}
+	config := DefaultConflictResolutionConfig()
+	
+	resolver := NewConflictResolver(provider, config)
+	
+	if resolver == nil {
+		t.Fatal("Resolver should not be nil")
+	}
+	
+	if resolver.provider != provider {
+		t.Error("Provider not set correctly")
+	}
+	
+	if resolver.config.Confidence != config.Confidence {
+		t.Error("Config not set correctly")
+	}
+}
+
+func TestConflictResolver_ParseConflictMarkers(t *testing.T) {
+	provider := &mockLLMProvider{}
+	config := DefaultConflictResolutionConfig()
+	resolver := NewConflictResolver(provider, config)
+	
+	conflictContent := `package main
+
+import "fmt"
+
+func main() {
+<<<<<<< HEAD
+    fmt.Println("Hello from main branch")
+    fmt.Println("Additional line")
+=======
+    fmt.Println("Hello from feature branch")
+    fmt.Println("Different line")
+>>>>>>> feature-branch
+}
+`
+	
+	conflicts, err := resolver.parseConflictMarkers(conflictContent, "main.go")
+	if err != nil {
+		t.Fatalf("Failed to parse conflict markers: %v", err)
+	}
+	
+	if len(conflicts) != 1 {
+		t.Fatalf("Expected 1 conflict, got %d", len(conflicts))
+	}
+	
+	conflict := conflicts[0]
+	if conflict.StartLine == 0 {
+		t.Error("StartLine should be set")
+	}
+	
+	if conflict.EndLine == 0 {
+		t.Error("EndLine should be set")
+	}
+	
+	if !strings.Contains(conflict.OurCode, "main branch") {
+		t.Error("OurCode should contain main branch content")
+	}
+	
+	if !strings.Contains(conflict.TheirCode, "feature branch") {
+		t.Error("TheirCode should contain feature branch content")
+	}
+	
+	if conflict.ConflictHash == "" {
+		t.Error("ConflictHash should be set")
+	}
+}
+
+func TestConflictResolver_ParseMultipleConflicts(t *testing.T) {
+	provider := &mockLLMProvider{}
+	config := DefaultConflictResolutionConfig()
+	resolver := NewConflictResolver(provider, config)
+	
+	multiConflictContent := `package main
+
+<<<<<<< HEAD
+func first() {
+    return "first from main"
+}
+=======
+func first() {
+    return "first from feature"
+}
+>>>>>>> feature
+
+func middle() {
+    return "no conflict"
+}
+
+<<<<<<< HEAD
+func second() {
+    return "second from main"
+}
+=======
+func second() {
+    return "second from feature"
+}
+>>>>>>> feature
+`
+	
+	conflicts, err := resolver.parseConflictMarkers(multiConflictContent, "test.go")
+	if err != nil {
+		t.Fatalf("Failed to parse multiple conflicts: %v", err)
+	}
+	
+	if len(conflicts) != 2 {
+		t.Fatalf("Expected 2 conflicts, got %d", len(conflicts))
+	}
+	
+	// Check that conflicts are properly separated
+	if conflicts[0].StartLine >= conflicts[1].StartLine {
+		t.Error("Conflicts should be ordered by line number")
+	}
+	
+	if conflicts[0].ConflictHash == conflicts[1].ConflictHash {
+		t.Error("Conflicts should have different hashes")
+	}
+}
+
+func TestConflictResolver_BuildPrompt(t *testing.T) {
+	provider := &mockLLMProvider{}
+	config := DefaultConflictResolutionConfig()
+	config.Language = "go"
+	resolver := NewConflictResolver(provider, config)
+	
+	conflict := ConflictSection{
+		StartLine:    5,
+		EndLine:      10,
+		OurCode:      "func hello() {\n    return \"main\"\n}",
+		TheirCode:    "func hello() {\n    return \"feature\"\n}",
+		Context:      []string{"package main", "", "import \"fmt\""},
+		ConflictHash: "test-hash",
+	}
+	
+	context := ConflictContext{
+		BranchNames: BranchInfo{
+			OurBranch:   "main",
+			TheirBranch: "feature-branch",
+			BaseBranch:  "main",
+		},
+		RecentCommits: []CommitInfo{
+			{
+				Hash:    "abc123",
+				Message: "Add initial function",
+				Author:  "Test User",
+				Date:    time.Now(),
+				Branch:  "main",
+			},
+		},
+	}
+	
+	prompt := resolver.buildConflictPrompt(conflict, context)
+	
+	if prompt == "" {
+		t.Error("Prompt should not be empty")
+	}
+	
+	// Should contain conflict information
+	if !strings.Contains(prompt, "main") && !strings.Contains(prompt, "feature") {
+		t.Error("Prompt should contain branch information")
+	}
+	
+	if !strings.Contains(prompt, "func hello()") {
+		t.Error("Prompt should contain conflict code")
+	}
+	
+	if !strings.Contains(prompt, "go") {
+		t.Error("Prompt should mention the language")
+	}
+	
+	// Should contain instructions
+	if !strings.Contains(prompt, "RESOLUTION") {
+		t.Error("Prompt should contain resolution instructions")
+	}
+}
+
+func TestConflictResolver_GenerateResolutionSuggestions(t *testing.T) {
+	// Mock provider that returns a structured response
+	provider := &mockLLMProvider{
+		responses: map[string]string{
+			"conflict": `
+RESOLUTION:
+func hello() {
+    return "merged version"
+}
+
+CONFIDENCE: 0.9
+
+REASONING:
+Combined both versions to create a unified approach.
+
+RISKS:
+- May need testing to ensure functionality
+
+TESTS:
+- Unit test the hello function
+- Integration test with calling code
+`,
+		},
+	}
+	
+	config := DefaultConflictResolutionConfig()
+	resolver := NewConflictResolver(provider, config)
+	
+	conflict := ConflictSection{
+		OurCode:      "return \"main\"",
+		TheirCode:    "return \"feature\"",
+		ConflictHash: "test-hash",
+	}
+	
+	context := ConflictContext{
+		BranchNames: BranchInfo{
+			OurBranch:   "main",
+			TheirBranch: "feature",
+		},
+	}
+	
+	ctx := context.Background()
+	suggestions, err := resolver.GenerateResolutionSuggestions(ctx, conflict, context)
+	if err != nil {
+		t.Fatalf("Failed to generate suggestions: %v", err)
+	}
+	
+	if len(suggestions) == 0 {
+		t.Fatal("Expected at least one suggestion")
+	}
+	
+	suggestion := suggestions[0]
+	if suggestion.ConflictHash != "test-hash" {
+		t.Error("Suggestion should reference the correct conflict")
+	}
+	
+	if suggestion.Resolution == "" {
+		t.Error("Suggestion should have a resolution")
+	}
+	
+	if suggestion.Confidence < 0 || suggestion.Confidence > 1 {
+		t.Errorf("Invalid confidence score: %f", suggestion.Confidence)
+	}
+	
+	if suggestion.Reasoning == "" {
+		t.Error("Suggestion should have reasoning")
+	}
+}
+
+func TestConflictResolver_ExtractConfidence(t *testing.T) {
+	provider := &mockLLMProvider{}
+	config := DefaultConflictResolutionConfig()
+	resolver := NewConflictResolver(provider, config)
+	
+	testCases := []struct {
+		response string
+		expected float64
+	}{
+		{"CONFIDENCE: 0.9", 0.9},
+		{"Confidence level: 0.75", 0.75},
+		{"CONFIDENCE: 85%", 0.85},  // Percentage
+		{"confidence: 95", 0.95},   // Without decimal
+		{"No confidence mentioned", 0.5}, // Default
+		{"CONFIDENCE: 1.5", 0.5},   // Invalid (too high)
+		{"CONFIDENCE: -0.1", 0.5},  // Invalid (negative)
+	}
+	
+	for _, tc := range testCases {
+		result := resolver.extractConfidence(tc.response)
+		if result != tc.expected {
+			t.Errorf("Response '%s': expected confidence %f, got %f", 
+				tc.response, tc.expected, result)
+		}
+	}
+}
+
+func TestConflictResolver_ExtractRisks(t *testing.T) {
+	provider := &mockLLMProvider{}
+	config := DefaultConflictResolutionConfig()
+	resolver := NewConflictResolver(provider, config)
+	
+	response := `
+RESOLUTION: Some code here
+
+RISKS:
+- May break existing functionality
+- Requires thorough testing
+- Could affect performance
+
+TESTS: Some tests
+`
+	
+	risks := resolver.extractRisks(response)
+	
+	if len(risks) != 3 {
+		t.Errorf("Expected 3 risks, got %d", len(risks))
+	}
+	
+	expectedRisks := []string{
+		"May break existing functionality",
+		"Requires thorough testing", 
+		"Could affect performance",
+	}
+	
+	for i, expected := range expectedRisks {
+		if i >= len(risks) || risks[i] != expected {
+			t.Errorf("Risk %d: expected '%s', got '%s'", i, expected, risks[i])
+		}
+	}
+}
+
+func TestConflictResolver_DetectFileType(t *testing.T) {
+	provider := &mockLLMProvider{}
+	config := DefaultConflictResolutionConfig()
+	resolver := NewConflictResolver(provider, config)
+	
+	testCases := []struct {
+		filename string
+		expected string
+	}{
+		{"main.go", "go"},
+		{"script.js", "javascript"},
+		{"app.py", "python"},
+		{"Main.java", "java"},
+		{"unknown.xyz", "text"},
+	}
+	
+	for _, tc := range testCases {
+		result := resolver.detectFileType(tc.filename)
+		if result != tc.expected {
+			t.Errorf("File %s: expected type %s, got %s", 
+				tc.filename, tc.expected, result)
+		}
+	}
+}
+
+func TestConflictResolver_CalculateOverallRisk(t *testing.T) {
+	provider := &mockLLMProvider{}
+	config := DefaultConflictResolutionConfig()
+	resolver := NewConflictResolver(provider, config)
+	
+	testCases := []struct {
+		name        string
+		suggestions []ResolutionSuggestion
+		expected    string
+	}{
+		{
+			name:        "no suggestions",
+			suggestions: []ResolutionSuggestion{},
+			expected:    "unknown",
+		},
+		{
+			name: "low risk",
+			suggestions: []ResolutionSuggestion{
+				{Confidence: 0.9, Risks: []string{"minor issue"}},
+				{Confidence: 0.8, Risks: []string{}},
+			},
+			expected: "low",
+		},
+		{
+			name: "high risk",
+			suggestions: []ResolutionSuggestion{
+				{Confidence: 0.3, Risks: []string{"major", "critical", "breaking"}},
+				{Confidence: 0.4, Risks: []string{"serious", "problematic"}},
+			},
+			expected: "high",
+		},
+		{
+			name: "medium risk",
+			suggestions: []ResolutionSuggestion{
+				{Confidence: 0.7, Risks: []string{"moderate", "some concern"}},
+				{Confidence: 0.8, Risks: []string{}},
+				{Confidence: 0.5, Risks: []string{"issue"}},
+			},
+			expected: "medium",
+		},
+	}
+	
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			result := resolver.calculateOverallRisk(tc.suggestions)
+			if result != tc.expected {
+				t.Errorf("Expected risk %s, got %s", tc.expected, result)
+			}
+		})
+	}
+}
+
+func TestConflictResolver_EstimateResolutionTime(t *testing.T) {
+	provider := &mockLLMProvider{}
+	config := DefaultConflictResolutionConfig()
+	resolver := NewConflictResolver(provider, config)
+	
+	testCases := []struct {
+		conflictCount int
+		expectedRange string
+	}{
+		{1, "< 10 minutes"},
+		{2, "~10 minutes"},
+		{5, "~25 minutes"},
+		{15, "~1 hours"},
+		{20, "~1 hours"},
+	}
+	
+	for _, tc := range testCases {
+		result := resolver.estimateResolutionTime(tc.conflictCount)
+		if !strings.Contains(result, strings.Split(tc.expectedRange, " ")[0]) {
+			t.Errorf("Conflict count %d: expected time containing '%s', got '%s'", 
+				tc.conflictCount, tc.expectedRange, result)
+		}
+	}
+}
+
+func TestConflictResolver_NoConflictMarkers(t *testing.T) {
+	provider := &mockLLMProvider{}
+	config := DefaultConflictResolutionConfig()
+	resolver := NewConflictResolver(provider, config)
+	
+	cleanContent := `package main
+
+import "fmt"
+
+func main() {
+    fmt.Println("No conflicts here")
+}
+`
+	
+	conflicts, err := resolver.parseConflictMarkers(cleanContent, "main.go")
+	if err != nil {
+		t.Fatalf("Should not error on clean content: %v", err)
+	}
+	
+	if len(conflicts) != 0 {
+		t.Errorf("Expected 0 conflicts in clean content, got %d", len(conflicts))
+	}
+}
+
+func TestConflictResolver_MalformedConflictMarkers(t *testing.T) {
+	provider := &mockLLMProvider{}
+	config := DefaultConflictResolutionConfig()
+	resolver := NewConflictResolver(provider, config)
+	
+	malformedContent := `package main
+
+<<<<<<< HEAD
+func test() {
+    return "incomplete conflict"
+// Missing separator and end marker
+}
+`
+	
+	conflicts, err := resolver.parseConflictMarkers(malformedContent, "test.go")
+	if err != nil {
+		t.Fatalf("Should handle malformed markers gracefully: %v", err)
+	}
+	
+	// Should not find any complete conflicts
+	if len(conflicts) != 0 {
+		t.Errorf("Expected 0 conflicts in malformed content, got %d", len(conflicts))
+	}
+}
+
+func TestConflictResolver_ContextCancellation(t *testing.T) {
+	provider := &mockLLMProvider{}
+	config := DefaultConflictResolutionConfig()
+	resolver := NewConflictResolver(provider, config)
+	
+	conflict := ConflictSection{
+		OurCode:      "test",
+		TheirCode:    "test2",
+		ConflictHash: "hash",
+	}
+	
+	context := ConflictContext{}
+	
+	// Create cancelled context
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	
+	_, err := resolver.GenerateResolutionSuggestions(ctx, conflict, context)
+	if err == nil {
+		t.Error("Expected error for cancelled context")
+	}
+}
+
+// Test file reading scenarios
+func TestConflictResolver_AnalyzeFileConflicts(t *testing.T) {
+	provider := &mockLLMProvider{}
+	config := DefaultConflictResolutionConfig()
+	resolver := NewConflictResolver(provider, config)
+	
+	conflictContent := `package main
+<<<<<<< HEAD
+func main() {
+    fmt.Println("Hello Main")
+}
+=======
+func main() {
+    fmt.Println("Hello Feature")
+}
+>>>>>>> feature
+`
+	
+	repo := &mockConflictRepository{
+		files: map[string][]byte{
+			"main.go": []byte(conflictContent),
+		},
+		commits: []*mockConflictCommit{
+			{
+				hash:    "abc123",
+				message: "Test commit",
+				author:  mockConflictAuthor{Name: "Test", Time: time.Now()},
+			},
+		},
+	}
+	
+	ctx := context.Background()
+	result, err := resolver.analyzeFileConflicts(ctx, repo, "main.go")
+	if err != nil {
+		t.Fatalf("Failed to analyze file conflicts: %v", err)
+	}
+	
+	if result.TotalConflicts != 1 {
+		t.Errorf("Expected 1 conflict, got %d", result.TotalConflicts)
+	}
+	
+	if result.FilePath != "main.go" {
+		t.Errorf("Expected FilePath 'main.go', got %s", result.FilePath)
+	}
+	
+	if result.OverallRisk == "" {
+		t.Error("OverallRisk should be set")
+	}
+	
+	if result.EstimatedTime == "" {
+		t.Error("EstimatedTime should be set")
+	}
+}
+
+// Benchmark tests
+func BenchmarkConflictResolver_ParseConflictMarkers(b *testing.B) {
+	provider := &mockLLMProvider{}
+	config := DefaultConflictResolutionConfig()
+	resolver := NewConflictResolver(provider, config)
+	
+	conflictContent := strings.Repeat(`
+<<<<<<< HEAD
+func conflict`+string(rune('0'+b.N%10))+`() {
+    return "main branch"
+}
+=======
+func conflict`+string(rune('0'+b.N%10))+`() {
+    return "feature branch"
+}
+>>>>>>> feature
+`, 10)
+	
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_, err := resolver.parseConflictMarkers(conflictContent, "test.go")
+		if err != nil {
+			b.Fatalf("Parse failed: %v", err)
+		}
+	}
+}
+
+func BenchmarkConflictResolver_GenerateResolutionSuggestions(b *testing.B) {
+	provider := &mockLLMProvider{}
+	config := DefaultConflictResolutionConfig()
+	resolver := NewConflictResolver(provider, config)
+	
+	conflict := ConflictSection{
+		OurCode:      "return \"main\"",
+		TheirCode:    "return \"feature\"",
+		ConflictHash: "bench-hash",
+	}
+	
+	context := ConflictContext{
+		BranchNames: BranchInfo{
+			OurBranch:   "main",
+			TheirBranch: "feature",
+		},
+	}
+	
+	ctx := context.Background()
+	
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_, err := resolver.GenerateResolutionSuggestions(ctx, conflict, context)
+		if err != nil {
+			b.Fatalf("Generation failed: %v", err)
+		}
+	}
+}

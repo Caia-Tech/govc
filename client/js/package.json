@@ -1,5 +1,5 @@
 {
-  "name": "@caia-tech/govc-client",
+  "name": "@caiatech/govc-client",
   "version": "1.0.0",
   "description": "TypeScript/JavaScript client library for govc",
   "main": "dist/index.js",

@@ -6,7 +6,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/caia-tech/govc/auth"
+	"github.com/caiatech/govc/auth"
 	"github.com/gin-gonic/gin"
 )
 

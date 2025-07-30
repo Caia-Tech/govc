@@ -1,4 +1,4 @@
-const { GovcClient } = require('@caia-tech/govc-client');
+const { GovcClient } = require('@caiatech/govc-client');
 
 async function main() {
   // Create client

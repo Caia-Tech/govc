@@ -5,7 +5,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/caia-tech/govc"
+	"github.com/caiatech/govc"
 	"github.com/spf13/cobra"
 )
 
@@ -30,6 +30,16 @@ func init() {
 	rootCmd.AddCommand(checkoutCmd)
 	rootCmd.AddCommand(mergeCmd)
 	rootCmd.AddCommand(serveCmd)
+	rootCmd.AddCommand(authCmd)
+	rootCmd.AddCommand(configCmd)
+	rootCmd.AddCommand(remoteCmd)
+	rootCmd.AddCommand(userCmd)
+	rootCmd.AddCommand(importCmd)
+	rootCmd.AddCommand(exportCmd)
+	rootCmd.AddCommand(migrateCmd)
+	rootCmd.AddCommand(backupCmd)
+	rootCmd.AddCommand(restoreCmd)
+	rootCmd.AddCommand(aiCmd)
 }
 
 var initCmd = &cobra.Command{

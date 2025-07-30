@@ -17,9 +17,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/caia-tech/govc/pkg/object"
-	"github.com/caia-tech/govc/pkg/refs"
-	"github.com/caia-tech/govc/pkg/storage"
+	"github.com/caiatech/govc/pkg/object"
+	"github.com/caiatech/govc/pkg/refs"
+	"github.com/caiatech/govc/pkg/storage"
 	"github.com/google/uuid"
 	"github.com/gorilla/mux"
 )

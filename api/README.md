@@ -273,7 +273,7 @@ curl -X POST http://localhost:8080/api/v1/repos/infra-test/merge \
 
 ### JavaScript/Node.js
 ```javascript
-const GovcClient = require('@caia-tech/govc-client');
+const GovcClient = require('@caiatech/govc-client');
 
 const client = new GovcClient({
   baseURL: 'http://localhost:8080',

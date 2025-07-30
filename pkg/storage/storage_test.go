@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/caia-tech/govc/pkg/object"
+	"github.com/caiatech/govc/pkg/object"
 )
 
 func TestMemoryBackend(t *testing.T) {

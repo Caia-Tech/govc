@@ -11,9 +11,9 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/caia-tech/govc/api"
-	"github.com/caia-tech/govc/config"
-	"github.com/caia-tech/govc/logging"
+	"github.com/caiatech/govc/api"
+	"github.com/caiatech/govc/config"
+	"github.com/caiatech/govc/logging"
 	"github.com/gin-gonic/gin"
 )
 

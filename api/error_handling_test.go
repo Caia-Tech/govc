@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/caia-tech/govc/config"
+	"github.com/caiatech/govc/config"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 )

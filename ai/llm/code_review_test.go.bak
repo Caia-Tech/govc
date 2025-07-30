@@ -1,0 +1,747 @@
+package llm
+
+import (
+	"context"
+	"strings"
+	"testing"
+	"time"
+)
+
+// Mock repository for code review testing
+type mockReviewRepository struct {
+	files   map[string][]byte
+	commits []*mockReviewCommit
+}
+
+type mockReviewCommit struct {
+	hash    string
+	message string
+	author  mockReviewAuthor
+}
+
+type mockReviewAuthor struct {
+	Name string
+	Time time.Time
+}
+
+func (m *mockReviewRepository) ListFiles() ([]string, error) {
+	var files []string
+	for path := range m.files {
+		files = append(files, path)
+	}
+	return files, nil
+}
+
+func (m *mockReviewRepository) ReadFile(path string) ([]byte, error) {
+	if content, exists := m.files[path]; exists {
+		return content, nil
+	}
+	return nil, &ReviewFileNotFoundError{Path: path}
+}
+
+func (m *mockReviewRepository) Log(limit int) ([]*mockReviewCommit, error) {
+	if limit > len(m.commits) {
+		limit = len(m.commits)
+	}
+	return m.commits[:limit], nil
+}
+
+func (m *mockReviewRepository) Hash() string {
+	if len(m.commits) > 0 {
+		return m.commits[0].hash
+	}
+	return "abc123"
+}
+
+type ReviewFileNotFoundError struct {
+	Path string
+}
+
+func (e *ReviewFileNotFoundError) Error() string {
+	return "file not found: " + e.Path
+}
+
+// Mock LLM provider that returns structured code review responses
+type mockCodeReviewLLMProvider struct{}
+
+func (m *mockCodeReviewLLMProvider) GenerateText(ctx context.Context, prompt string, options GenerationOptions) (string, error) {
+	// Return different responses based on prompt content
+	if strings.Contains(prompt, "security") {
+		return `
+ISSUES:
+CRITICAL|SECURITY|15|SQL Injection Risk|Direct string concatenation in SQL query
+WARNING|PERFORMANCE|8|Inefficient Loop|Consider using map lookup instead of linear search
+
+SUGGESTIONS:
+REFACTOR|12|Extract Method|Extract validation logic into separate method|if (user.isValid())|if (validateUser(user))
+
+ASSESSMENT:
+Code has security vulnerabilities that need immediate attention. Performance could be improved.
+`, nil
+	}
+	
+	if strings.Contains(prompt, "comprehensive") {
+		return `
+ISSUES:
+ERROR|BUG|5|Null Pointer Risk|Variable may be null before use
+WARNING|MAINTAINABILITY|20|Complex Function|Function has too many responsibilities
+INFO|STYLE|1|Naming Convention|Variable name should use camelCase
+
+SUGGESTIONS:
+OPTIMIZE|25|Cache Result|Cache expensive computation result|result = compute()|result = cache.get() || compute()
+SIMPLIFY|30|Reduce Complexity|Break down large function into smaller ones|largeFunction()|splitIntoSmaller()
+
+ASSESSMENT:
+Overall good code quality with minor improvements needed.
+`, nil
+	}
+	
+	// Default response
+	return `
+ISSUES:
+INFO|STYLE|10|Code Style|Minor formatting issues
+
+ASSESSMENT:
+Clean code with no major issues found.
+`, nil
+}
+
+func (m *mockCodeReviewLLMProvider) GenerateStructuredOutput(ctx context.Context, prompt string, schema map[string]interface{}, options GenerationOptions) (string, error) {
+	return `{"issues": [], "suggestions": [], "score": 85}`, nil
+}
+
+func (m *mockCodeReviewLLMProvider) GetModelInfo() ModelInfo {
+	return ModelInfo{
+		Provider:  "mock-review",
+		Model:     "mock-review-model",
+		MaxTokens: 2000,
+	}
+}
+
+func TestDefaultCodeReviewConfig(t *testing.T) {
+	config := DefaultCodeReviewConfig()
+	
+	if config.Provider != "local" {
+		t.Errorf("Expected default provider 'local', got %s", config.Provider)
+	}
+	
+	if config.ReviewDepth != "detailed" {
+		t.Errorf("Expected default review depth 'detailed', got %s", config.ReviewDepth)
+	}
+	
+	if config.AutoComment {
+		t.Error("Expected AutoComment to be false by default")
+	}
+	
+	if config.SeverityThreshold != "warning" {
+		t.Errorf("Expected default severity threshold 'warning', got %s", config.SeverityThreshold)
+	}
+	
+	if config.ContextLines != 3 {
+		t.Errorf("Expected default context lines 3, got %d", config.ContextLines)
+	}
+	
+	expectedFocusAreas := []string{"security", "performance", "maintainability", "bugs"}
+	if len(config.FocusAreas) != len(expectedFocusAreas) {
+		t.Errorf("Expected %d focus areas, got %d", len(expectedFocusAreas), len(config.FocusAreas))
+	}
+}
+
+func TestNewCodeReviewer(t *testing.T) {
+	provider := &mockCodeReviewLLMProvider{}
+	config := DefaultCodeReviewConfig()
+	
+	reviewer := NewCodeReviewer(provider, config)
+	
+	if reviewer == nil {
+		t.Fatal("Reviewer should not be nil")
+	}
+	
+	if reviewer.provider != provider {
+		t.Error("Provider not set correctly")
+	}
+	
+	if reviewer.config.ReviewDepth != config.ReviewDepth {
+		t.Error("Config not set correctly")
+	}
+}
+
+func TestCodeReviewer_DetectLanguage(t *testing.T) {
+	provider := &mockCodeReviewLLMProvider{}
+	config := DefaultCodeReviewConfig()
+	reviewer := NewCodeReviewer(provider, config)
+	
+	testCases := []struct {
+		filename string
+		expected string
+	}{
+		{"main.go", "go"},
+		{"script.js", "javascript"},
+		{"app.py", "python"},
+		{"Main.java", "java"},
+		{"Component.tsx", "typescript"},
+		{"unknown.xyz", "text"},
+	}
+	
+	for _, tc := range testCases {
+		result := reviewer.detectLanguage(tc.filename)
+		if result != tc.expected {
+			t.Errorf("File %s: expected language %s, got %s", 
+				tc.filename, tc.expected, result)
+		}
+	}
+}
+
+func TestCodeReviewer_EstimateComplexity(t *testing.T) {
+	provider := &mockCodeReviewLLMProvider{}
+	config := DefaultCodeReviewConfig()
+	reviewer := NewCodeReviewer(provider, config)
+	
+	testCases := []struct {
+		name     string
+		content  string
+		expected int
+	}{
+		{
+			name:     "simple function",
+			content:  "func simple() { return 42 }",
+			expected: 0,
+		},
+		{
+			name:     "if statement",
+			content:  "func test() { if x > 0 { return x } }",
+			expected: 1,
+		},
+		{
+			name:     "multiple conditionals",
+			content:  "func complex() { if x > 0 { for i := 0; i < 10; i++ { if y < 5 { while z > 0 { z-- } } } } }",
+			expected: 4, // if + for + if + while
+		},
+		{
+			name:     "switch statement",
+			content:  "func switcher() { switch x { case 1: return 1 } }",
+			expected: 1,
+		},
+	}
+	
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			result := reviewer.estimateComplexity(tc.content)
+			if result != tc.expected {
+				t.Errorf("Expected complexity %d, got %d", tc.expected, result)
+			}
+		})
+	}
+}
+
+func TestCodeReviewer_ShouldExcludeFile(t *testing.T) {
+	provider := &mockCodeReviewLLMProvider{}
+	config := DefaultCodeReviewConfig()
+	config.ExcludePatterns = []string{"vendor/", "node_modules/", "*.min.js"}
+	reviewer := NewCodeReviewer(provider, config)
+	
+	testCases := []struct {
+		filename string
+		excluded bool
+	}{
+		{"main.go", false},
+		{"vendor/lib.go", true},
+		{"node_modules/package.json", true},
+		{"script.min.js", true},
+		{"app.js", false},
+		{"src/helper.go", false},
+	}
+	
+	for _, tc := range testCases {
+		result := reviewer.shouldExcludeFile(tc.filename)
+		if result != tc.excluded {
+			t.Errorf("File %s: expected excluded=%v, got %v", 
+				tc.filename, tc.excluded, result)
+		}
+	}
+}
+
+func TestCodeReviewer_ParseReviewResponse(t *testing.T) {
+	provider := &mockCodeReviewLLMProvider{}
+	config := DefaultCodeReviewConfig()
+	reviewer := NewCodeReviewer(provider, config)
+	
+	response := `
+Some intro text
+
+CRITICAL|SECURITY|15|SQL Injection|Direct query concatenation allows SQL injection
+WARNING|PERFORMANCE|8|Slow Query|Query could be optimized with index
+INFO|STYLE|1|Naming|Consider more descriptive variable names
+
+REFACTOR|12|Extract Method|Method too long|longMethod()|splitMethod()
+OPTIMIZE|25|Cache Result|Add caching for better performance|compute()|cached_compute()
+
+Some conclusion text
+`
+	
+	issues, suggestions := reviewer.parseReviewResponse(response, "test.go")
+	
+	// Check issues
+	if len(issues) != 3 {
+		t.Errorf("Expected 3 issues, got %d", len(issues))
+	}
+	
+	expectedIssues := []struct {
+		severity string
+		category string
+		line     int
+		title    string
+	}{
+		{"critical", "security", 15, "SQL Injection"},
+		{"warning", "performance", 8, "Slow Query"},
+		{"info", "style", 1, "Naming"},
+	}
+	
+	for i, expected := range expectedIssues {
+		if i >= len(issues) {
+			break
+		}
+		issue := issues[i]
+		if issue.Severity != expected.severity {
+			t.Errorf("Issue %d: expected severity %s, got %s", i, expected.severity, issue.Severity)
+		}
+		if issue.Category != expected.category {
+			t.Errorf("Issue %d: expected category %s, got %s", i, expected.category, issue.Category)
+		}
+		if issue.LineNumber != expected.line {
+			t.Errorf("Issue %d: expected line %d, got %d", i, expected.line, issue.LineNumber)
+		}
+		if issue.Title != expected.title {
+			t.Errorf("Issue %d: expected title %s, got %s", i, expected.title, issue.Title)
+		}
+	}
+	
+	// Check suggestions
+	if len(suggestions) != 2 {
+		t.Errorf("Expected 2 suggestions, got %d", len(suggestions))
+	}
+	
+	expectedSuggestions := []struct {
+		suggestionType string
+		line           int
+		title          string
+		before         string
+		after          string
+	}{
+		{"refactor", 12, "Extract Method", "longMethod()", "splitMethod()"},
+		{"optimize", 25, "Cache Result", "compute()", "cached_compute()"},
+	}
+	
+	for i, expected := range expectedSuggestions {
+		if i >= len(suggestions) {
+			break
+		}
+		suggestion := suggestions[i]
+		if suggestion.Type != expected.suggestionType {
+			t.Errorf("Suggestion %d: expected type %s, got %s", i, expected.suggestionType, suggestion.Type)
+		}
+		if suggestion.LineNumber != expected.line {
+			t.Errorf("Suggestion %d: expected line %d, got %d", i, expected.line, suggestion.LineNumber)
+		}
+		if suggestion.Title != expected.title {
+			t.Errorf("Suggestion %d: expected title %s, got %s", i, expected.title, suggestion.Title)
+		}
+		if suggestion.Before != expected.before {
+			t.Errorf("Suggestion %d: expected before %s, got %s", i, expected.before, suggestion.Before)
+		}
+		if suggestion.After != expected.after {
+			t.Errorf("Suggestion %d: expected after %s, got %s", i, expected.after, suggestion.After)
+		}
+	}
+}
+
+func TestCodeReviewer_CalculateQualityScore(t *testing.T) {
+	provider := &mockCodeReviewLLMProvider{}
+	config := DefaultCodeReviewConfig()
+	reviewer := NewCodeReviewer(provider, config)
+	
+	testCases := []struct {
+		name        string
+		issues      []ReviewIssue
+		suggestions []ReviewSuggestion
+		expected    float64
+	}{
+		{
+			name:        "no issues",
+			issues:      []ReviewIssue{},
+			suggestions: []ReviewSuggestion{},
+			expected:    100.0,
+		},
+		{
+			name: "critical issue",
+			issues: []ReviewIssue{
+				{Severity: "critical"},
+			},
+			suggestions: []ReviewSuggestion{},
+			expected:    80.0, // 100 - 20
+		},
+		{
+			name: "multiple issues",
+			issues: []ReviewIssue{
+				{Severity: "error"},
+				{Severity: "warning"},
+				{Severity: "info"},
+			},
+			suggestions: []ReviewSuggestion{{}, {}}, // 2 suggestions
+			expected:    84.0, // 100 - 10 - 5 - 1 - 1 (2 * 0.5)
+		},
+		{
+			name: "score floor",
+			issues: []ReviewIssue{
+				{Severity: "critical"}, {Severity: "critical"}, {Severity: "critical"},
+				{Severity: "critical"}, {Severity: "critical"}, {Severity: "critical"},
+			},
+			suggestions: []ReviewSuggestion{},
+			expected:    0.0, // Should not go below 0
+		},
+	}
+	
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			result := reviewer.calculateQualityScore(tc.issues, tc.suggestions)
+			if result != tc.expected {
+				t.Errorf("Expected score %f, got %f", tc.expected, result)
+			}
+		})
+	}
+}
+
+func TestCodeReviewer_GenerateSummary(t *testing.T) {
+	provider := &mockCodeReviewLLMProvider{}
+	config := DefaultCodeReviewConfig()
+	reviewer := NewCodeReviewer(provider, config)
+	
+	issues := []ReviewIssue{
+		{Severity: "critical", Category: "security"},
+		{Severity: "warning", Category: "performance"},
+		{Severity: "info", Category: "style"},
+	}
+	
+	suggestions := []ReviewSuggestion{
+		{Type: "refactor"},
+		{Type: "optimize"},
+	}
+	
+	request := CodeReviewRequest{
+		Changes: []FileChange{
+			{FilePath: "main.go"},
+			{FilePath: "helper.go"},
+		},
+	}
+	
+	summary := reviewer.generateSummary(issues, suggestions, request)
+	
+	if summary.FilesReviewed != 2 {
+		t.Errorf("Expected 2 files reviewed, got %d", summary.FilesReviewed)
+	}
+	
+	if summary.IssuesFound != 3 {
+		t.Errorf("Expected 3 issues found, got %d", summary.IssuesFound)
+	}
+	
+	if summary.CriticalIssues != 1 {
+		t.Errorf("Expected 1 critical issue, got %d", summary.CriticalIssues)
+	}
+	
+	if summary.SecurityIssues != 1 {
+		t.Errorf("Expected 1 security issue, got %d", summary.SecurityIssues)
+	}
+	
+	if summary.PerformanceIssues != 1 {
+		t.Errorf("Expected 1 performance issue, got %d", summary.PerformanceIssues)
+	}
+	
+	if summary.RiskLevel != "high" {
+		t.Errorf("Expected risk level 'high', got %s", summary.RiskLevel)
+	}
+	
+	if !strings.Contains(summary.OverallAssessment, "critical") {
+		t.Error("Assessment should mention critical issues")
+	}
+}
+
+func TestCodeReviewer_BuildFileReviewPrompt(t *testing.T) {
+	provider := &mockCodeReviewLLMProvider{}
+	config := DefaultCodeReviewConfig()
+	config.ReviewDepth = "comprehensive"
+	config.FocusAreas = []string{"security", "performance"}
+	reviewer := NewCodeReviewer(provider, config)
+	
+	fileChange := FileChange{
+		FilePath:    "auth.go",
+		ChangeType:  "modified",
+		Language:    "go",
+		NewContent:  "package auth\nfunc Login() {}\n",
+		LineCount:   LineCount{Added: 5, Deleted: 2},
+	}
+	
+	context := ReviewContext{
+		RecentCommits: []CommitInfo{
+			{
+				Hash:    "abc123",
+				Message: "Add authentication",
+				Author:  "Test User",
+			},
+		},
+	}
+	
+	prompt := reviewer.buildFileReviewPrompt(fileChange, context)
+	
+	if prompt == "" {
+		t.Error("Prompt should not be empty")
+	}
+	
+	// Should contain file information
+	if !strings.Contains(prompt, "auth.go") {
+		t.Error("Prompt should contain filename")
+	}
+	
+	if !strings.Contains(prompt, "go") {
+		t.Error("Prompt should contain language")
+	}
+	
+	if !strings.Contains(prompt, "modified") {
+		t.Error("Prompt should contain change type")
+	}
+	
+	// Should contain configuration
+	if !strings.Contains(prompt, "comprehensive") {
+		t.Error("Prompt should contain review depth")
+	}
+	
+	if !strings.Contains(prompt, "security") || !strings.Contains(prompt, "performance") {
+		t.Error("Prompt should contain focus areas")
+	}
+	
+	// Should contain code content
+	if !strings.Contains(prompt, "package auth") {
+		t.Error("Prompt should contain code content")
+	}
+	
+	// Should contain context
+	if !strings.Contains(prompt, "abc123") {
+		t.Error("Prompt should contain recent commits")
+	}
+	
+	// Should contain instructions
+	if !strings.Contains(prompt, "ISSUES") || !strings.Contains(prompt, "SUGGESTIONS") {
+		t.Error("Prompt should contain review instructions")
+	}
+}
+
+func TestCodeReviewer_ReviewCommit(t *testing.T) {
+	provider := &mockCodeReviewLLMProvider{}
+	config := DefaultCodeReviewConfig()
+	reviewer := NewCodeReviewer(provider, config)
+	
+	repo := &mockReviewRepository{
+		files: map[string][]byte{
+			"main.go":   []byte("package main\nfunc main() {\n    fmt.Println(\"Hello\")\n}"),
+			"helper.go": []byte("package main\nfunc helper() string {\n    return \"help\"\n}"),
+		},
+		commits: []*mockReviewCommit{
+			{
+				hash:    "abc123",
+				message: "Add main functions",
+				author: mockReviewAuthor{
+					Name: "Test User",
+					Time: time.Now(),
+				},
+			},
+		},
+	}
+	
+	ctx := context.Background()
+	result, err := reviewer.ReviewCommit(ctx, repo, "abc123")
+	if err != nil {
+		t.Fatalf("Failed to review commit: %v", err)
+	}
+	
+	if result == nil {
+		t.Fatal("Result should not be nil")
+	}
+	
+	if result.CommitHash != "abc123" {
+		t.Errorf("Expected commit hash 'abc123', got %s", result.CommitHash)
+	}
+	
+	if result.OverallScore < 0 || result.OverallScore > 100 {
+		t.Errorf("Invalid overall score: %f", result.OverallScore)
+	}
+	
+	if result.Summary.FilesReviewed == 0 {
+		t.Error("Should have reviewed some files")
+	}
+	
+	if result.Timestamp.IsZero() {
+		t.Error("Timestamp should be set")
+	}
+}
+
+func TestCodeReviewer_ApplyCustomRules(t *testing.T) {
+	provider := &mockCodeReviewLLMProvider{}
+	config := DefaultCodeReviewConfig()
+	config.CustomRules = []CustomRule{
+		{
+			Name:       "No TODO comments",
+			Pattern:    `//\s*TODO`,
+			Severity:   "warning",
+			Message:    "TODO comments should be converted to issues",
+			Language:   "go",
+			Enabled:    true,
+		},
+		{
+			Name:       "No console.log",
+			Pattern:    `console\.log`,
+			Severity:   "info",
+			Message:    "Remove debug console.log statements",
+			Language:   "javascript",
+			Enabled:    true,
+		},
+		{
+			Name:       "Disabled rule",
+			Pattern:    `disabled`,
+			Severity:   "error",
+			Message:    "This rule is disabled",
+			Language:   "",
+			Enabled:    false,
+		},
+	}
+	reviewer := NewCodeReviewer(provider, config)
+	
+	fileChange := FileChange{
+		FilePath:   "main.go",
+		Language:   "go",
+		NewContent: "package main\n// TODO: implement this\nfunc main() {}\n",
+	}
+	
+	issues := reviewer.applyCustomRules(fileChange)
+	
+	if len(issues) != 1 {
+		t.Errorf("Expected 1 issue from custom rules, got %d", len(issues))
+	}
+	
+	if len(issues) > 0 {
+		issue := issues[0]
+		if issue.Severity != "warning" {
+			t.Errorf("Expected severity 'warning', got %s", issue.Severity)
+		}
+		if issue.Title != "No TODO comments" {
+			t.Errorf("Expected title 'No TODO comments', got %s", issue.Title)
+		}
+		if issue.Rule != "No TODO comments" {
+			t.Errorf("Expected rule 'No TODO comments', got %s", issue.Rule)
+		}
+		if issue.Confidence != 1.0 {
+			t.Errorf("Expected confidence 1.0, got %f", issue.Confidence)
+		}
+	}
+}
+
+func TestCodeReviewer_ContextCancellation(t *testing.T) {
+	provider := &mockCodeReviewLLMProvider{}
+	config := DefaultCodeReviewConfig()
+	reviewer := NewCodeReviewer(provider, config)
+	
+	repo := &mockReviewRepository{
+		files: map[string][]byte{
+			"test.go": []byte("package main"),
+		},
+		commits: []*mockReviewCommit{
+			{hash: "abc123", message: "test"},
+		},
+	}
+	
+	// Create cancelled context
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	
+	_, err := reviewer.ReviewCommit(ctx, repo, "abc123")
+	if err == nil {
+		t.Error("Expected error for cancelled context")
+	}
+}
+
+// Benchmark tests
+func BenchmarkCodeReviewer_ReviewCommit(b *testing.B) {
+	provider := &mockCodeReviewLLMProvider{}
+	config := DefaultCodeReviewConfig()
+	reviewer := NewCodeReviewer(provider, config)
+	
+	repo := &mockReviewRepository{
+		files: map[string][]byte{
+			"main.go":   []byte(strings.Repeat("func test() { return 42 }\n", 100)),
+			"helper.go": []byte(strings.Repeat("func helper() { return \"test\" }\n", 100)),
+		},
+		commits: []*mockReviewCommit{
+			{hash: "abc123", message: "test commit"},
+		},
+	}
+	
+	ctx := context.Background()
+	
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_, err := reviewer.ReviewCommit(ctx, repo, "abc123")
+		if err != nil {
+			b.Fatalf("Review failed: %v", err)
+		}
+	}
+}
+
+func BenchmarkCodeReviewer_ParseReviewResponse(b *testing.B) {
+	provider := &mockCodeReviewLLMProvider{}
+	config := DefaultCodeReviewConfig()
+	reviewer := NewCodeReviewer(provider, config)
+	
+	response := strings.Repeat(`
+CRITICAL|SECURITY|15|SQL Injection|Direct query concatenation
+WARNING|PERFORMANCE|8|Slow Query|Query needs optimization
+REFACTOR|12|Extract Method|Method too long|oldMethod()|newMethod()
+`, 50) // Repeat for larger response
+	
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_, _ = reviewer.parseReviewResponse(response, "test.go")
+	}
+}
+
+// Test concurrent reviews
+func TestCodeReviewer_ConcurrentReviews(b *testing.T) {
+	provider := &mockCodeReviewLLMProvider{}
+	config := DefaultCodeReviewConfig()
+	reviewer := NewCodeReviewer(provider, config)
+	
+	repo := &mockReviewRepository{
+		files: map[string][]byte{
+			"test.go": []byte("package main\nfunc main() {}"),
+		},
+		commits: []*mockReviewCommit{
+			{hash: "abc123", message: "test"},
+		},
+	}
+	
+	ctx := context.Background()
+	done := make(chan bool, 3)
+	
+	// Run 3 concurrent reviews
+	for i := 0; i < 3; i++ {
+		go func() {
+			defer func() { done <- true }()
+			_, err := reviewer.ReviewCommit(ctx, repo, "abc123")
+			if err != nil {
+				b.Errorf("Concurrent review failed: %v", err)
+			}
+		}()
+	}
+	
+	// Wait for all to complete
+	for i := 0; i < 3; i++ {
+		<-done
+	}
+}

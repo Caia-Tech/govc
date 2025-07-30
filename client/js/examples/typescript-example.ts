@@ -4,7 +4,7 @@ import {
   RepositoryClient,
   Commit,
   RepositoryEvent 
-} from '@caia-tech/govc-client';
+} from '@caiatech/govc-client';
 
 async function demonstrateTypeScript(): Promise<void> {
   // Create a strongly-typed client
