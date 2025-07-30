@@ -32,10 +32,14 @@ func (pr *ParallelReality) Name() string {
 // Unlike traditional Git, this repository operates entirely in memory
 // by default, making operations instant and enabling parallel realities.
 func NewRepository() *Repository {
+	refManager := NewMemoryRefManager()
+	// Initialize with main branch
+	refManager.SetHEADToBranch("main")
+	
 	return &Repository{
 		path:       ":memory:",
 		store:      createMemoryStore(),
-		refManager: NewMemoryRefManager(),
+		refManager: refManager,
 		staging:    NewStagingArea(),
 		worktree:   &Worktree{path: ":memory:"},
 	}
@@ -253,16 +257,33 @@ func (r *Repository) Watch(handler func(CommitEvent)) {
 // TimeTravel returns the repository state at a specific time.
 // Memory-first makes this operation instant.
 func (r *Repository) TimeTravel(moment time.Time) *HistoricalSnapshot {
-	commits, _ := r.Log(0) // Get all commits
+	commits, _ := r.Log(0) // Get all commits (newest first)
 	
-	// Find the commit closest to the requested time
+	// Find the most recent commit at or before the requested time
+	// We need to check from newest to oldest and find the last one that's not after the moment
+	var bestCommit *object.Commit
 	for _, commit := range commits {
-		if commit.Author.Time.Before(moment) {
-			return &HistoricalSnapshot{
-				repo:   r,
-				commit: commit,
-				time:   moment,
-			}
+		if !commit.Author.Time.After(moment) {
+			// This commit is at or before the target time
+			bestCommit = commit
+			break
+		}
+	}
+	
+	if bestCommit != nil {
+		return &HistoricalSnapshot{
+			repo:   r,
+			commit: bestCommit,
+			time:   moment,
+		}
+	}
+	
+	// If no commits before the time, return the oldest commit
+	if len(commits) > 0 {
+		return &HistoricalSnapshot{
+			repo:   r,
+			commit: commits[len(commits)-1],
+			time:   moment,
 		}
 	}
 	

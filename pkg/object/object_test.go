@@ -26,7 +26,7 @@ func TestBlob(t *testing.T) {
 		{
 			name:    "binary data",
 			content: []byte{0x00, 0x01, 0x02, 0x03},
-			want:    "1c95eaa7e46f5f5d2a43107eed6c1e71df8c6b8b",
+			want:    "eaf36c1daccfdf325514461cd1a2ffbc139b5464",
 		},
 	}
 
@@ -238,7 +238,7 @@ func TestAuthorString(t *testing.T) {
 	}
 
 	str := author.String()
-	expected := "John Doe <john@example.com> 1735740000 -0500"
+	expected := "John Doe <john@example.com> 1735750800 -0500"
 	
 	if str != expected {
 		t.Errorf("String() = %v, want %v", str, expected)

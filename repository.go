@@ -143,11 +143,14 @@ func (r *Repository) Commit(message string) (*object.Commit, error) {
 	commit := object.NewCommit(treeHash, author, message)
 
 	currentBranch, err := r.refManager.GetCurrentBranch()
-	if err == nil {
+	if err == nil && currentBranch != "" {
 		parentHash, err := r.refManager.GetBranch(currentBranch)
 		if err == nil {
 			commit.SetParent(parentHash)
 		}
+	} else if err != nil {
+		// If we can't get current branch, we might be on main but it doesn't exist yet
+		currentBranch = "main"
 	}
 
 	commitHash, err := r.store.StoreCommit(commit)
@@ -156,7 +159,12 @@ func (r *Repository) Commit(message string) (*object.Commit, error) {
 	}
 
 	if currentBranch != "" {
+		// Update or create the branch
 		if err := r.refManager.UpdateRef("refs/heads/"+currentBranch, commitHash, ""); err != nil {
+			return nil, err
+		}
+		// Make sure HEAD points to the branch
+		if err := r.refManager.SetHEADToBranch(currentBranch); err != nil {
 			return nil, err
 		}
 	} else {
@@ -195,6 +203,40 @@ func (r *Repository) Checkout(ref string) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
+	// First check if this is a branch name
+	if strings.HasPrefix(ref, "refs/heads/") || !strings.Contains(ref, "/") {
+		branchName := ref
+		if strings.HasPrefix(ref, "refs/heads/") {
+			branchName = strings.TrimPrefix(ref, "refs/heads/")
+		}
+		
+		// Check if the branch exists
+		branchHash, err := r.refManager.GetBranch(branchName)
+		if err != nil {
+			// Branch doesn't exist yet, but we can still checkout to it
+			// This creates a branch that will point to the next commit
+			return r.refManager.SetHEADToBranch(branchName)
+		}
+		
+		// Branch exists, update worktree
+		commit, err := r.store.GetCommit(branchHash)
+		if err != nil {
+			return err
+		}
+
+		tree, err := r.store.GetTree(commit.TreeHash)
+		if err != nil {
+			return err
+		}
+
+		if err := r.updateWorktree(tree); err != nil {
+			return err
+		}
+		
+		return r.refManager.SetHEADToBranch(branchName)
+	}
+
+	// Not a branch, resolve as commit
 	commitHash, err := r.resolveRef(ref)
 	if err != nil {
 		return err
@@ -212,14 +254,6 @@ func (r *Repository) Checkout(ref string) error {
 
 	if err := r.updateWorktree(tree); err != nil {
 		return err
-	}
-
-	if strings.HasPrefix(ref, "refs/heads/") || !strings.Contains(ref, "/") {
-		branchName := ref
-		if strings.HasPrefix(ref, "refs/heads/") {
-			branchName = strings.TrimPrefix(ref, "refs/heads/")
-		}
-		return r.refManager.SetHEADToBranch(branchName)
 	}
 
 	return r.refManager.SetHEADToCommit(commitHash)
@@ -457,12 +491,26 @@ func (b *BranchBuilder) Create() error {
 	b.repo.mu.Lock()
 	defer b.repo.mu.Unlock()
 
-	headHash, err := b.repo.refManager.GetHEAD()
+	// Get the actual commit hash that HEAD points to
+	currentBranch, err := b.repo.refManager.GetCurrentBranch()
 	if err != nil {
-		return err
+		// HEAD is detached, get the commit directly
+		headHash, err := b.repo.refManager.GetHEAD()
+		if err != nil {
+			return err
+		}
+		return b.repo.refManager.CreateBranch(b.name, headHash)
 	}
-
-	return b.repo.refManager.CreateBranch(b.name, headHash)
+	
+	// HEAD points to a branch, get the branch's commit
+	branchHash, err := b.repo.refManager.GetBranch(currentBranch)
+	if err != nil {
+		// Current branch has no commits yet
+		// Create the new branch pointing to nothing (will be set on first commit)
+		return b.repo.refManager.CreateBranch(b.name, "")
+	}
+	
+	return b.repo.refManager.CreateBranch(b.name, branchHash)
 }
 
 func (b *BranchBuilder) Checkout() error {

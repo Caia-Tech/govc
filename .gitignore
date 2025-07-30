@@ -31,3 +31,5 @@ Thumbs.db
 
 # govc repositories
 .govc/
+:memory:/
+*/:memory:/

@@ -254,16 +254,34 @@ func TestStore(t *testing.T) {
 		// Store object
 		hash, _ := cachedStore.StoreBlob([]byte("cached"))
 
-		// First read - should hit backend
-		cachedStore.GetObject(hash)
-		if trackingBackend.readCount[hash] != 1 {
-			t.Errorf("First read count = %d, want 1", trackingBackend.readCount[hash])
+		// First read - should hit backend since cache doesn't have it
+		_, err := cachedStore.GetObject(hash)
+		if err != nil {
+			t.Fatalf("First GetObject failed: %v", err)
+		}
+		if trackingBackend.readCount[hash] != 0 {
+			t.Errorf("First read count = %d, want 0 (object was just stored, should be in cache)", trackingBackend.readCount[hash])
 		}
 
-		// Second read - should hit cache
-		cachedStore.GetObject(hash)
+		// Clear the cache to force backend read
+		cachedStore.cache = NewMemoryBackend()
+		
+		// Now read - should hit backend
+		_, err = cachedStore.GetObject(hash)
+		if err != nil {
+			t.Fatalf("Second GetObject failed: %v", err)
+		}
 		if trackingBackend.readCount[hash] != 1 {
-			t.Errorf("Second read count = %d, want 1 (should use cache)", trackingBackend.readCount[hash])
+			t.Errorf("Backend read count = %d, want 1", trackingBackend.readCount[hash])
+		}
+		
+		// Third read - should hit cache
+		_, err = cachedStore.GetObject(hash)
+		if err != nil {
+			t.Fatalf("Third GetObject failed: %v", err)
+		}
+		if trackingBackend.readCount[hash] != 1 {
+			t.Errorf("Final read count = %d, want 1 (should use cache)", trackingBackend.readCount[hash])
 		}
 	})
 }

@@ -399,7 +399,7 @@ func (r *RefManager) SetHEAD(ref string) error {
 }
 
 func (r *RefManager) SetHEADToBranch(branchName string) error {
-	return r.store.SetHEAD("refs/heads/" + branchName)
+	return r.store.SetHEAD("ref: refs/heads/" + branchName)
 }
 
 func (r *RefManager) SetHEADToCommit(commitHash string) error {
