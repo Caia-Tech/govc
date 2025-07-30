@@ -443,7 +443,7 @@ func BenchmarkMemoryUsage(b *testing.B) {
 			// Report memory stats
 			if i%100 == 0 {
 				server.mu.RLock()
-				repoCount := len(server.repos)
+				repoCount := server.repoPool.Size()
 				txCount := len(server.transactions)
 				server.mu.RUnlock()
 				b.Logf("Repos: %d, Transactions: %d", repoCount, txCount)

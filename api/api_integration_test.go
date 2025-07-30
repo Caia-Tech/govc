@@ -611,7 +611,7 @@ func TestConcurrentOperations(t *testing.T) {
 	t.Run("Repository state consistency", func(t *testing.T) {
 		// Verify server state after concurrent operations
 		server.mu.RLock()
-		repoCount := len(server.repos)
+		repoCount := server.repoPool.Size()
 		txCount := len(server.transactions)
 		server.mu.RUnlock()
 

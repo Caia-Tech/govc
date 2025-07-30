@@ -178,7 +178,7 @@ func TestStressConcurrentRepositories(t *testing.T) {
 	// Verify server state
 	t.Run("Verify server state after stress", func(t *testing.T) {
 		server.mu.RLock()
-		repoCount := len(server.repos)
+		repoCount := server.repoPool.Size()
 		txCount := len(server.transactions)
 		server.mu.RUnlock()
 
@@ -371,7 +371,7 @@ func TestStressMemoryLeaks(t *testing.T) {
 			// Check repository count periodically
 			if i%100 == 0 {
 				server.mu.RLock()
-				repoCount := len(server.repos)
+				repoCount := server.repoPool.Size()
 				server.mu.RUnlock()
 
 				if repoCount > reposPerIter*2 {
@@ -382,7 +382,7 @@ func TestStressMemoryLeaks(t *testing.T) {
 
 		// Final check
 		server.mu.RLock()
-		finalRepoCount := len(server.repos)
+		finalRepoCount := server.repoPool.Size()
 		finalTxCount := len(server.transactions)
 		server.mu.RUnlock()
 
@@ -711,7 +711,7 @@ func TestStressLongRunning(t *testing.T) {
 					opsPerSec := float64(ops) / elapsed.Seconds()
 
 					server.mu.RLock()
-					repos := len(server.repos)
+					repos := server.repoPool.Size()
 					txs := len(server.transactions)
 					server.mu.RUnlock()
 
