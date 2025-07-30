@@ -9,18 +9,21 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/caia-tech/govc/config"
 	"github.com/gin-gonic/gin"
 )
 
 // setupBenchmarkServer creates a server for benchmarking
 func setupBenchmarkServer() (*Server, *gin.Engine) {
 	gin.SetMode(gin.ReleaseMode)
-	config := Config{
-		Port:       "8080",
-		MaxRepos:   10000,
-		EnableAuth: false,
-	}
-	server := NewServer(config)
+	cfg := config.DefaultConfig()
+	cfg.Auth.Enabled = false
+	cfg.Auth.JWT.Secret = "benchmark-secret-for-testing-purposes-only"
+	cfg.Server.MaxRepos = 10000
+	cfg.Pool.MaxRepositories = 1000
+	cfg.Metrics.Enabled = false // Disable metrics for benchmarks
+	
+	server := NewServer(cfg)
 	router := gin.New()
 	server.RegisterRoutes(router)
 	return server, router
@@ -582,12 +585,11 @@ func BenchmarkRouting(b *testing.B) {
 // BenchmarkMiddleware benchmarks middleware overhead
 func BenchmarkMiddleware(b *testing.B) {
 	b.Run("WithoutAuth", func(b *testing.B) {
-		config := Config{
-			Port:       "8080",
-			MaxRepos:   10000,
-			EnableAuth: false,
-		}
-		server := NewServer(config)
+		cfg := config.DefaultConfig()
+		cfg.Auth.Enabled = false
+		cfg.Auth.JWT.Secret = "benchmark-secret-for-testing-purposes-only"
+		cfg.Server.MaxRepos = 10000
+		server := NewServer(cfg)
 		router := gin.New()
 		server.RegisterRoutes(router)
 		
@@ -600,12 +602,11 @@ func BenchmarkMiddleware(b *testing.B) {
 	})
 	
 	b.Run("WithAuth", func(b *testing.B) {
-		config := Config{
-			Port:       "8080",
-			MaxRepos:   10000,
-			EnableAuth: true,
-		}
-		server := NewServer(config)
+		cfg := config.DefaultConfig()
+		cfg.Auth.Enabled = true
+		cfg.Auth.JWT.Secret = "benchmark-secret-for-testing-purposes-only"
+		cfg.Server.MaxRepos = 10000
+		server := NewServer(cfg)
 		router := gin.New()
 		server.RegisterRoutes(router)
 		
@@ -619,12 +620,11 @@ func BenchmarkMiddleware(b *testing.B) {
 	})
 	
 	b.Run("RateLimiting", func(b *testing.B) {
-		config := Config{
-			Port:       "8080",
-			MaxRepos:   10000,
-			EnableAuth: false,
-		}
-		server := NewServer(config)
+		cfg := config.DefaultConfig()
+		cfg.Auth.Enabled = false
+		cfg.Auth.JWT.Secret = "benchmark-secret-for-testing-purposes-only"
+		cfg.Server.MaxRepos = 10000
+		server := NewServer(cfg)
 		router := gin.New()
 		router.Use(RateLimitMiddleware(1000)) // High limit for benchmark
 		server.RegisterRoutes(router)

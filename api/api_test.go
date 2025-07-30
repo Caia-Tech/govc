@@ -8,6 +8,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/caia-tech/govc/config"
 	"github.com/gin-gonic/gin"
 )
 
@@ -18,12 +19,15 @@ func TestMain(m *testing.M) {
 }
 
 func setupTestServer() (*Server, *gin.Engine) {
-	config := Config{
-		Port:       "8080",
-		MaxRepos:   100,
-		EnableAuth: false,
-	}
-	server := NewServer(config)
+	cfg := config.DefaultConfig()
+	cfg.Auth.Enabled = false // Disable auth for tests
+	cfg.Auth.JWT.Secret = "test-secret-for-integration-testing-purposes-only"
+	cfg.Server.MaxRepos = 100
+	cfg.Metrics.Enabled = true
+	cfg.Pool.MaxRepositories = 50
+	cfg.Development.Debug = true
+	
+	server := NewServer(cfg)
 	router := gin.New()
 	server.RegisterRoutes(router)
 	return server, router

@@ -3,6 +3,7 @@ package govc_test
 import (
 	"fmt"
 	"log"
+	"time"
 
 	"github.com/caia-tech/govc"
 )
@@ -121,19 +122,24 @@ func ExampleRepository_Watch() {
 func ExampleRepository_TimeTravel() {
 	repo := govc.New()
 
-	// Create some history
+	// Create some history with explicit time delays
 	tx1 := repo.Transaction()
 	tx1.Add("config.yaml", []byte("version: 1.0\nstable: true"))
 	tx1.Validate()
 	commit1, _ := tx1.Commit("Stable configuration")
+	
+	// Wait to ensure different timestamps
+	time.Sleep(10 * time.Millisecond)
 
 	tx2 := repo.Transaction()
 	tx2.Add("config.yaml", []byte("version: 2.0\nstable: false"))
 	tx2.Validate()
 	tx2.Commit("Experimental configuration")
-
+	
 	// Travel back to stable version
-	snapshot := repo.TimeTravel(commit1.Author.Time)
+	targetTime := commit1.Author.Time.Add(1 * time.Millisecond)
+	
+	snapshot := repo.TimeTravel(targetTime)
 	if snapshot != nil {
 		content, _ := snapshot.Read("config.yaml")
 		fmt.Printf("Configuration at stable point:\n%s\n", content)

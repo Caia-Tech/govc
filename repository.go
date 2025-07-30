@@ -237,6 +237,39 @@ func (r *Repository) CurrentBranch() (string, error) {
 	return r.refManager.GetCurrentBranch()
 }
 
+// CreateTag creates a new tag at the current HEAD
+func (r *Repository) CreateTag(name string, message string) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	// Get current HEAD
+	commitHash, err := r.refManager.GetHEAD()
+	if err != nil {
+		return fmt.Errorf("failed to get HEAD: %w", err)
+	}
+
+	// Create tag
+	return r.refManager.CreateTag(name, commitHash)
+}
+
+// ListTags returns all tags
+func (r *Repository) ListTags() ([]string, error) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
+	refs, err := r.refManager.ListTags()
+	if err != nil {
+		return nil, err
+	}
+
+	tags := make([]string, len(refs))
+	for i, ref := range refs {
+		// Remove refs/tags/ prefix
+		tags[i] = strings.TrimPrefix(ref.Name, "refs/tags/")
+	}
+	return tags, nil
+}
+
 // CurrentCommit returns the current HEAD commit
 func (r *Repository) CurrentCommit() (*object.Commit, error) {
 	r.mu.RLock()
@@ -355,6 +388,29 @@ func (r *Repository) Log(limit int) ([]*object.Commit, error) {
 func (r *Repository) createTreeFromStaging() (*object.Tree, error) {
 	tree := object.NewTree()
 	
+	// Get current branch to find parent commit
+	currentBranch, err := r.refManager.GetCurrentBranch()
+	if err == nil && currentBranch != "" {
+		parentHash, err := r.refManager.GetBranch(currentBranch)
+		if err == nil && parentHash != "" {
+			// Load parent commit's tree
+			parentCommit, err := r.store.GetCommit(parentHash)
+			if err == nil {
+				parentTree, err := r.store.GetTree(parentCommit.TreeHash)
+				if err == nil {
+					// Copy all entries from parent tree
+					for _, entry := range parentTree.Entries {
+						// Skip if this file is being updated in staging
+						if _, exists := r.staging.files[entry.Name]; !exists {
+							tree.AddEntry(entry.Mode, entry.Name, entry.Hash)
+						}
+					}
+				}
+			}
+		}
+	}
+	
+	// Add/update files from staging
 	for file, hash := range r.staging.files {
 		mode := "100644"
 		tree.AddEntry(mode, file, hash)

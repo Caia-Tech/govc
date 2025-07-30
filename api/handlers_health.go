@@ -140,7 +140,7 @@ func (s *Server) runHealthChecks() map[string]Check {
 	checks["repositories"] = s.checkRepositories()
 
 	// Authentication system check
-	if s.config.EnableAuth {
+	if s.config.Auth.Enabled {
 		checks["auth"] = s.checkAuthSystem()
 	}
 
@@ -207,7 +207,7 @@ func (s *Server) checkRepositories() Check {
 	message := "Repository system is operational"
 	
 	// Check if we're approaching the max repo limit
-	if s.config.MaxRepos > 0 && repoCount > int(float64(s.config.MaxRepos)*0.9) {
+	if s.config.Server.MaxRepos > 0 && repoCount > int(float64(s.config.Server.MaxRepos)*0.9) {
 		status = "warning"
 		message = "Repository count is approaching limit"
 	}

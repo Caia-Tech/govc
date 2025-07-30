@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"strings"
@@ -92,6 +93,116 @@ func RateLimitMiddleware(requestsPerMinute int) gin.HandlerFunc {
 		}
 
 		cl.count++
+		c.Next()
+	}
+}
+
+// TimeoutMiddleware creates a middleware that enforces request timeouts
+func TimeoutMiddleware(timeout time.Duration) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		// Skip timeout for websocket connections and streaming endpoints
+		if c.GetHeader("Upgrade") == "websocket" || 
+		   strings.Contains(c.Request.URL.Path, "/watch") ||
+		   strings.Contains(c.Request.URL.Path, "/events") {
+			c.Next()
+			return
+		}
+
+		// Create a context with timeout
+		ctx, cancel := context.WithTimeout(c.Request.Context(), timeout)
+		defer cancel()
+
+		// Replace the request context
+		c.Request = c.Request.WithContext(ctx)
+
+		// Channel to signal completion
+		finished := make(chan struct{})
+
+		go func() {
+			defer close(finished)
+			c.Next()
+		}()
+
+		select {
+		case <-finished:
+			// Request completed within timeout
+			return
+		case <-ctx.Done():
+			// Request timed out
+			c.JSON(http.StatusRequestTimeout, ErrorResponse{
+				Error:   "Request timeout",
+				Code:    "REQUEST_TIMEOUT",
+				Details: map[string]interface{}{
+					"timeout": timeout.String(),
+				},
+			})
+			c.Abort()
+		}
+	}
+}
+
+// RequestSizeMiddleware limits the size of request bodies
+func RequestSizeMiddleware(maxSize int64) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		if c.Request.ContentLength > maxSize {
+			c.JSON(http.StatusRequestEntityTooLarge, ErrorResponse{
+				Error:   "Request body too large",
+				Code:    "REQUEST_TOO_LARGE",
+				Details: map[string]interface{}{
+					"max_size": maxSize,
+					"actual_size": c.Request.ContentLength,
+				},
+			})
+			c.Abort()
+			return
+		}
+		
+		// Limit the request body reader
+		c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, maxSize)
+		c.Next()
+	}
+}
+
+// CORSMiddleware handles Cross-Origin Resource Sharing
+func CORSMiddleware(allowedOrigins []string) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		origin := c.GetHeader("Origin")
+		
+		// Check if origin is allowed
+		allowed := false
+		for _, allowedOrigin := range allowedOrigins {
+			if allowedOrigin == "*" || allowedOrigin == origin {
+				allowed = true
+				break
+			}
+		}
+		
+		if allowed {
+			c.Header("Access-Control-Allow-Origin", origin)
+		}
+		
+		c.Header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
+		c.Header("Access-Control-Allow-Headers", "Origin, Content-Type, Accept, Authorization, X-API-Key")
+		c.Header("Access-Control-Allow-Credentials", "true")
+		c.Header("Access-Control-Max-Age", "86400")
+		
+		if c.Request.Method == "OPTIONS" {
+			c.AbortWithStatus(http.StatusOK)
+			return
+		}
+		
+		c.Next()
+	}
+}
+
+// SecurityHeadersMiddleware adds security headers to responses
+func SecurityHeadersMiddleware() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		c.Header("X-Content-Type-Options", "nosniff")
+		c.Header("X-Frame-Options", "DENY")
+		c.Header("X-XSS-Protection", "1; mode=block")
+		c.Header("Referrer-Policy", "strict-origin-when-cross-origin")
+		c.Header("Content-Security-Policy", "default-src 'self'")
 		c.Next()
 	}
 }

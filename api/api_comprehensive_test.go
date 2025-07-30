@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/caia-tech/govc/config"
 	"github.com/gin-gonic/gin"
 )
 
@@ -676,12 +677,11 @@ func TestTimeTravelFeatures(t *testing.T) {
 // TestMiddlewareFunctionality tests middleware behavior
 func TestMiddlewareFunctionality(t *testing.T) {
 	t.Run("Rate limiting", func(t *testing.T) {
-		config := Config{
-			Port:       "8080",
-			MaxRepos:   100,
-			EnableAuth: false,
-		}
-		server := NewServer(config)
+		cfg := config.DefaultConfig()
+		cfg.Auth.Enabled = false
+		cfg.Auth.JWT.Secret = "test-secret-for-testing-purposes-only"
+		cfg.Server.MaxRepos = 100
+		server := NewServer(cfg)
 		router := gin.New()
 		
 		// Add rate limiting middleware
@@ -707,12 +707,11 @@ func TestMiddlewareFunctionality(t *testing.T) {
 	})
 
 	t.Run("Authentication when enabled", func(t *testing.T) {
-		config := Config{
-			Port:       "8080",
-			MaxRepos:   100,
-			EnableAuth: true,
-		}
-		server := NewServer(config)
+		cfg := config.DefaultConfig()
+		cfg.Auth.Enabled = true
+		cfg.Auth.JWT.Secret = "test-secret-for-testing-purposes-only"
+		cfg.Server.MaxRepos = 100
+		server := NewServer(cfg)
 		router := gin.New()
 		server.RegisterRoutes(router)
 
@@ -739,12 +738,11 @@ func TestMiddlewareFunctionality(t *testing.T) {
 
 // TestServerMaxRepos tests repository limit enforcement
 func TestServerMaxRepos(t *testing.T) {
-	config := Config{
-		Port:       "8080",
-		MaxRepos:   3,
-		EnableAuth: false,
-	}
-	server := NewServer(config)
+	cfg := config.DefaultConfig()
+	cfg.Auth.Enabled = false
+	cfg.Auth.JWT.Secret = "test-secret-for-testing-purposes-only"
+	cfg.Server.MaxRepos = 3
+	server := NewServer(cfg)
 	router := gin.New()
 	server.RegisterRoutes(router)
 

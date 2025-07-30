@@ -272,24 +272,34 @@ func TestTimeTravel(t *testing.T) {
 	commits := []string{"Past", "Present", "Future"}
 	commitTimes := make([]time.Time, 0)
 	
-	for _, msg := range commits {
+	for i, msg := range commits {
+		// Sleep before committing to ensure different timestamps
+		// Need to sleep for at least 1 second due to Unix timestamp precision
+		if i > 0 {
+			time.Sleep(1100 * time.Millisecond) // 1.1 seconds to ensure different timestamps
+		}
+		
 		tx := repo.Transaction()
 		tx.Add(fmt.Sprintf("%s.txt", msg), []byte(msg))
 		tx.Validate()
 		commit, _ := tx.Commit(msg)
 		commitTimes = append(commitTimes, commit.Author.Time)
-		time.Sleep(10 * time.Millisecond)
 	}
 	
-	// Travel to past
-	targetTime := commitTimes[0].Add(5 * time.Millisecond)
+	// Debug: show all commit times
+	t.Logf("Commit times: Past=%v, Present=%v, Future=%v", 
+		commitTimes[0], commitTimes[1], commitTimes[2])
+	
+	// Travel to the exact time of the first commit (should see Past commit)
+	targetTime := commitTimes[0]
+	t.Logf("Target time: %v", targetTime)
 	snapshot := repo.TimeTravel(targetTime)
 	
 	if snapshot == nil {
 		t.Fatal("TimeTravel returned nil")
 	}
 	
-	// Should see first commit
+	// Should see Past commit
 	lastCommit := snapshot.LastCommit()
 	if lastCommit.Message != "Past" {
 		t.Errorf("Snapshot commit = %v, want Past", lastCommit.Message)

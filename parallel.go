@@ -2,6 +2,7 @@ package govc
 
 import (
 	"fmt"
+	"strings"
 	"sync"
 	"time"
 
@@ -280,7 +281,8 @@ func (r *Repository) TimeTravel(moment time.Time) *HistoricalSnapshot {
 	// We need to check from newest to oldest and find the last one that's not after the moment
 	var bestCommit *object.Commit
 	for _, commit := range commits {
-		if !commit.Author.Time.After(moment) {
+		// Check if this commit happened at or before the target moment
+		if commit.Author.Time.Before(moment) || commit.Author.Time.Equal(moment) {
 			// This commit is at or before the target time
 			bestCommit = commit
 			break
@@ -321,17 +323,45 @@ func (hs *HistoricalSnapshot) Read(path string) ([]byte, error) {
 		return nil, err
 	}
 	
+	
+	// Try to find the file in the tree
+	hash, err := hs.findFileInTree(tree, path)
+	if err != nil {
+		return nil, fmt.Errorf("file not found in snapshot: %s", path)
+	}
+	
+	blob, err := hs.repo.store.GetBlob(hash)
+	if err != nil {
+		return nil, err
+	}
+	return blob.Content, nil
+}
+
+// findFileInTree recursively searches for a file in the tree
+func (hs *HistoricalSnapshot) findFileInTree(tree *object.Tree, path string) (string, error) {
+	// Direct match
 	for _, entry := range tree.Entries {
 		if entry.Name == path {
-			blob, err := hs.repo.store.GetBlob(entry.Hash)
-			if err != nil {
-				return nil, err
-			}
-			return blob.Content, nil
+			return entry.Hash, nil
 		}
 	}
 	
-	return nil, fmt.Errorf("file not found in snapshot: %s", path)
+	// Try subdirectories
+	parts := strings.SplitN(path, "/", 2)
+	if len(parts) == 2 {
+		for _, entry := range tree.Entries {
+			if entry.Name == parts[0] && entry.Mode == "040000" {
+				// This is a directory, recurse
+				subTree, err := hs.repo.store.GetTree(entry.Hash)
+				if err != nil {
+					continue
+				}
+				return hs.findFileInTree(subTree, parts[1])
+			}
+		}
+	}
+	
+	return "", fmt.Errorf("not found")
 }
 
 // LastCommit returns the commit at this snapshot.

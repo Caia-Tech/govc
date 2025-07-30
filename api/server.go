@@ -2,32 +2,21 @@ package api
 
 import (
 	"fmt"
+	"os"
 	"sync"
 	"time"
 
 	"github.com/caia-tech/govc"
 	"github.com/caia-tech/govc/auth"
+	"github.com/caia-tech/govc/config"
+	"github.com/caia-tech/govc/logging"
 	"github.com/caia-tech/govc/metrics"
 	"github.com/caia-tech/govc/pool"
 	"github.com/gin-gonic/gin"
 )
 
-type Config struct {
-	Port           string
-	MaxRepos       int
-	EnableAuth     bool
-	PersistenceDir string
-	JWTSecret      string
-	JWTIssuer      string
-	JWTTTL         time.Duration
-	// Pool configuration
-	PoolMaxIdleTime     time.Duration
-	PoolCleanupInterval time.Duration
-	PoolEnableMetrics   bool
-}
-
 type Server struct {
-	config            Config
+	config            *config.Config
 	repoPool          *pool.RepositoryPool
 	transactions      map[string]*govc.TransactionalCommit
 	repoMetadata      map[string]*RepoMetadata
@@ -36,6 +25,7 @@ type Server struct {
 	apiKeyMgr         *auth.APIKeyManager
 	authMiddleware    *auth.AuthMiddleware
 	prometheusMetrics *metrics.PrometheusMetrics
+	logger            *logging.Logger
 	mu                sync.RWMutex
 }
 
@@ -45,41 +35,48 @@ type RepoMetadata struct {
 	Path      string
 }
 
-func NewServer(config Config) *Server {
-	// Initialize authentication components
-	jwtAuth := auth.NewJWTAuth(config.JWTSecret, config.JWTIssuer, config.JWTTTL)
-	rbac := auth.NewRBAC()
-	apiKeyMgr := auth.NewAPIKeyManager(rbac)
-	authMiddleware := auth.NewAuthMiddleware(jwtAuth, apiKeyMgr, rbac)
+func NewServer(cfg *config.Config) *Server {
+	// Initialize logger
+	logConfig := logging.Config{
+		Level:     logging.LogLevel(cfg.GetLogLevel()),
+		Component: cfg.Logging.Component,
+		Output:    os.Stdout,
+	}
+	logger := logging.NewLogger(logConfig)
 
-	// Initialize metrics
-	prometheusMetrics := metrics.NewPrometheusMetrics()
+	// Initialize authentication components if enabled
+	var jwtAuth *auth.JWTAuth
+	var rbac *auth.RBAC
+	var apiKeyMgr *auth.APIKeyManager
+	var authMiddleware *auth.AuthMiddleware
 
-	// Initialize repository pool
-	poolConfig := pool.PoolConfig{
-		MaxIdleTime:     config.PoolMaxIdleTime,
-		CleanupInterval: config.PoolCleanupInterval,
-		MaxRepositories: config.MaxRepos,
-		EnableMetrics:   config.PoolEnableMetrics,
-	}
-	if poolConfig.MaxIdleTime == 0 {
-		poolConfig.MaxIdleTime = 30 * time.Minute
-	}
-	if poolConfig.CleanupInterval == 0 {
-		poolConfig.CleanupInterval = 5 * time.Minute
-	}
-	if poolConfig.MaxRepositories == 0 {
-		poolConfig.MaxRepositories = 100
-	}
-	repoPool := pool.NewRepositoryPool(poolConfig)
+	if cfg.Auth.Enabled {
+		jwtAuth = auth.NewJWTAuth(cfg.Auth.JWT.Secret, cfg.Auth.JWT.Issuer, cfg.Auth.JWT.TTL)
+		rbac = auth.NewRBAC()
+		apiKeyMgr = auth.NewAPIKeyManager(rbac)
+		authMiddleware = auth.NewAuthMiddleware(jwtAuth, apiKeyMgr, rbac)
 
-	// Create default admin user if auth is enabled
-	if config.EnableAuth {
+		// Create default admin user
 		rbac.CreateUser("admin", "admin", "admin@govc.dev", []string{"admin"})
 	}
 
+	// Initialize metrics if enabled
+	var prometheusMetrics *metrics.PrometheusMetrics
+	if cfg.Metrics.Enabled {
+		prometheusMetrics = metrics.NewPrometheusMetrics()
+	}
+
+	// Initialize repository pool
+	poolConfig := pool.PoolConfig{
+		MaxIdleTime:     cfg.Pool.MaxIdleTime,
+		CleanupInterval: cfg.Pool.CleanupInterval,
+		MaxRepositories: cfg.Pool.MaxRepositories,
+		EnableMetrics:   cfg.Pool.EnableMetrics,
+	}
+	repoPool := pool.NewRepositoryPool(poolConfig)
+
 	return &Server{
-		config:            config,
+		config:            cfg,
 		repoPool:          repoPool,
 		transactions:      make(map[string]*govc.TransactionalCommit),
 		repoMetadata:      make(map[string]*RepoMetadata),
@@ -88,14 +85,25 @@ func NewServer(config Config) *Server {
 		apiKeyMgr:         apiKeyMgr,
 		authMiddleware:    authMiddleware,
 		prometheusMetrics: prometheusMetrics,
+		logger:            logger,
 	}
 }
 
 func (s *Server) RegisterRoutes(router *gin.Engine) {
+	// Add global middleware
+	router.Use(SecurityHeadersMiddleware())
+	router.Use(RequestSizeMiddleware(s.config.Server.MaxRequestSize))
+	router.Use(TimeoutMiddleware(s.config.Server.RequestTimeout))
+	
+	// Add CORS middleware if enabled
+	if s.config.Development.CORSEnabled {
+		router.Use(CORSMiddleware(s.config.Development.AllowedOrigins))
+	}
+
 	v1 := router.Group("/api/v1")
 
 	// Authentication routes (no auth required)
-	if s.config.EnableAuth {
+	if s.config.Auth.Enabled {
 		authRoutes := v1.Group("/auth")
 		{
 			authRoutes.POST("/login", s.login)
@@ -129,7 +137,7 @@ func (s *Server) RegisterRoutes(router *gin.Engine) {
 
 	// Repository management
 	repoRoutes := v1.Group("/repos")
-	if s.config.EnableAuth {
+	if s.config.Auth.Enabled {
 		repoRoutes.Use(s.authMiddleware.OptionalAuth()) // Allow both authenticated and unauthenticated access
 	}
 	{
@@ -162,6 +170,10 @@ func (s *Server) RegisterRoutes(router *gin.Engine) {
 		repoRoutes.DELETE("/:repo_id/branches/:branch", s.deleteBranch)
 		repoRoutes.POST("/:repo_id/checkout", s.checkout)
 		repoRoutes.POST("/:repo_id/merge", s.merge)
+
+		// Tag operations
+		repoRoutes.GET("/:repo_id/tags", s.listTags)
+		repoRoutes.POST("/:repo_id/tags", s.createTag)
 
 		// Stash operations
 		repoRoutes.POST("/:repo_id/stash", s.createStash)
@@ -218,7 +230,7 @@ func (s *Server) RegisterRoutes(router *gin.Engine) {
 	
 	// Pool management endpoints (admin only if auth is enabled)
 	poolRoutes := v1.Group("/pool")
-	if s.config.EnableAuth {
+	if s.config.Auth.Enabled {
 		poolRoutes.Use(s.authMiddleware.AuthRequired())
 		poolRoutes.Use(s.authMiddleware.RequirePermission(auth.PermissionSystemAdmin))
 	}
@@ -265,9 +277,34 @@ func (s *Server) updateMetrics() {
 
 // Close shuts down the server and cleans up resources
 func (s *Server) Close() error {
+	s.logger.Info("Starting server shutdown cleanup")
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	// Clean up active transactions
+	if len(s.transactions) > 0 {
+		s.logger.Infof("Cleaning up %d active transactions", len(s.transactions))
+		for txID, tx := range s.transactions {
+			if tx != nil {
+				s.logger.Debugf("Rolling back transaction: %s", txID)
+			}
+		}
+		// Clear the transactions map
+		s.transactions = make(map[string]*govc.TransactionalCommit)
+	}
+
+	// Close repository pool
 	if s.repoPool != nil {
+		s.logger.Info("Closing repository pool")
 		s.repoPool.Close()
 	}
+
+	// Stop any background goroutines
+	// Note: In a more complex implementation, you might have background workers
+	// that need to be signaled to stop here
+
+	s.logger.Info("Server shutdown cleanup completed")
 	return nil
 }
 

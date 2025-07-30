@@ -39,7 +39,7 @@ func (s *Server) createRepo(c *gin.Context) {
 		return
 	}
 
-	if repoCount >= s.config.MaxRepos {
+	if repoCount >= s.config.Server.MaxRepos {
 		c.JSON(http.StatusServiceUnavailable, ErrorResponse{
 			Error: "maximum number of repositories reached",
 			Code:  "MAX_REPOS_REACHED",
@@ -47,16 +47,17 @@ func (s *Server) createRepo(c *gin.Context) {
 		return
 	}
 
-	// Determine path
+	// Determine path based on storage configuration
 	var path string
-	if req.MemoryOnly || s.config.PersistenceDir == "" {
+	memoryOnly := req.MemoryOnly || s.config.Storage.Type == "memory"
+	if memoryOnly {
 		path = ":memory:"
 	} else {
-		path = fmt.Sprintf("%s/%s", s.config.PersistenceDir, req.ID)
+		path = fmt.Sprintf("%s/%s", s.config.Storage.DiskPath, req.ID)
 	}
 
 	// Create repository through pool (this will initialize it)
-	pooledRepo, err := s.repoPool.Get(req.ID, path, req.MemoryOnly || s.config.PersistenceDir == "")
+	pooledRepo, err := s.repoPool.Get(req.ID, path, memoryOnly)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, ErrorResponse{
 			Error: fmt.Sprintf("failed to create repository: %v", err),

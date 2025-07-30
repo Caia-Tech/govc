@@ -16,6 +16,7 @@ type RepositoryPool struct {
 	lastCleanup   time.Time
 	cleanupTicker *time.Ticker
 	done          chan struct{}
+	closed        bool
 }
 
 // PoolConfig defines configuration for the repository pool
@@ -218,13 +219,20 @@ func (p *RepositoryPool) Cleanup() int {
 
 // Close shuts down the repository pool
 func (p *RepositoryPool) Close() {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	
+	// Check if already closed
+	if p.closed {
+		return
+	}
+	
+	p.closed = true
 	close(p.done)
+	
 	if p.cleanupTicker != nil {
 		p.cleanupTicker.Stop()
 	}
-
-	p.mu.Lock()
-	defer p.mu.Unlock()
 
 	// Clear all repositories
 	p.repositories = make(map[string]*PooledRepository)
