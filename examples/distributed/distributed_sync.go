@@ -36,7 +36,8 @@ type SyncMessage struct {
 
 func main() {
 	fmt.Println("🌍 govc Distributed Reality Sync Demo")
-	fmt.Println("=====================================\n")
+	fmt.Println("=====================================")
+	fmt.Println()
 
 	// Create nodes in different regions
 	nodeUS := NewDistributedNode("node-us-east", "us-east-1")
@@ -82,7 +83,7 @@ func NewDistributedNode(id, region string) *DistributedNode {
 	go node.handleSync()
 
 	// Initialize with base configuration
-	tx := node.repo.BeginTransaction()
+	tx := node.repo.Transaction()
 	tx.Add("config/region.yaml", []byte(fmt.Sprintf("region: %s\nstatus: active", region)))
 	tx.Validate()
 	tx.Commit(fmt.Sprintf("Initialize %s", region))
@@ -120,7 +121,7 @@ func (n *DistributedNode) processSync(msg SyncMessage) {
 
 	case "MERGE_REALITY":
 		// Merge the reality into our main branch
-		if reality, exists := n.realities[msg.Reality]; exists {
+		if _, exists := n.realities[msg.Reality]; exists {
 			// In real implementation, would actually merge
 			fmt.Printf("   %s: Merged reality '%s' to main\n", n.ID, msg.Reality)
 		}
@@ -175,7 +176,7 @@ func (n *DistributedNode) ApplyToSharedReality(name string, changes map[string][
 
 func testMultiRegionConfig(nodeUS, nodeEU, nodeAP *DistributedNode) {
 	// US node creates a test reality for new CDN configuration
-	testReality := nodeUS.CreateSharedReality("cdn-config-test")
+	nodeUS.CreateSharedReality("cdn-config-test")
 
 	// Each region tests the configuration with local parameters
 	fmt.Println("\n   Testing CDN configuration in each region:")
@@ -203,7 +204,7 @@ func testMultiRegionConfig(nodeUS, nodeEU, nodeAP *DistributedNode) {
 
 func testDistributedConsensus(nodeUS, nodeEU, nodeAP *DistributedNode) {
 	// Create a reality for a critical database schema change
-	consensusReality := nodeUS.CreateSharedReality("db-schema-v2")
+	_ = nodeUS.CreateSharedReality("db-schema-v2")
 
 	fmt.Println("\n   Proposing database schema change...")
 
@@ -251,7 +252,7 @@ func testDistributedConsensus(nodeUS, nodeEU, nodeAP *DistributedNode) {
 
 func testRealityForkMerge(nodeUS, nodeEU, nodeAP *DistributedNode) {
 	// Start with a shared reality
-	baseReality := nodeUS.CreateSharedReality("feature-optimization")
+	_ = nodeUS.CreateSharedReality("feature-optimization")
 
 	fmt.Println("\n   Each region optimizes for local conditions:")
 

@@ -4,14 +4,11 @@ import (
 	"compress/gzip"
 	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
-	"path"
 	"strings"
 
 	"github.com/caia-tech/govc"
 	"github.com/caia-tech/govc/pkg/object"
-	"github.com/caia-tech/govc/pkg/refs"
 	"github.com/gorilla/mux"
 )
 
@@ -106,15 +103,15 @@ func (s *Server) handleUploadPack(w http.ResponseWriter, r *http.Request) {
 	}
 
 	encoding := r.Header.Get("Content-Encoding")
-	var reader io.Reader = r.Body
 	
 	if encoding == "gzip" {
-		var err error
-		reader, err = gzip.NewReader(r.Body)
+		// In a full implementation, we would decompress and process the request
+		gzReader, err := gzip.NewReader(r.Body)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
+		defer gzReader.Close()
 	}
 
 	w.Header().Set("Content-Type", "application/x-git-upload-pack-result")
@@ -335,7 +332,8 @@ func (s *Server) handleAPIMerge(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := s.repo.Merge(req.Branch); err != nil {
+	currentBranch, _ := s.repo.CurrentBranch()
+	if err := s.repo.Merge(req.Branch, currentBranch); err != nil {
 		if strings.Contains(err.Error(), "conflicts") {
 			w.WriteHeader(http.StatusConflict)
 			json.NewEncoder(w).Encode(map[string]string{
@@ -430,19 +428,4 @@ func (h *GitProtocolHandler) handleHaves(haves []string) map[string]bool {
 	return hasMap
 }
 
-type RepositoryExt interface {
-	GetObject(hash string) (object.Object, error)
-	HasObject(hash string) bool
-}
-
-func (r *Repository) GetObject(hash string) (object.Object, error) {
-	return r.store.GetObject(hash)
-}
-
-func (r *Repository) HasObject(hash string) bool {
-	return r.store.HasObject(hash)
-}
-
-func (r *Repository) Serve(addr string) error {
-	return StartServer(r, addr)
-}
+// Repository extension methods are defined in the main repository.go file

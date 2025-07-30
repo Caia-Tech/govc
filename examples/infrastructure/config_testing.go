@@ -24,7 +24,7 @@ func main() {
 	repo := govc.NewRepository()
 	
 	// Initialize with current production config
-	tx := repo.BeginTransaction()
+	tx := repo.Transaction()
 	tx.Add("lb/config.json", []byte(`{
 		"algorithm": "round-robin",
 		"max_connections": 1000,

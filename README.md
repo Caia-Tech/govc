@@ -71,12 +71,12 @@ suite.ParallelTest(func(t *Test, branch *IsolatedBranch) {
 ## Installation
 
 ```bash
-go install github.com/caia-tech/govc/cmd/govc@latest
+go get github.com/caia-tech/govc
 ```
 
-Or use as a library:
-```go
-import "github.com/caia-tech/govc"
+For CLI:
+```bash
+go install github.com/caia-tech/govc/cmd/govc@latest
 ```
 
 ## Quick Start
@@ -101,25 +101,27 @@ govc checkout main  # Previous state restored instantly
 
 ### Library: Memory-First API
 ```go
+import "github.com/caia-tech/govc"
+
 // Initialize an in-memory repository
-repo := govc.NewRepository()
+repo := govc.New()
 
 // Create isolated branches for parallel testing
-futures := repo.ParallelRealities([]string{
+realities := repo.ParallelRealities([]string{
     "optimize-cpu",
     "optimize-memory", 
     "optimize-network",
 })
 
 // Test configurations in parallel universes
-for _, future := range futures {
-    go func(branch *ParallelReality) {
-        branch.Apply(optimization)
-        score := branch.Benchmark()
+for _, reality := range realities {
+    go func(r *govc.Reality) {
+        r.Apply(optimization)
+        score := r.Benchmark()
         if score.Better() {
-            repo.Merge(branch, repo.Main())
+            repo.Merge(r.Name(), "main")
         }
-    }(future)
+    }(reality)
 }
 ```
 

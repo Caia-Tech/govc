@@ -23,16 +23,21 @@ type ParallelReality struct {
 	mu         sync.RWMutex
 }
 
+// Name returns the name of this reality.
+func (pr *ParallelReality) Name() string {
+	return pr.name
+}
+
 // NewRepository creates a memory-first repository.
 // Unlike traditional Git, this repository operates entirely in memory
 // by default, making operations instant and enabling parallel realities.
 func NewRepository() *Repository {
 	return &Repository{
 		path:       ":memory:",
-		store:      NewMemoryStore(),
+		store:      createMemoryStore(),
 		refManager: NewMemoryRefManager(),
 		staging:    NewStagingArea(),
-		worktree:   NewVirtualWorktree(),
+		worktree:   &Worktree{path: ":memory:"},
 	}
 }
 
@@ -83,7 +88,7 @@ func (pr *ParallelReality) Apply(changes interface{}) error {
 
 	// Switch to this reality
 	oldBranch, _ := pr.repo.CurrentBranch()
-	pr.repo.Checkout(pr.name)
+	pr.repo.Checkout(pr.Name())
 	defer pr.repo.Checkout(oldBranch)
 
 	// Apply changes based on type
@@ -135,9 +140,9 @@ type TransactionalCommit struct {
 	validated bool
 }
 
-// BeginTransaction starts a new transactional commit.
+// Transaction creates a new transactional commit.
 // Changes are staged in memory and can be rolled back before committing.
-func (r *Repository) BeginTransaction() *TransactionalCommit {
+func (r *Repository) Transaction() *TransactionalCommit {
 	return &TransactionalCommit{
 		repo:    r,
 		staging: NewStagingArea(),
@@ -309,23 +314,9 @@ func (br *BenchmarkResult) Better() bool {
 	return true
 }
 
-// VirtualWorktree is a memory-only worktree.
-// No files are written to disk unless explicitly requested.
-type VirtualWorktree struct {
-	files map[string][]byte
-	mu    sync.RWMutex
-}
-
-// NewVirtualWorktree creates a worktree that exists only in memory.
-func NewVirtualWorktree() *VirtualWorktree {
-	return &VirtualWorktree{
-		files: make(map[string][]byte),
-	}
-}
-
-// NewMemoryStore creates a store that operates entirely in memory.
+// createMemoryStore creates a store that operates entirely in memory.
 // This is what makes govc's instant operations possible.
-func NewMemoryStore() *storage.Store {
+func createMemoryStore() *storage.Store {
 	backend := storage.NewMemoryBackend()
 	return storage.NewStore(backend)
 }

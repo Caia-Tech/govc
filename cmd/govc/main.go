@@ -6,7 +6,6 @@ import (
 	"path/filepath"
 
 	"github.com/caia-tech/govc"
-	"github.com/caia-tech/govc/pkg/object"
 	"github.com/spf13/cobra"
 )
 
@@ -188,7 +187,8 @@ var branchCmd = &cobra.Command{
 	Short: "List, create, or delete branches",
 	Run: func(cmd *cobra.Command, args []string) {
 		deleteFlag, _ := cmd.Flags().GetString("delete")
-		listFlag, _ := cmd.Flags().GetBool("list")
+		// List branches if no args provided
+		_, _ = cmd.Flags().GetBool("list") // Not used, branches are listed when no args provided
 
 		repo, err := openRepo()
 		if err != nil {
@@ -280,7 +280,8 @@ var mergeCmd = &cobra.Command{
 		}
 
 		branchName := args[0]
-		if err := repo.Merge(branchName); err != nil {
+		currentBranch, _ := repo.CurrentBranch()
+		if err := repo.Merge(branchName, currentBranch); err != nil {
 			fmt.Fprintf(os.Stderr, "Error merging: %v\n", err)
 			os.Exit(1)
 		}

@@ -18,7 +18,7 @@ func main() {
 	repo := govc.NewRepository()
 	
 	// Initialize with base configuration
-	tx := repo.BeginTransaction()
+	tx := repo.Transaction()
 	tx.Add("terraform/main.tf", []byte(`
 resource "aws_instance" "web" {
   count = 2
@@ -78,7 +78,7 @@ func setupEventHandlers(repo *govc.Repository) {
 			// Create a test reality to validate changes
 			testReality := repo.ParallelReality("k8s-validation")
 			
-			fmt.Printf("   Validating in parallel reality: %s\n", testReality.name)
+			fmt.Printf("   Validating in parallel reality: %s\n", testReality.Name())
 			fmt.Printf("   ✓ Syntax valid\n")
 			fmt.Printf("   ✓ Resource limits OK\n")
 			fmt.Printf("   ✓ Security policies passed\n")
@@ -135,7 +135,7 @@ func simulateInfrastructureChanges(repo *govc.Repository) {
 	// Change 1: Scale up Terraform instances
 	fmt.Println("\n--- Simulating infrastructure changes ---")
 	
-	scaleTx := repo.BeginTransaction()
+	scaleTx := repo.Transaction()
 	scaleTx.Add("terraform/main.tf", []byte(`
 resource "aws_instance" "web" {
   count = 5  # Scaled from 2 to 5
@@ -147,7 +147,7 @@ resource "aws_instance" "web" {
 	time.Sleep(1 * time.Second)
 	
 	// Change 2: Update Kubernetes deployment
-	k8sTx := repo.BeginTransaction()
+	k8sTx := repo.Transaction()
 	k8sTx.Add("k8s/deployment.yaml", []byte(`
 apiVersion: apps/v1
 kind: Deployment
@@ -169,7 +169,7 @@ spec:
 	time.Sleep(1 * time.Second)
 	
 	// Change 3: Update monitoring alerts
-	alertTx := repo.BeginTransaction()
+	alertTx := repo.Transaction()
 	alertTx.Add("monitoring/alerts.yaml", []byte(`
 alerts:
   - name: high_cpu
@@ -184,7 +184,7 @@ alerts:
 	time.Sleep(1 * time.Second)
 	
 	// Change 4: Emergency rollback
-	emergencyTx := repo.BeginTransaction()
+	emergencyTx := repo.Transaction()
 	emergencyTx.Add("terraform/main.tf", []byte(`
 # This change has issues
 resource "aws_instance" "web" {
@@ -246,7 +246,7 @@ func (ri *ReactiveInfrastructure) Start() {
 					if err := handler(event); err != nil {
 						// On error, create a branch to fix the issue
 						fixBranch := ri.repo.ParallelReality("auto-fix-" + event.Hash[:7])
-						log.Printf("Created fix branch: %s", fixBranch.name)
+						log.Printf("Created fix branch: %s", fixBranch.Name())
 					}
 				}
 			}

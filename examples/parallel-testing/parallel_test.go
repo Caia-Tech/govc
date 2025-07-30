@@ -27,7 +27,7 @@ func TestParallelUniverses(t *testing.T) {
 	repo := govc.NewRepository()
 	
 	// Set up initial state
-	tx := repo.BeginTransaction()
+	tx := repo.Transaction()
 	tx.Add("database.conf", []byte("host=localhost\nport=5432\nreplicas=1"))
 	tx.Add("app.conf", []byte("debug=false\nworkers=4"))
 	tx.Validate()
@@ -199,7 +199,7 @@ func (s *IntegrationTestSuite) RunParallel() {
 			// - Alter system state
 			// All changes are isolated to this reality
 			
-			fmt.Printf("%s running in reality %s\n", name, reality.name)
+			fmt.Printf("%s running in reality %s\n", name, reality.Name())
 		}(testName)
 	}
 	

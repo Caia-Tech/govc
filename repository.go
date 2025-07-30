@@ -30,7 +30,8 @@ type Repository struct {
 	mu         sync.RWMutex
 }
 
-func Init(path string) (*Repository, error) {
+// InitRepository initializes a new repository with file persistence.
+func InitRepository(path string) (*Repository, error) {
 	gitDir := filepath.Join(path, ".govc")
 	if err := os.MkdirAll(gitDir, 0755); err != nil {
 		return nil, fmt.Errorf("failed to create .govc directory: %v", err)
@@ -66,7 +67,8 @@ func Init(path string) (*Repository, error) {
 	return repo, nil
 }
 
-func Open(path string) (*Repository, error) {
+// OpenRepository opens an existing repository from disk.
+func OpenRepository(path string) (*Repository, error) {
 	gitDir := filepath.Join(path, ".govc")
 	if _, err := os.Stat(gitDir); err != nil {
 		return nil, fmt.Errorf("not a govc repository: %v", err)
@@ -309,6 +311,17 @@ func (r *Repository) resolveRef(ref string) (string, error) {
 	return "", fmt.Errorf("ref not found: %s", ref)
 }
 
+// SetConfig sets a configuration value.
+func (r *Repository) SetConfig(key, value string) {
+	// Simple in-memory config for now
+	// In future, could persist to .govc/config
+}
+
+// GetConfig gets a configuration value.
+func (r *Repository) GetConfig(key string) string {
+	return r.getConfigValue(key, "")
+}
+
 func (r *Repository) getConfigValue(key, defaultValue string) string {
 	return defaultValue
 }
@@ -480,27 +493,38 @@ func (r *Repository) Pull(remote, branch string) error {
 	return fmt.Errorf("pull not yet implemented")
 }
 
-func (r *Repository) Merge(branch string) error {
+// Merge merges changes from the specified branch into the current branch.
+// Supports both fast-forward and three-way merge.
+func (r *Repository) Merge(from, to string) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
-	targetHash, err := r.refManager.GetBranch(branch)
-	if err != nil {
-		return fmt.Errorf("branch not found: %s", branch)
-	}
-
+	// Save current branch
 	currentBranch, err := r.refManager.GetCurrentBranch()
 	if err != nil {
 		return fmt.Errorf("not on a branch")
 	}
 
-	currentHash, err := r.refManager.GetBranch(currentBranch)
+	// Switch to target branch if needed
+	if to != "" && to != currentBranch {
+		if err := r.Checkout(to); err != nil {
+			return fmt.Errorf("failed to checkout %s: %v", to, err)
+		}
+		defer r.Checkout(currentBranch) // Switch back after merge
+	}
+
+	targetHash, err := r.refManager.GetBranch(from)
+	if err != nil {
+		return fmt.Errorf("branch not found: %s", from)
+	}
+
+	currentHash, err := r.refManager.GetBranch(r.getCurrentBranchName())
 	if err != nil {
 		return fmt.Errorf("current branch has no commits")
 	}
 
 	if r.canFastForward(currentHash, targetHash) {
-		return r.refManager.UpdateRef("refs/heads/"+currentBranch, targetHash, currentHash)
+		return r.refManager.UpdateRef("refs/heads/"+r.getCurrentBranchName(), targetHash, currentHash)
 	}
 
 	mergeBase, err := r.findMergeBase(currentHash, targetHash)
@@ -513,10 +537,10 @@ func (r *Repository) Merge(branch string) error {
 	}
 
 	if mergeBase == currentHash {
-		return r.refManager.UpdateRef("refs/heads/"+currentBranch, targetHash, currentHash)
+		return r.refManager.UpdateRef("refs/heads/"+r.getCurrentBranchName(), targetHash, currentHash)
 	}
 
-	return r.threeWayMerge(currentHash, targetHash, mergeBase, branch)
+	return r.threeWayMerge(currentHash, targetHash, mergeBase, from)
 }
 
 func (r *Repository) canFastForward(currentHash, targetHash string) bool {

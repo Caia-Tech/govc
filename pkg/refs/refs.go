@@ -407,15 +407,15 @@ func (r *RefManager) SetHEADToCommit(commitHash string) error {
 }
 
 func (r *RefManager) GetCurrentBranch() (string, error) {
-	headPath := filepath.Join(r.store.(*FileRefStore).path, "HEAD")
-	data, err := os.ReadFile(headPath)
+	// Use the store interface to get HEAD
+	head, err := r.store.GetHEAD()
 	if err != nil {
-		return "", fmt.Errorf("failed to read HEAD: %v", err)
+		return "", fmt.Errorf("failed to get HEAD: %v", err)
 	}
 
-	content := strings.TrimSpace(string(data))
-	if strings.HasPrefix(content, "ref: refs/heads/") {
-		return strings.TrimPrefix(content, "ref: refs/heads/"), nil
+	// HEAD could be a ref or a direct commit hash
+	if strings.HasPrefix(head, "ref: refs/heads/") {
+		return strings.TrimPrefix(head, "ref: refs/heads/"), nil
 	}
 
 	return "", fmt.Errorf("HEAD is detached")
