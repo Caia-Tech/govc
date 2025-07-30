@@ -1,4 +1,4 @@
-# govc - Production-Ready Memory-First Git Infrastructure
+# govc - Memory-First Git Infrastructure
 
 **A complete Git implementation in Go with enterprise production infrastructure, designed for high-performance, memory-first operations and scalable Git server deployments.**
 
