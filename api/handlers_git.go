@@ -30,13 +30,19 @@ func (s *Server) addFile(c *gin.Context) {
 		return
 	}
 
-	// Add file to repository
-	if err := repo.Add(req.Path); err != nil {
-		// If Add by path fails, try adding with content directly
-		// This is a workaround since our Add method expects file paths
-		// We'll need to enhance the Repository API to support adding content directly
+	// First write the content to the worktree
+	if err := repo.WriteFile(req.Path, []byte(req.Content)); err != nil {
 		c.JSON(http.StatusInternalServerError, ErrorResponse{
-			Error: fmt.Sprintf("failed to add file: %v", err),
+			Error: fmt.Sprintf("failed to write file: %v", err),
+			Code:  "WRITE_FAILED",
+		})
+		return
+	}
+
+	// Then add it to staging
+	if err := repo.Add(req.Path); err != nil {
+		c.JSON(http.StatusInternalServerError, ErrorResponse{
+			Error: fmt.Sprintf("failed to add file to staging: %v", err),
 			Code:  "ADD_FAILED",
 		})
 		return
@@ -241,30 +247,3 @@ func (s *Server) showCommit(c *gin.Context) {
 	})
 }
 
-// getDiff returns diff between two commits
-func (s *Server) getDiff(c *gin.Context) {
-	repoID := c.Param("repo_id")
-	fromHash := c.Param("from")
-	toHash := c.Param("to")
-
-	repo, err := s.getRepository(repoID)
-	if err != nil {
-		c.JSON(http.StatusNotFound, ErrorResponse{
-			Error: err.Error(),
-			Code:  "REPO_NOT_FOUND",
-		})
-		return
-	}
-
-	// This would require implementing a diff algorithm
-	// For now, return a placeholder
-	_ = repo
-	_ = fromHash
-	_ = toHash
-
-	c.JSON(http.StatusOK, gin.H{
-		"from": fromHash,
-		"to":   toHash,
-		"diff": "Diff functionality not yet implemented",
-	})
-}

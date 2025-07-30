@@ -5,7 +5,6 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/caia-tech/govc"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 )
@@ -26,11 +25,13 @@ func (s *Server) createRepo(c *gin.Context) {
 		req.ID = uuid.New().String()
 	}
 
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	// Check if repo already exists
-	if _, exists := s.repos[req.ID]; exists {
+	// Check if repo already exists and get count
+	s.mu.RLock()
+	_, exists := s.repoMetadata[req.ID]
+	repoCount := len(s.repoMetadata)
+	s.mu.RUnlock()
+	
+	if exists {
 		c.JSON(http.StatusConflict, ErrorResponse{
 			Error: fmt.Sprintf("repository %s already exists", req.ID),
 			Code:  "REPO_EXISTS",
@@ -38,8 +39,7 @@ func (s *Server) createRepo(c *gin.Context) {
 		return
 	}
 
-	// Check max repos limit
-	if len(s.repos) >= s.config.MaxRepos {
+	if repoCount >= s.config.MaxRepos {
 		c.JSON(http.StatusServiceUnavailable, ErrorResponse{
 			Error: "maximum number of repositories reached",
 			Code:  "MAX_REPOS_REACHED",
@@ -47,42 +47,49 @@ func (s *Server) createRepo(c *gin.Context) {
 		return
 	}
 
-	// Create repository
-	var repo *govc.Repository
+	// Determine path
 	var path string
-
 	if req.MemoryOnly || s.config.PersistenceDir == "" {
-		repo = govc.New()
 		path = ":memory:"
 	} else {
 		path = fmt.Sprintf("%s/%s", s.config.PersistenceDir, req.ID)
-		var err error
-		repo, err = govc.Init(path)
-		if err != nil {
-			c.JSON(http.StatusInternalServerError, ErrorResponse{
-				Error: fmt.Sprintf("failed to create repository: %v", err),
-				Code:  "REPO_CREATE_FAILED",
-			})
-			return
-		}
 	}
 
-	// Store repository and metadata
-	s.repos[req.ID] = repo
+	// Create repository through pool (this will initialize it)
+	pooledRepo, err := s.repoPool.Get(req.ID, path, req.MemoryOnly || s.config.PersistenceDir == "")
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, ErrorResponse{
+			Error: fmt.Sprintf("failed to create repository: %v", err),
+			Code:  "REPO_CREATE_FAILED",
+		})
+		return
+	}
+
+	// Store metadata only (repository is now managed by pool)
+	s.mu.Lock()
 	s.repoMetadata[req.ID] = &RepoMetadata{
 		ID:        req.ID,
 		CreatedAt: time.Now(),
 		Path:      path,
 	}
+	s.mu.Unlock()
 
-	// Get current branch
+	// Update metrics
+	s.updateMetrics()
+
+	// Get current branch from the pooled repository
+	repo := pooledRepo.GetRepository()
 	branch, _ := repo.CurrentBranch()
+
+	s.mu.RLock()
+	metadata := s.repoMetadata[req.ID]
+	s.mu.RUnlock()
 
 	c.JSON(http.StatusCreated, RepoResponse{
 		ID:            req.ID,
 		Path:          path,
 		CurrentBranch: branch,
-		CreatedAt:     s.repoMetadata[req.ID].CreatedAt,
+		CreatedAt:     metadata.CreatedAt,
 	})
 }
 
@@ -120,7 +127,7 @@ func (s *Server) deleteRepo(c *gin.Context) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	if _, exists := s.repos[repoID]; !exists {
+	if _, exists := s.repoMetadata[repoID]; !exists {
 		c.JSON(http.StatusNotFound, ErrorResponse{
 			Error: fmt.Sprintf("repository %s not found", repoID),
 			Code:  "REPO_NOT_FOUND",
@@ -128,9 +135,12 @@ func (s *Server) deleteRepo(c *gin.Context) {
 		return
 	}
 
-	// Delete repository and its metadata
-	delete(s.repos, repoID)
+	// Remove repository from pool and metadata
+	s.repoPool.Remove(repoID)
 	delete(s.repoMetadata, repoID)
+
+	// Update metrics
+	s.updateMetrics()
 
 	// Clean up any transactions for this repo
 	for txID, tx := range s.transactions {
@@ -152,9 +162,22 @@ func (s *Server) listRepos(c *gin.Context) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
-	repos := make([]RepoResponse, 0, len(s.repos))
-	for id, repo := range s.repos {
-		metadata := s.repoMetadata[id]
+	repos := make([]RepoResponse, 0, len(s.repoMetadata))
+	for id, metadata := range s.repoMetadata {
+		// Get repository from pool to get current branch
+		pooledRepo, err := s.repoPool.Get(id, metadata.Path, metadata.Path == ":memory:")
+		if err != nil {
+			// If we can't get the repo from pool, skip it or show basic info
+			repos = append(repos, RepoResponse{
+				ID:            id,
+				Path:          metadata.Path,
+				CurrentBranch: "unknown",
+				CreatedAt:     metadata.CreatedAt,
+			})
+			continue
+		}
+
+		repo := pooledRepo.GetRepository()
 		branch, _ := repo.CurrentBranch()
 
 		repos = append(repos, RepoResponse{

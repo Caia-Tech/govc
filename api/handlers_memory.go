@@ -30,6 +30,9 @@ func (s *Server) beginTransaction(c *gin.Context) {
 	s.transactions[txID] = tx
 	s.mu.Unlock()
 
+	// Update metrics
+	s.updateMetrics()
+
 	c.JSON(http.StatusCreated, TransactionResponse{
 		ID:        txID,
 		RepoID:    repoID,
@@ -113,6 +116,11 @@ func (s *Server) transactionCommit(c *gin.Context) {
 	}
 	s.mu.Unlock()
 
+	// Update metrics if transaction was deleted
+	if exists {
+		s.updateMetrics()
+	}
+
 	if !exists {
 		c.JSON(http.StatusNotFound, ErrorResponse{
 			Error: "transaction not found",
@@ -160,6 +168,11 @@ func (s *Server) transactionRollback(c *gin.Context) {
 		delete(s.transactions, txID)
 	}
 	s.mu.Unlock()
+
+	// Update metrics if transaction was deleted
+	if exists {
+		s.updateMetrics()
+	}
 
 	if !exists {
 		c.JSON(http.StatusNotFound, ErrorResponse{

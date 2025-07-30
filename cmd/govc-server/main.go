@@ -5,16 +5,20 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"time"
 
 	"github.com/caia-tech/govc/api"
 	"github.com/gin-gonic/gin"
 )
 
 var (
-	port       = flag.String("port", "8080", "Server port")
-	enableAuth = flag.Bool("auth", false, "Enable authentication")
-	maxRepos   = flag.Int("max-repos", 1000, "Maximum number of repositories")
-	debug      = flag.Bool("debug", false, "Enable debug mode")
+	port                = flag.String("port", "8080", "Server port")
+	enableAuth          = flag.Bool("auth", false, "Enable authentication")
+	maxRepos            = flag.Int("max-repos", 1000, "Maximum number of repositories")
+	debug               = flag.Bool("debug", false, "Enable debug mode")
+	poolMaxIdleTime     = flag.Duration("pool-max-idle", 30*time.Minute, "Maximum time a repository can stay idle in pool")
+	poolCleanupInterval = flag.Duration("pool-cleanup-interval", 5*time.Minute, "Interval for pool cleanup")
+	poolEnableMetrics   = flag.Bool("pool-metrics", true, "Enable pool metrics collection")
 )
 
 func main() {
@@ -33,9 +37,12 @@ func main() {
 
 	// Create server with config
 	config := api.Config{
-		Port:       *port,
-		MaxRepos:   *maxRepos,
-		EnableAuth: *enableAuth,
+		Port:                *port,
+		MaxRepos:            *maxRepos,
+		EnableAuth:          *enableAuth,
+		PoolMaxIdleTime:     *poolMaxIdleTime,
+		PoolCleanupInterval: *poolCleanupInterval,
+		PoolEnableMetrics:   *poolEnableMetrics,
 	}
 
 	server := api.NewServer(config)

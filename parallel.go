@@ -41,7 +41,11 @@ func NewRepository() *Repository {
 		store:      createMemoryStore(),
 		refManager: refManager,
 		staging:    NewStagingArea(),
-		worktree:   &Worktree{path: ":memory:"},
+		worktree:   &Worktree{path: ":memory:", files: make(map[string][]byte)},
+		config:     make(map[string]string),
+		stashes:    make([]*Stash, 0),
+		webhooks:   make(map[string]*Webhook),
+		events:     make(chan *RepositoryEvent, 100),
 	}
 }
 
