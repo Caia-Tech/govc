@@ -1,6 +1,30 @@
 # govc: Memory-First Version Control System
 ## Revolutionizing CI/CD Pipeline Performance
 
+Traditional CI/CD Pipeline:
+  1. Git Clone → Disk write (full repo)
+  2. Install Dependencies → Disk write (node_modules, etc)
+  3. Build/Compile → Disk write (binaries, artifacts)
+  4. Run Tests → Disk write (test results, coverage)
+  5. Build Container → Disk write (layers, images)
+  6. Push to Registry → Network + Disk
+  7. Deploy → Pull image, disk write AGAIN
+
+  TOTAL: 7+ disk operations, gigabytes of I/O
+
+  Memory-First Pipeline:
+  1. Load memory state → RAM
+  2. Dependencies already in memory
+  3. Already compiled in memory
+  4. Tests run against memory
+  5. Container IS memory snapshot
+  6. Registry points to memory
+  7. Deploy = update pointer
+
+  TOTAL: Zero disk operations
+
+  Compute industry made billions doing this, but that compute now needs to shift to other workloads. We need more modern languages and tools to be built.
+
 ### Executive Summary
 
 Current CI/CD pipelines waste millions of dollars annually due to unnecessary disk I/O operations. govc eliminates this bottleneck by keeping version control entirely in memory, reducing deployment cycles from 45 minutes to under 1 minute.
