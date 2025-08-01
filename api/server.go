@@ -9,6 +9,7 @@ import (
 	"github.com/caiatech/govc"
 	"github.com/caiatech/govc/auth"
 	"github.com/caiatech/govc/config"
+	"github.com/caiatech/govc/container"
 	"github.com/caiatech/govc/logging"
 	"github.com/caiatech/govc/metrics"
 	"github.com/caiatech/govc/pool"
@@ -25,6 +26,7 @@ type Server struct {
 	apiKeyMgr         *auth.APIKeyManager
 	authMiddleware    *auth.AuthMiddleware
 	prometheusMetrics *metrics.PrometheusMetrics
+	containerManager  *container.Manager
 	logger            *logging.Logger
 	mu                sync.RWMutex
 }
@@ -241,6 +243,9 @@ func (s *Server) RegisterRoutes(router *gin.Engine) {
 
 	// AI and smart features routes
 	s.setupAIRoutes(v1)
+
+	// Container system routes
+	s.setupContainerRoutes(v1)
 
 	// Add Prometheus middleware for automatic metrics collection
 	router.Use(s.prometheusMetrics.GinMiddleware())

@@ -354,8 +354,41 @@ func (r *Repository) Status() (*Status, error) {
 		Untracked: make([]string, 0),
 	}
 
+	// Get staged files
 	for file := range r.staging.files {
 		status.Staged = append(status.Staged, file)
+	}
+
+	// Get worktree files to check for untracked/modified
+	worktreeFiles := r.worktree.ListFiles()
+	
+	// Get committed files
+	var committedFiles map[string]bool
+	headHash, err := r.refManager.GetHEAD()
+	if err == nil && headHash != "" {
+		commit, err := r.store.GetCommit(headHash)
+		if err == nil {
+			tree, err := r.store.GetTree(commit.TreeHash)
+			if err == nil {
+				committedFiles = make(map[string]bool)
+				for _, entry := range tree.Entries {
+					committedFiles[entry.Name] = true
+				}
+			}
+		}
+	}
+
+	// Check each worktree file
+	for _, file := range worktreeFiles {
+		// Skip if already staged
+		if _, staged := r.staging.files[file]; staged {
+			continue
+		}
+
+		// Check if untracked
+		if committedFiles == nil || !committedFiles[file] {
+			status.Untracked = append(status.Untracked, file)
+		}
 	}
 
 	return status, nil
@@ -666,6 +699,41 @@ func (w *Worktree) MatchFiles(pattern string) ([]string, error) {
 	}
 	
 	return files, nil
+}
+
+func (w *Worktree) ListFiles() []string {
+	w.mu.RLock()
+	defer w.mu.RUnlock()
+	
+	if w.path == ":memory:" {
+		// For memory-based worktree, list from memory
+		files := make([]string, 0, len(w.files))
+		for path := range w.files {
+			files = append(files, path)
+		}
+		return files
+	}
+	
+	// For file-based worktree, walk the directory
+	var files []string
+	filepath.Walk(w.path, func(path string, info os.FileInfo, err error) error {
+		if err != nil || info.IsDir() {
+			return nil
+		}
+		
+		// Skip .git directory
+		if strings.Contains(path, ".git") {
+			return nil
+		}
+		
+		relPath, err := filepath.Rel(w.path, path)
+		if err == nil {
+			files = append(files, relPath)
+		}
+		return nil
+	})
+	
+	return files
 }
 
 func (w *Worktree) ReadFile(path string) ([]byte, error) {
@@ -1098,7 +1166,87 @@ func (r *Repository) HasObject(hash string) bool {
 }
 
 func (r *Repository) Export(w io.Writer, format string) error {
-	return fmt.Errorf("export not yet implemented")
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
+	if format != "fast-export" {
+		return fmt.Errorf("unsupported export format: %s", format)
+	}
+
+	// Get all commits in topological order
+	headHash, err := r.refManager.GetHEAD()
+	if err != nil {
+		return fmt.Errorf("no commits to export")
+	}
+
+	// Collect all commits
+	var commits []*object.Commit
+	visited := make(map[string]bool)
+	var collectCommits func(hash string) error
+	
+	collectCommits = func(hash string) error {
+		if hash == "" || visited[hash] {
+			return nil
+		}
+		visited[hash] = true
+		
+		commit, err := r.store.GetCommit(hash)
+		if err != nil {
+			return err
+		}
+		
+		// Recurse to parent first (for correct order)
+		if commit.ParentHash != "" {
+			if err := collectCommits(commit.ParentHash); err != nil {
+				return err
+			}
+		}
+		
+		commits = append(commits, commit)
+		return nil
+	}
+	
+	if err := collectCommits(headHash); err != nil {
+		return err
+	}
+
+	// Export commits in fast-export format
+	fmt.Fprintf(w, "blob\n")
+	fmt.Fprintf(w, "mark :1\n")
+	fmt.Fprintf(w, "data 0\n\n")
+	
+	for i, commit := range commits {
+		// Export commit
+		fmt.Fprintf(w, "commit refs/heads/main\n")
+		fmt.Fprintf(w, "mark :%d\n", i+2)
+		fmt.Fprintf(w, "author %s <%s> %d +0000\n", commit.Author.Name, commit.Author.Email, commit.Author.Time.Unix())
+		fmt.Fprintf(w, "committer %s <%s> %d +0000\n", commit.Committer.Name, commit.Committer.Email, commit.Committer.Time.Unix())
+		fmt.Fprintf(w, "data %d\n%s\n", len(commit.Message), commit.Message)
+		
+		if i > 0 {
+			fmt.Fprintf(w, "from :%d\n", i+1)
+		}
+		
+		// Export tree
+		tree, err := r.store.GetTree(commit.TreeHash)
+		if err != nil {
+			continue
+		}
+		
+		for _, entry := range tree.Entries {
+			blob, err := r.store.GetBlob(entry.Hash)
+			if err != nil {
+				continue
+			}
+			fmt.Fprintf(w, "M 100644 inline %s\n", entry.Name)
+			fmt.Fprintf(w, "data %d\n", len(blob.Content))
+			w.Write(blob.Content)
+			fmt.Fprintf(w, "\n")
+		}
+	}
+	
+	fmt.Fprintf(w, "done\n")
+	return nil
 }
 
 // ReadFile reads a file from the current HEAD

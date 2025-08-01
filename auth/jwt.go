@@ -45,11 +45,6 @@ func NewJWTAuth(secret, issuer string, ttl time.Duration) *JWTAuth {
 
 // GenerateToken creates a new JWT token for a user
 func (j *JWTAuth) GenerateToken(userID, username, email string, permissions []string) (string, error) {
-	// Validate required fields
-	if userID == "" {
-		return "", fmt.Errorf("userID cannot be empty")
-	}
-	
 	now := time.Now()
 	
 	claims := Claims{
