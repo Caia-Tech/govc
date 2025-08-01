@@ -39,7 +39,6 @@ func init() {
 	rootCmd.AddCommand(migrateCmd)
 	rootCmd.AddCommand(backupCmd)
 	rootCmd.AddCommand(restoreCmd)
-	rootCmd.AddCommand(aiCmd)
 }
 
 var initCmd = &cobra.Command{

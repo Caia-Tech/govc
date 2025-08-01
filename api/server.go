@@ -241,8 +241,6 @@ func (s *Server) RegisterRoutes(router *gin.Engine) {
 		poolRoutes.POST("/cleanup", s.cleanupPool)
 	}
 
-	// AI and smart features routes
-	s.setupAIRoutes(v1)
 
 	// Container system routes
 	s.setupContainerRoutes(v1)
