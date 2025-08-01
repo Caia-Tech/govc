@@ -56,11 +56,33 @@ func (s *Server) getDiff(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, DiffResponse{
-		From:   from,
-		To:     to,
-		Format: format,
-		Diff:   diff,
+	// Parse the diff to extract file information for backward compatibility
+	var files []FileDiff
+	if format == "unified" && diff != "" {
+		// Simple parsing of unified diff format
+		lines := strings.Split(diff, "\n")
+		for _, line := range lines {
+			if strings.HasPrefix(line, "diff --git") {
+				// Extract file path from diff header
+				parts := strings.Fields(line)
+				if len(parts) >= 4 {
+					path := strings.TrimPrefix(parts[2], "a/")
+					files = append(files, FileDiff{
+						Path:   path,
+						Status: "modified",
+					})
+				}
+			}
+		}
+	}
+	
+	// Return both the raw diff and parsed files
+	c.JSON(http.StatusOK, gin.H{
+		"from":   from,
+		"to":     to,
+		"format": format,
+		"diff":   diff,
+		"files":  files,
 	})
 }
 
@@ -158,9 +180,14 @@ func (s *Server) getWorkingDiff(c *gin.Context) {
 		}
 	}
 
-	c.JSON(http.StatusOK, WorkingDiffResponse{
-		Staged:   stagedDiffs,
-		Unstaged: unstagedDiffs,
-		Total:    len(stagedDiffs) + len(unstagedDiffs),
+	// Combine all files for backward compatibility
+	allFiles := append(stagedDiffs, unstagedDiffs...)
+	
+	// Return both formats for backward compatibility
+	c.JSON(http.StatusOK, gin.H{
+		"staged":   stagedDiffs,
+		"unstaged": unstagedDiffs,
+		"total":    len(stagedDiffs) + len(unstagedDiffs),
+		"files":    allFiles, // For backward compatibility
 	})
 }

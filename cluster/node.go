@@ -34,13 +34,13 @@ type Node struct {
 	MatchIndex   []uint64  `json:"match_index"`
 	
 	// Node management
-	cluster      *Cluster
-	repositories map[string]*govc.Repository
-	httpServer   *http.Server
-	raftState    *RaftState
-	Stats        NodeStats
-	Metadata     map[string]string
-	mu           sync.RWMutex
+	cluster      *Cluster                    `json:"-"`
+	repositories map[string]*govc.Repository `json:"-"`
+	httpServer   *http.Server               `json:"-"`
+	raftState    *RaftState                 `json:"-"`
+	Stats        NodeStats                  `json:"stats"`
+	Metadata     map[string]string          `json:"metadata"`
+	mu           sync.RWMutex               `json:"-"`
 }
 
 // NodeStats holds node statistics

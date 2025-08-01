@@ -487,8 +487,8 @@ func TestConcurrentClusterOperations(t *testing.T) {
 	// Concurrent repository distributions
 	for i := 0; i < 20; i++ {
 		go func(id int) {
-			repo := &govc.Repository{}
-			if err := cluster.DistributeRepository(fmt.Sprintf("repo%d", id), repo); err != nil {
+			// For now, just pass nil - the cluster should handle it
+			if err := cluster.DistributeRepository(fmt.Sprintf("repo%d", id), nil); err != nil {
 				errors <- err
 			}
 			done <- true

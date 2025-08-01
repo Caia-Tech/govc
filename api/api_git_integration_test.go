@@ -302,7 +302,7 @@ func TestCompleteGitWorkflow(t *testing.T) {
 
 	// Step 15: Compare branches
 	t.Run("Compare main and feature branches", func(t *testing.T) {
-		req := httptest.NewRequest("GET", fmt.Sprintf("/api/v1/repos/%s/diff/main/feature/add-tests", repoID), nil)
+		req := httptest.NewRequest("GET", fmt.Sprintf("/api/v1/repos/%s/diff?from=main&to=feature/add-tests", repoID), nil)
 		w := httptest.NewRecorder()
 
 		router.ServeHTTP(w, req)
@@ -443,7 +443,7 @@ func TestCompleteGitWorkflow(t *testing.T) {
 	// Step 20: Test search functionality
 	t.Run("Test search functionality", func(t *testing.T) {
 		// Search commits
-		req := httptest.NewRequest("GET", fmt.Sprintf("/api/v1/repos/%s/search/commits?q=test", repoID), nil)
+		req := httptest.NewRequest("GET", fmt.Sprintf("/api/v1/repos/%s/search/commits?query=test", repoID), nil)
 		w := httptest.NewRecorder()
 
 		router.ServeHTTP(w, req)
@@ -453,7 +453,7 @@ func TestCompleteGitWorkflow(t *testing.T) {
 		}
 
 		// Search file content
-		req = httptest.NewRequest("GET", fmt.Sprintf("/api/v1/repos/%s/search/content?q=package", repoID), nil)
+		req = httptest.NewRequest("GET", fmt.Sprintf("/api/v1/repos/%s/search/content?query=package", repoID), nil)
 		w = httptest.NewRecorder()
 
 		router.ServeHTTP(w, req)
@@ -463,7 +463,7 @@ func TestCompleteGitWorkflow(t *testing.T) {
 		}
 
 		// Search file names
-		req = httptest.NewRequest("GET", fmt.Sprintf("/api/v1/repos/%s/search/files?q=*.go", repoID), nil)
+		req = httptest.NewRequest("GET", fmt.Sprintf("/api/v1/repos/%s/search/files?query=*.go", repoID), nil)
 		w = httptest.NewRecorder()
 
 		router.ServeHTTP(w, req)

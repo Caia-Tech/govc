@@ -186,7 +186,10 @@ func NewStore(backend Backend) *Store {
 }
 
 func (s *Store) StoreObject(obj object.Object) (string, error) {
-	data := obj.Serialize()
+	data, err := obj.Serialize()
+	if err != nil {
+		return "", err
+	}
 	hash := object.HashObject(data)
 
 	if s.cache.HasObject(hash) {
@@ -327,7 +330,10 @@ func (s *Store) WritePack(w io.Writer, hashes []string) error {
 			return err
 		}
 
-		data := obj.Serialize()
+		data, err := obj.Serialize()
+		if err != nil {
+			return err
+		}
 		packed := PackedObject{
 			Type: obj.Type(),
 			Size: uint64(obj.Size()),

@@ -25,7 +25,7 @@ type Object interface {
 	Type() Type
 	Size() int64
 	Hash() string
-	Serialize() []byte
+	Serialize() ([]byte, error)
 }
 
 type Blob struct {
@@ -45,13 +45,13 @@ func (b *Blob) Size() int64 {
 }
 
 func (b *Blob) Hash() string {
-	data := b.Serialize()
+	data, _ := b.Serialize()
 	return HashObject(data)
 }
 
-func (b *Blob) Serialize() []byte {
+func (b *Blob) Serialize() ([]byte, error) {
 	header := fmt.Sprintf("%s %d\x00", b.Type(), b.Size())
-	return append([]byte(header), b.Content...)
+	return append([]byte(header), b.Content...), nil
 }
 
 type TreeEntry struct {
@@ -88,7 +88,7 @@ func (t *Tree) Size() int64 {
 }
 
 func (t *Tree) Hash() string {
-	data := t.Serialize()
+	data, _ := t.Serialize()
 	return HashObject(data)
 }
 
@@ -102,10 +102,10 @@ func (t *Tree) serializeContent() []byte {
 	return buf.Bytes()
 }
 
-func (t *Tree) Serialize() []byte {
+func (t *Tree) Serialize() ([]byte, error) {
 	content := t.serializeContent()
 	header := fmt.Sprintf("%s %d\x00", t.Type(), len(content))
-	return append([]byte(header), content...)
+	return append([]byte(header), content...), nil
 }
 
 type Author struct {
@@ -151,7 +151,7 @@ func (c *Commit) Size() int64 {
 }
 
 func (c *Commit) Hash() string {
-	data := c.Serialize()
+	data, _ := c.Serialize()
 	return HashObject(data)
 }
 
@@ -167,10 +167,10 @@ func (c *Commit) serializeContent() []byte {
 	return buf.Bytes()
 }
 
-func (c *Commit) Serialize() []byte {
+func (c *Commit) Serialize() ([]byte, error) {
 	content := c.serializeContent()
 	header := fmt.Sprintf("%s %d\x00", c.Type(), len(content))
-	return append([]byte(header), content...)
+	return append([]byte(header), content...), nil
 }
 
 type Tag struct {
@@ -201,7 +201,7 @@ func (t *Tag) Size() int64 {
 }
 
 func (t *Tag) Hash() string {
-	data := t.Serialize()
+	data, _ := t.Serialize()
 	return HashObject(data)
 }
 
@@ -215,10 +215,10 @@ func (t *Tag) serializeContent() []byte {
 	return buf.Bytes()
 }
 
-func (t *Tag) Serialize() []byte {
+func (t *Tag) Serialize() ([]byte, error) {
 	content := t.serializeContent()
 	header := fmt.Sprintf("%s %d\x00", t.Type(), len(content))
-	return append([]byte(header), content...)
+	return append([]byte(header), content...), nil
 }
 
 func HashObject(data []byte) string {
@@ -419,4 +419,9 @@ func parseTag(content []byte) (*Tag, error) {
 	}
 
 	return tag, nil
+}
+
+// Deserialize creates an object from serialized data
+func Deserialize(data []byte) (Object, error) {
+	return ParseObject(data)
 }

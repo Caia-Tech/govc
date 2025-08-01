@@ -173,11 +173,23 @@ func (s *Server) getStatus(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, StatusResponse{
-		Branch:    status.Branch,
-		Staged:    status.Staged,
-		Modified:  status.Modified,
-		Untracked: status.Untracked,
+	// Calculate clean status
+	isClean := len(status.Staged) == 0 && len(status.Modified) == 0 && len(status.Untracked) == 0
+	
+	// Create combined changes list for backward compatibility
+	var changes []string
+	changes = append(changes, status.Staged...)
+	changes = append(changes, status.Modified...)
+	changes = append(changes, status.Untracked...)
+	
+	// Return both the standard format and the "changes" format for backward compatibility
+	c.JSON(http.StatusOK, gin.H{
+		"branch":    status.Branch,
+		"staged":    status.Staged,
+		"modified":  status.Modified,
+		"untracked": status.Untracked,
+		"clean":     isClean,
+		"changes":   changes,
 	})
 }
 
@@ -233,6 +245,65 @@ func (s *Server) showCommit(c *gin.Context) {
 		})
 	}
 
+	// Get diff with parent commit
+	var diffFiles []FileDiff
+	if commit.ParentHash != "" {
+		// Get parent and current trees to analyze changes
+		parentObj, err := repo.GetObject(commit.ParentHash)
+		if err == nil {
+			parentCommit := parentObj.(*object.Commit)
+			parentTree, _ := repo.GetObject(parentCommit.TreeHash)
+			parentTreeObj := parentTree.(*object.Tree)
+			
+			// Compare trees to find changed files
+			changedFiles := make(map[string]bool)
+			
+			// Check for removed/modified files from parent
+			for _, entry := range parentTreeObj.Entries {
+				changedFiles[entry.Name] = true
+			}
+			
+			// Check for added/modified files in current
+			for _, entry := range treeObj.Entries {
+				changedFiles[entry.Name] = true
+			}
+			
+			// Create file diff entries for changed files
+			for path := range changedFiles {
+				status := "modified"
+				
+				// Determine actual status
+				inParent := false
+				inCurrent := false
+				
+				for _, e := range parentTreeObj.Entries {
+					if e.Name == path {
+						inParent = true
+						break
+					}
+				}
+				
+				for _, e := range treeObj.Entries {
+					if e.Name == path {
+						inCurrent = true
+						break
+					}
+				}
+				
+				if !inParent && inCurrent {
+					status = "added"
+				} else if inParent && !inCurrent {
+					status = "deleted"
+				}
+				
+				diffFiles = append(diffFiles, FileDiff{
+					Path:   path,
+					Status: status,
+				})
+			}
+		}
+	}
+	
 	c.JSON(http.StatusOK, gin.H{
 		"commit": CommitResponse{
 			Hash:      commit.Hash(),
@@ -244,6 +315,9 @@ func (s *Server) showCommit(c *gin.Context) {
 		},
 		"tree":  commit.TreeHash,
 		"files": files,
+		"diff": gin.H{
+			"files": diffFiles,
+		},
 	})
 }
 

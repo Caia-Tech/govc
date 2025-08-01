@@ -336,6 +336,33 @@ func (s *Server) benchmarkReality(c *gin.Context) {
 		return
 	}
 
+	// Check if the reality exists
+	branchName := fmt.Sprintf("parallel/%s", realityName)
+	branches, err := repo.ListBranches()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, ErrorResponse{
+			Error: "failed to list branches",
+			Code:  "INTERNAL_ERROR",
+		})
+		return
+	}
+
+	found := false
+	for _, branch := range branches {
+		if branch.Name == fmt.Sprintf("refs/heads/%s", branchName) {
+			found = true
+			break
+		}
+	}
+
+	if !found {
+		c.JSON(http.StatusNotFound, ErrorResponse{
+			Error: fmt.Sprintf("reality '%s' not found", realityName),
+			Code:  "REALITY_NOT_FOUND",
+		})
+		return
+	}
+
 	// Get the reality
 	reality := repo.ParallelReality(realityName)
 

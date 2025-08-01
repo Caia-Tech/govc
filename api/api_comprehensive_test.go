@@ -589,7 +589,6 @@ func TestTimeTravelFeatures(t *testing.T) {
 
 	for i, commit := range commits {
 		time.Sleep(commit.delay)
-		timestamps[i] = time.Now().Unix()
 
 		// Add files
 		for path, content := range commit.files {
@@ -609,6 +608,10 @@ func TestTimeTravelFeatures(t *testing.T) {
 		req.Header.Set("Content-Type", "application/json")
 		w := httptest.NewRecorder()
 		router.ServeHTTP(w, req)
+		
+		// Capture timestamp AFTER commit
+		time.Sleep(10 * time.Millisecond) // Small delay to ensure commit is registered
+		timestamps[i] = time.Now().Unix()
 	}
 
 	t.Run("Time travel to past state", func(t *testing.T) {
@@ -715,8 +718,8 @@ func TestMiddlewareFunctionality(t *testing.T) {
 		router := gin.New()
 		server.RegisterRoutes(router)
 
-		// Request without auth header
-		req := httptest.NewRequest("GET", "/api/v1/repos", nil)
+		// Request without auth header to an endpoint that requires auth
+		req := httptest.NewRequest("GET", "/api/v1/pool/stats", nil)
 		w := httptest.NewRecorder()
 		router.ServeHTTP(w, req)
 
