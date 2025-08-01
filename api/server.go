@@ -272,6 +272,10 @@ func (s *Server) getRepository(id string) (*govc.Repository, error) {
 
 // updateMetrics updates the Prometheus metrics with current counts
 func (s *Server) updateMetrics() {
+	if s.prometheusMetrics == nil {
+		return
+	}
+	
 	s.mu.RLock()
 	repoCount := int64(len(s.repoMetadata))
 	transactionCount := int64(len(s.transactions))

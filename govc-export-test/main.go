@@ -3,7 +3,7 @@ package main
 import "fmt"
 
 func main() {
-    fmt.Println("Hello, World\!")
+    fmt.Println("Hello, World!")
 }
 
 func authenticateUser(username, password string) bool {

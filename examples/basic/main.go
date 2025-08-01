@@ -3,7 +3,7 @@ package main
 import (
 	"fmt"
 	"log"
-	"os"
+	"strings"
 
 	"github.com/caiatech/govc"
 )
@@ -26,19 +26,11 @@ func basicExample() {
 	fmt.Println("=== Basic Repository Example ===")
 
 	// Create a new in-memory repository
-	repo, err := govc.NewRepository()
-	if err != nil {
-		log.Fatal("Failed to create repository:", err)
-	}
-
-	// Initialize the repository
-	if err := repo.Init(); err != nil {
-		log.Fatal("Failed to initialize repository:", err)
-	}
+	repo := govc.New()
 
 	// Create and write a file
 	content := []byte("# govc Example\n\nThis is a demonstration of govc capabilities.")
-	if err := repo.WriteFile("README.md", content, 0644); err != nil {
+	if err := repo.WriteFile("README.md", content); err != nil {
 		log.Fatal("Failed to write file:", err)
 	}
 
@@ -48,9 +40,7 @@ func basicExample() {
 	}
 
 	// Create a commit
-	commit, err := repo.Commit("Initial commit", &govc.CommitOptions{
-		Author: "Example User <user@example.com>",
-	})
+	commit, err := repo.Commit("Initial commit")
 	if err != nil {
 		log.Fatal("Failed to create commit:", err)
 	}
@@ -64,13 +54,12 @@ func basicExample() {
 func branchExample() {
 	fmt.Println("=== Branch Operations Example ===")
 
-	repo, _ := govc.NewRepository()
-	repo.Init()
+	repo := govc.New()
 
 	// Create initial commit
-	repo.WriteFile("main.go", []byte("package main\n\nfunc main() {}\n"), 0644)
+	repo.WriteFile("main.go", []byte("package main\n\nfunc main() {}\n"))
 	repo.Add("main.go")
-	repo.Commit("Initial commit", nil)
+	repo.Commit("Initial commit")
 
 	// Create a new branch
 	if err := repo.Branch("feature/new-feature"); err != nil {
@@ -83,9 +72,9 @@ func branchExample() {
 	}
 
 	// Make changes on the feature branch
-	repo.WriteFile("feature.go", []byte("package main\n\n// New feature code\n"), 0644)
+	repo.WriteFile("feature.go", []byte("package main\n\n// New feature code\n"))
 	repo.Add("feature.go")
-	commit, _ := repo.Commit("Add new feature", nil)
+	commit, _ := repo.Commit("Add new feature")
 
 	fmt.Printf("Created feature commit: %s\n", commit.Hash)
 
@@ -104,9 +93,7 @@ func branchExample() {
 	repo.Checkout("main")
 
 	// Merge the feature branch
-	if err := repo.Merge("feature/new-feature", &govc.MergeOptions{
-		Message: "Merge feature/new-feature into main",
-	}); err != nil {
+	if err := repo.Merge("feature/new-feature", "Merge feature branch"); err != nil {
 		log.Fatal("Failed to merge:", err)
 	}
 
@@ -117,8 +104,7 @@ func branchExample() {
 func fileOperationsExample() {
 	fmt.Println("=== File Operations Example ===")
 
-	repo, _ := govc.NewRepository()
-	repo.Init()
+	repo := govc.New()
 
 	// Create directory structure
 	files := map[string]string{
@@ -126,25 +112,27 @@ func fileOperationsExample() {
 		"src/utils.go":     "package main\n\n// Utility functions\n",
 		"test/main_test.go": "package main\n\nimport \"testing\"\n\nfunc TestMain(t *testing.T) {}\n",
 		"README.md":        "# My Project\n\nBuilt with govc\n",
-		".gitignore":       "*.tmp\n*.log\n",
+		".gitignore":       "*.tmp\n*.commits\n",
 	}
 
 	// Write multiple files
 	for path, content := range files {
-		if err := repo.WriteFile(path, []byte(content), 0644); err != nil {
+		if err := repo.WriteFile(path, []byte(content)); err != nil {
 			log.Fatal("Failed to write file:", err)
 		}
 	}
 
-	// List files in src directory
-	srcFiles, err := repo.ListFiles("src/")
+	// List all files
+	srcFiles, err := repo.ListFiles()
 	if err != nil {
 		log.Fatal("Failed to list files:", err)
 	}
 
-	fmt.Println("Files in src/:")
+	fmt.Println("Files in repository:")
 	for _, file := range srcFiles {
-		fmt.Printf("  - %s\n", file)
+		if strings.HasPrefix(file, "src/") {
+			fmt.Printf("  - %s\n", file)
+		}
 	}
 
 	// Read a file
@@ -155,24 +143,21 @@ func fileOperationsExample() {
 
 	fmt.Printf("\nContent of src/main.go:\n%s\n", string(content))
 
-	// Move a file
-	if err := repo.MoveFile("src/utils.go", "src/helpers.go"); err != nil {
-		log.Fatal("Failed to move file:", err)
-	}
-
-	fmt.Println("Moved src/utils.go to src/helpers.go")
+	// Note: File moving would be done by deleting and re-adding
+	// repo.DeleteFile("src/utils.go")
+	// repo.WriteFile("src/helpers.go", content)
+	fmt.Println("Note: Use DeleteFile + WriteFile to move files")
 
 	// Stage all changes
 	repo.Add(".")
-	repo.Commit("Add project structure", nil)
+	repo.Commit("Add project structure")
 	fmt.Println()
 }
 
 func historyExample() {
 	fmt.Println("=== Commit History Example ===")
 
-	repo, _ := govc.NewRepository()
-	repo.Init()
+	repo := govc.New()
 
 	// Create multiple commits
 	commits := []struct {
@@ -188,27 +173,25 @@ func historyExample() {
 	}
 
 	for _, c := range commits {
-		repo.WriteFile(c.file, []byte(c.content), 0644)
+		repo.WriteFile(c.file, []byte(c.content))
 		repo.Add(c.file)
-		repo.Commit(c.message, nil)
+		repo.Commit(c.message)
 	}
 
 	// Get commit history
-	log, err := repo.Log(&govc.LogOptions{
-		MaxCount: 10,
-	})
+	commitList, err := repo.Log(0) // 0 means get all commits
 	if err != nil {
-		log.Fatal("Failed to get log:", err)
+		log.Fatal("Failed to get commits:", err)
 	}
 
 	fmt.Println("Commit History:")
-	for i, commit := range log {
-		fmt.Printf("%d. %s - %s\n", i+1, commit.Hash[:8], commit.Message)
+	for i, commit := range commitList {
+		fmt.Printf("%d. %s - %s\n", i+1, commit.Hash()[:8], commit.Message)
 	}
 
 	// Get diff between commits
-	if len(log) >= 2 {
-		diff, err := repo.Diff(log[1].Hash, log[0].Hash)
+	if len(commitList) >= 2 {
+		diff, err := repo.Diff(commitList[1].Hash(), commitList[0].Hash(), "")
 		if err != nil {
 			log.Fatal("Failed to get diff:", err)
 		}
@@ -216,43 +199,30 @@ func historyExample() {
 		fmt.Printf("\nDiff between last two commits:\n%s\n", diff)
 	}
 
-	// Show specific file history
-	fileLog, err := repo.LogFile("file1.txt", &govc.LogOptions{})
-	if err != nil {
-		log.Fatal("Failed to get file log:", err)
-	}
-
-	fmt.Println("\nHistory of file1.txt:")
-	for _, commit := range fileLog {
-		fmt.Printf("  - %s: %s\n", commit.Hash[:8], commit.Message)
-	}
+	// Note: File-specific history would need to be filtered from full log
+	fmt.Println("\nNote: Filter commit log to get file-specific history")
 }
 
 func transactionExample() {
 	fmt.Println("=== Transaction Example ===")
 
-	repo, _ := govc.NewRepository()
-	repo.Init()
+	repo := govc.New()
 
-	// Start a transaction
-	tx, err := repo.BeginTransaction()
-	if err != nil {
-		log.Fatal("Failed to begin transaction:", err)
-	}
+	// Use the Transaction() method to get a transactional commit
+	tx := repo.Transaction()
 
 	// Make multiple changes atomically
-	if err := tx.WriteFile("config.json", []byte(`{"version": "1.0"}`), 0644); err != nil {
-		tx.Rollback()
-		log.Fatal("Failed to write config:", err)
-	}
+	tx.Add("config.json", []byte(`{"version": "1.0"}`))
+	tx.Add("data.json", []byte(`{"items": []}`))
 
-	if err := tx.WriteFile("data.json", []byte(`{"items": []}`), 0644); err != nil {
+	// Validate before committing
+	if err := tx.Validate(); err != nil {
 		tx.Rollback()
-		log.Fatal("Failed to write data:", err)
+		log.Fatal("Validation failed:", err)
 	}
 
 	// Commit the transaction
-	if err := tx.Commit(); err != nil {
+	if _, err := tx.Commit("Add configuration files"); err != nil {
 		log.Fatal("Failed to commit transaction:", err)
 	}
 
@@ -262,43 +232,21 @@ func transactionExample() {
 func parallelRealityExample() {
 	fmt.Println("=== Parallel Reality Example ===")
 
-	repo, _ := govc.NewRepository()
-	repo.Init()
+	repo := govc.New()
 
 	// Create base state
-	repo.WriteFile("main.go", []byte("package main\n\n// Original code\n"), 0644)
+	repo.WriteFile("main.go", []byte("package main\n\n// Original code\n"))
 	repo.Add("main.go")
-	repo.Commit("Initial version", nil)
+	repo.Commit("Initial version")
 
-	// Create a parallel reality for experimentation
-	pr, err := repo.CreateParallelReality("experiment-1")
-	if err != nil {
-		log.Fatal("Failed to create parallel reality:", err)
-	}
+	// Create parallel realities for experimentation
+	realities := repo.ParallelRealities([]string{"experiment-1", "experiment-2"})
 
-	// Make experimental changes
-	pr.WriteFile("experimental.go", []byte("package main\n\n// Experimental feature\n"), 0644)
-	pr.WriteFile("main.go", []byte("package main\n\n// Modified code\n"), 0644)
-	pr.Add(".")
-	pr.Commit("Experimental changes", nil)
-
-	// Create another parallel reality
-	pr2, _ := repo.CreateParallelReality("experiment-2")
-	pr2.WriteFile("alternative.go", []byte("package main\n\n// Alternative approach\n"), 0644)
-	pr2.Add("alternative.go")
-	pr2.Commit("Alternative implementation", nil)
-
-	// List parallel realities
-	realities, _ := repo.ListParallelRealities()
-	fmt.Println("Parallel Realities:")
-	for _, reality := range realities {
-		fmt.Printf("  - %s\n", reality.Name)
-	}
-
-	// Merge successful experiment
-	if err := repo.MergeParallelReality("experiment-1"); err != nil {
-		log.Fatal("Failed to merge parallel reality:", err)
-	}
-
-	fmt.Println("Successfully merged experiment-1!")
+	// Make experimental changes in first reality
+	pr := realities[0]
+	pr.Apply(map[string][]byte{
+		"experimental.go": []byte("package main\n\n// Experimental feature\n"),
+	})
+	// Note: Complete parallel reality implementation would go here
+	fmt.Println("Parallel realities created for testing")
 }

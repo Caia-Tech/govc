@@ -108,7 +108,7 @@ spec:
 	fmt.Println("\nStarting container build...")
 	build, err := mgr.StartBuild(container.BuildRequest{
 		RepositoryID: "example-app",
-		Dockerfile:   "Dockerfile",
+		Govcfile:     "Dockerfile",
 		Context:      ".",
 		Tags:         []string{"example-app:latest", "example-app:v1.0"},
 		Args: map[string]string{
@@ -178,8 +178,12 @@ spec:
 		fmt.Printf("Validation failed: %v\n", err)
 		tx.Rollback()
 	} else {
-		commit := tx.Commit("Update container configurations")
-		fmt.Printf("Transaction committed: %s\n", commit.Hash())
+		commit, err := tx.Commit("Update container configurations")
+		if err != nil {
+			fmt.Printf("Commit failed: %v\n", err)
+		} else {
+			fmt.Printf("Transaction committed: %s\n", commit.Hash())
+		}
 	}
 
 	fmt.Println("\nContainer system example completed!")

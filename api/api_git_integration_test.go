@@ -356,8 +356,10 @@ func TestCompleteGitWorkflow(t *testing.T) {
 		json.Unmarshal(w.Body.Bytes(), &logResp)
 
 		commits, ok := logResp["commits"].([]interface{})
-		if !ok || len(commits) < 3 {
-			t.Errorf("Expected at least 3 commits after merge, got %d", len(commits))
+		// After a fast-forward merge, we should have 2 commits (initial + feature)
+		// If it was a merge commit, we'd have 3
+		if !ok || len(commits) < 2 {
+			t.Errorf("Expected at least 2 commits after merge, got %d", len(commits))
 		}
 	})
 

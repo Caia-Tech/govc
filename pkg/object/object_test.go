@@ -113,7 +113,11 @@ func TestCommit(t *testing.T) {
 	}
 
 	// Test serialization contains expected content
-	serialized := string(commit.Serialize())
+	serializedBytes, err := commit.Serialize()
+	if err != nil {
+		t.Fatalf("Failed to serialize commit: %v", err)
+	}
+	serialized := string(serializedBytes)
 	expectedParts := []string{
 		"tree abc123",
 		"parent parent123",
@@ -251,7 +255,10 @@ func TestParseTreeContent(t *testing.T) {
 	original.AddEntry("100644", "file.txt", "e69de29bb2d1d6434b8b29ae775ad8c2e48c5391")
 	original.AddEntry("100755", "script.sh", "95d09f2b10159347eece71399a7e2e907ea3df4f")
 
-	serialized := original.Serialize()
+	serialized, err := original.Serialize()
+	if err != nil {
+		t.Fatalf("Failed to serialize tree: %v", err)
+	}
 
 	// Parse it back
 	parsed, err := ParseObject(serialized)

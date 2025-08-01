@@ -204,10 +204,12 @@ func (s *Server) listTree(c *gin.Context) {
 		}
 	}
 
-	c.JSON(http.StatusOK, TreeResponse{
-		Path:    dirPath,
-		Entries: entries,
-		Total:   len(entries),
+	// Return both "entries" and "files" for backward compatibility
+	c.JSON(http.StatusOK, gin.H{
+		"path":    dirPath,
+		"entries": entries,
+		"files":   entries, // Alias for backward compatibility
+		"total":   len(entries),
 	})
 }
 

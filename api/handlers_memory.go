@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -432,6 +433,8 @@ func (s *Server) timeTravelRead(c *gin.Context) {
 	repoID := c.Param("repo_id")
 	timestampStr := c.Param("timestamp")
 	path := c.Param("path")
+	// Remove leading slash if present
+	path = strings.TrimPrefix(path, "/")
 
 	repo, err := s.getRepository(repoID)
 	if err != nil {

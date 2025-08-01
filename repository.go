@@ -288,21 +288,46 @@ func (r *Repository) Checkout(ref string) error {
 	defer r.mu.Unlock()
 
 	// First check if this is a branch name
-	if strings.HasPrefix(ref, "refs/heads/") || !strings.Contains(ref, "/") {
-		branchName := ref
-		if strings.HasPrefix(ref, "refs/heads/") {
-			branchName = strings.TrimPrefix(ref, "refs/heads/")
+	// Branch names can contain slashes (e.g., feature/add-tests)
+	// So we need to check if it's a valid branch first
+	isBranch := false
+	branchName := ref
+	if strings.HasPrefix(ref, "refs/heads/") {
+		branchName = strings.TrimPrefix(ref, "refs/heads/")
+		isBranch = true
+	} else {
+		// Check if this ref exists as a branch
+		if _, err := r.refManager.GetBranch(ref); err == nil {
+			branchName = ref
+			isBranch = true
 		}
+	}
+	
+	if isBranch {
 		
 		// Check if the branch exists
 		branchHash, err := r.refManager.GetBranch(branchName)
 		if err != nil {
 			// Branch doesn't exist yet, but we can still checkout to it
 			// This creates a branch that will point to the next commit
+			// Clear the worktree for a new empty branch
+			files := r.worktree.ListFiles()
+			for _, file := range files {
+				r.worktree.RemoveFile(file)
+			}
 			return r.refManager.SetHEADToBranch(branchName)
 		}
 		
 		// Branch exists, update worktree
+		if branchHash == "" {
+			// Empty branch - clear the worktree
+			files := r.worktree.ListFiles()
+			for _, file := range files {
+				r.worktree.RemoveFile(file)
+			}
+			return r.refManager.SetHEADToBranch(branchName)
+		}
+
 		commit, err := r.store.GetCommit(branchHash)
 		if err != nil {
 			return err
@@ -454,6 +479,26 @@ func (r *Repository) createTreeFromStaging() (*object.Tree, error) {
 }
 
 func (r *Repository) updateWorktree(tree *object.Tree) error {
+	// First, clear the worktree
+	// Get all current files
+	currentFiles := r.worktree.ListFiles()
+
+	// Build a set of files that should exist
+	shouldExist := make(map[string]bool)
+	for _, entry := range tree.Entries {
+		shouldExist[entry.Name] = true
+	}
+
+	// Remove files that shouldn't exist
+	for _, file := range currentFiles {
+		if !shouldExist[file] {
+			if err := r.worktree.RemoveFile(file); err != nil {
+				return err
+			}
+		}
+	}
+
+	// Now write all files from the tree
 	for _, entry := range tree.Entries {
 		blob, err := r.store.GetBlob(entry.Hash)
 		if err != nil {
