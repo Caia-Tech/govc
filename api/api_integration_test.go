@@ -254,8 +254,12 @@ func TestTransactionalWorkflow(t *testing.T) {
 		}
 
 		for _, file := range files {
-			body := bytes.NewBufferString(fmt.Sprintf(
-				`{"path": "%s", "content": "%s"}`, file.path, file.content))
+			requestData := map[string]string{
+				"path":    file.path,
+				"content": file.content,
+			}
+			jsonData, _ := json.Marshal(requestData)
+			body := bytes.NewBuffer(jsonData)
 			req := httptest.NewRequest("POST", 
 				fmt.Sprintf("/api/v1/repos/%s/transaction/%s/add", repoID, mainTxID), body)
 			req.Header.Set("Content-Type", "application/json")
@@ -283,7 +287,8 @@ func TestTransactionalWorkflow(t *testing.T) {
 		var validResp map[string]interface{}
 		json.Unmarshal(w.Body.Bytes(), &validResp)
 		
-		if valid, ok := validResp["valid"].(bool); !ok || !valid {
+		// Check if the response has a "status" field set to "valid"
+		if status, ok := validResp["status"].(string); !ok || status != "valid" {
 			t.Errorf("Transaction validation failed: %v", validResp)
 		}
 	})
@@ -341,7 +346,7 @@ func TestTransactionalWorkflow(t *testing.T) {
 		json.Unmarshal(w.Body.Bytes(), &status)
 
 		if status.Clean != true {
-			t.Error("Repository should be clean after transaction commit")
+			t.Errorf("Repository should be clean after transaction commit. Status: %+v", status)
 		}
 
 		// Get log to verify commit
