@@ -215,9 +215,11 @@ func TestNodeFailureHandling(t *testing.T) {
 	// Verify failover event was created
 	fm.mu.RLock()
 	assert.Greater(t, len(fm.eventLog), 0)
-	event := fm.eventLog[0]
-	assert.Equal(t, FailoverTypeNodeFailure, event.Type)
-	assert.Equal(t, "node1", event.SourceNode)
+	if len(fm.eventLog) > 0 {
+		event := fm.eventLog[0]
+		assert.Equal(t, FailoverTypeNodeFailure, event.Type)
+		assert.Equal(t, "node1", event.SourceNode)
+	}
 	fm.mu.RUnlock()
 }
 

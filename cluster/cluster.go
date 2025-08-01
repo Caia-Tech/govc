@@ -332,9 +332,12 @@ func (c *Cluster) GetClusterHealth() ClusterHealth {
 	}
 
 	// Determine overall cluster state
-	if health.HealthyNodes == 0 {
+	if health.TotalNodes == 0 {
+		// Empty cluster is considered healthy
+		health.Status = ClusterStateHealthy
+	} else if health.HealthyNodes == 0 {
 		health.Status = ClusterStateUnavailable
-	} else if health.HealthyNodes < len(c.Nodes)/2 {
+	} else if health.HealthyNodes <= len(c.Nodes)/2 {
 		health.Status = ClusterStateDegraded
 	} else {
 		health.Status = ClusterStateHealthy
@@ -417,6 +420,12 @@ func (c *Cluster) selectNodesForShard() (primary string, replicas []string) {
 
 // keyInRange checks if a key is within a shard's range
 func (c *Cluster) keyInRange(key string, keyRange ShardKeyRange) bool {
+	// For single-character ranges, check only the first character
+	if len(keyRange.Start) == 1 && len(keyRange.End) == 1 && len(key) > 0 {
+		firstChar := string(key[0])
+		return firstChar >= keyRange.Start && firstChar <= keyRange.End
+	}
+	// For full string ranges
 	return key >= keyRange.Start && key <= keyRange.End
 }
 
