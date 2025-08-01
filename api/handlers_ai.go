@@ -137,8 +137,20 @@ func (s *Server) semanticSearch(c *gin.Context) {
 		return
 	}
 
-	// Use default repository for now (in production, this would be configurable)
-	repo := s.repo
+	// Get repository from request or use default
+	repoID := c.Query("repo_id")
+	if repoID == "" {
+		repoID = "default"
+	}
+	
+	repo, err := s.getRepository(repoID)
+	if err != nil {
+		c.JSON(http.StatusNotFound, ErrorResponse{
+			Error: "Repository not found: " + err.Error(),
+			Code:  "REPO_NOT_FOUND",
+		})
+		return
+	}
 	
 	startTime := time.Now()
 	results, err := s.performSemanticSearch(c.Request.Context(), repo, req)
@@ -235,8 +247,20 @@ func (s *Server) buildSemanticIndex(c *gin.Context) {
 		return
 	}
 
-	// Use default repository
-	repo := s.repo
+	// Get repository from request or use default
+	repoID := c.Query("repo_id")
+	if repoID == "" {
+		repoID = "default"
+	}
+	
+	repo, err := s.getRepository(repoID)
+	if err != nil {
+		c.JSON(http.StatusNotFound, ErrorResponse{
+			Error: "Repository not found: " + err.Error(),
+			Code:  "REPO_NOT_FOUND",
+		})
+		return
+	}
 	
 	response, err := s.performIndexBuild(c.Request.Context(), repo, req)
 	if err != nil {
@@ -283,8 +307,20 @@ func (s *Server) buildSemanticIndexForRepo(c *gin.Context) {
 }
 
 func (s *Server) getIndexStats(c *gin.Context) {
-	// Use default repository
-	repo := s.repo
+	// Get repository from request or use default
+	repoID := c.Query("repo_id")
+	if repoID == "" {
+		repoID = "default"
+	}
+	
+	repo, err := s.getRepository(repoID)
+	if err != nil {
+		c.JSON(http.StatusNotFound, ErrorResponse{
+			Error: "Repository not found: " + err.Error(),
+			Code:  "REPO_NOT_FOUND",
+		})
+		return
+	}
 	
 	response, err := s.getSemanticIndexStats(c.Request.Context(), repo)
 	if err != nil {
@@ -331,8 +367,20 @@ func (s *Server) generateCommitMessage(c *gin.Context) {
 		return
 	}
 
-	// Use default repository
-	repo := s.repo
+	// Get repository from request or use default
+	repoID := c.Query("repo_id")
+	if repoID == "" {
+		repoID = "default"
+	}
+	
+	repo, err := s.getRepository(repoID)
+	if err != nil {
+		c.JSON(http.StatusNotFound, ErrorResponse{
+			Error: "Repository not found: " + err.Error(),
+			Code:  "REPO_NOT_FOUND",
+		})
+		return
+	}
 	
 	response, err := s.performCommitMessageGeneration(c.Request.Context(), repo, req)
 	if err != nil {

@@ -398,12 +398,13 @@ func (r *Repository) Log(limit int) ([]*object.Commit, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
+	commits := make([]*object.Commit, 0)
+	
 	headHash, err := r.refManager.GetHEAD()
 	if err != nil {
-		return nil, err
+		// No commits yet, return empty slice
+		return commits, nil
 	}
-
-	commits := make([]*object.Commit, 0)
 	currentHash := headHash
 
 	for i := 0; (limit <= 0 || i < limit) && currentHash != ""; i++ {
@@ -842,6 +843,12 @@ func (b *BranchBuilder) Delete() error {
 	b.repo.mu.Lock()
 	defer b.repo.mu.Unlock()
 
+	// Check if this is the current branch
+	currentBranch, err := b.repo.refManager.GetCurrentBranch()
+	if err == nil && currentBranch == b.name {
+		return fmt.Errorf("cannot delete current branch")
+	}
+
 	return b.repo.refManager.DeleteBranch(b.name)
 }
 
@@ -1173,75 +1180,116 @@ func (r *Repository) Export(w io.Writer, format string) error {
 		return fmt.Errorf("unsupported export format: %s", format)
 	}
 
-	// Get all commits in topological order
-	headHash, err := r.refManager.GetHEAD()
+	// Get all branches
+	branches, err := r.refManager.ListBranches()
 	if err != nil {
-		return fmt.Errorf("no commits to export")
+		return fmt.Errorf("failed to list branches: %w", err)
 	}
 
-	// Collect all commits
-	var commits []*object.Commit
-	visited := make(map[string]bool)
-	var collectCommits func(hash string) error
+	// Get all tags
+	tags, err := r.refManager.ListTags()
+	if err != nil {
+		// Tags might not exist, that's OK
+		tags = []refs.Ref{}
+	}
+
+	// Track exported commits and their marks
+	commitToMark := make(map[string]int)
+	markCounter := 1
+
+	// Start with empty blob
+	fmt.Fprintf(w, "blob\n")
+	fmt.Fprintf(w, "mark :%d\n", markCounter)
+	fmt.Fprintf(w, "data 0\n\n")
+	markCounter++
+
+	// Collect all unique commits from all branches
+	allCommits := make(map[string]*object.Commit)
+	commitOrder := make([]string, 0)
 	
+	var collectCommits func(hash string) error
 	collectCommits = func(hash string) error {
-		if hash == "" || visited[hash] {
+		if hash == "" || allCommits[hash] != nil {
 			return nil
 		}
-		visited[hash] = true
 		
 		commit, err := r.store.GetCommit(hash)
 		if err != nil {
 			return err
 		}
 		
-		// Recurse to parent first (for correct order)
+		// Recurse to parent first
 		if commit.ParentHash != "" {
 			if err := collectCommits(commit.ParentHash); err != nil {
 				return err
 			}
 		}
 		
-		commits = append(commits, commit)
+		allCommits[hash] = commit
+		commitOrder = append(commitOrder, hash)
 		return nil
 	}
 	
-	if err := collectCommits(headHash); err != nil {
-		return err
+	// Collect commits from all branches
+	for _, branch := range branches {
+		if branch.Hash != "" {
+			collectCommits(branch.Hash)
+		}
 	}
 
-	// Export commits in fast-export format
-	fmt.Fprintf(w, "blob\n")
-	fmt.Fprintf(w, "mark :1\n")
-	fmt.Fprintf(w, "data 0\n\n")
-	
-	for i, commit := range commits {
-		// Export commit
+	// Export all commits first
+	for _, hash := range commitOrder {
+		commit := allCommits[hash]
+		commitToMark[hash] = markCounter
+		
+		// For now, export all commits to the main branch
+		// This is a simplification - a full implementation would track branch points
 		fmt.Fprintf(w, "commit refs/heads/main\n")
-		fmt.Fprintf(w, "mark :%d\n", i+2)
+		fmt.Fprintf(w, "mark :%d\n", markCounter)
 		fmt.Fprintf(w, "author %s <%s> %d +0000\n", commit.Author.Name, commit.Author.Email, commit.Author.Time.Unix())
 		fmt.Fprintf(w, "committer %s <%s> %d +0000\n", commit.Committer.Name, commit.Committer.Email, commit.Committer.Time.Unix())
 		fmt.Fprintf(w, "data %d\n%s\n", len(commit.Message), commit.Message)
 		
-		if i > 0 {
-			fmt.Fprintf(w, "from :%d\n", i+1)
+		if commit.ParentHash != "" {
+			if parentMark, exists := commitToMark[commit.ParentHash]; exists {
+				fmt.Fprintf(w, "from :%d\n", parentMark)
+			}
 		}
 		
 		// Export tree
 		tree, err := r.store.GetTree(commit.TreeHash)
-		if err != nil {
-			continue
+		if err == nil {
+			for _, entry := range tree.Entries {
+				blob, err := r.store.GetBlob(entry.Hash)
+				if err == nil {
+					fmt.Fprintf(w, "M 100644 inline %s\n", entry.Name)
+					fmt.Fprintf(w, "data %d\n", len(blob.Content))
+					w.Write(blob.Content)
+					fmt.Fprintf(w, "\n")
+				}
+			}
 		}
 		
-		for _, entry := range tree.Entries {
-			blob, err := r.store.GetBlob(entry.Hash)
-			if err != nil {
-				continue
+		markCounter++
+	}
+
+	// Export branch refs
+	for _, branch := range branches {
+		if branch.Hash != "" && branch.Name != "refs/heads/main" {
+			if mark, exists := commitToMark[branch.Hash]; exists {
+				fmt.Fprintf(w, "reset %s\n", branch.Name)
+				fmt.Fprintf(w, "from :%d\n\n", mark)
 			}
-			fmt.Fprintf(w, "M 100644 inline %s\n", entry.Name)
-			fmt.Fprintf(w, "data %d\n", len(blob.Content))
-			w.Write(blob.Content)
-			fmt.Fprintf(w, "\n")
+		}
+	}
+
+	// Export tags
+	for _, tag := range tags {
+		if mark, exists := commitToMark[tag.Hash]; exists {
+			fmt.Fprintf(w, "tag %s\n", strings.TrimPrefix(tag.Name, "refs/tags/"))
+			fmt.Fprintf(w, "from :%d\n", mark)
+			fmt.Fprintf(w, "tagger Unknown <unknown@example.com> %d +0000\n", time.Now().Unix())
+			fmt.Fprintf(w, "data 0\n\n")
 		}
 	}
 	

@@ -3,6 +3,7 @@ package api
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"net/http/httptest"
 	"testing"
 
@@ -246,6 +247,9 @@ func TestRBACPermissions(t *testing.T) {
 	// Login as admin to get token for user management
 	adminToken := loginAsAdmin(t, router)
 
+	// Variable to store developer user ID across test cases
+	var developerUserID string
+
 	// Step 1: Create a test user with developer role
 	t.Run("Create developer user", func(t *testing.T) {
 		body := bytes.NewBufferString(`{
@@ -263,16 +267,30 @@ func TestRBACPermissions(t *testing.T) {
 		if w.Code != 201 {
 			t.Fatalf("User creation failed: %d - %s", w.Code, w.Body.String())
 		}
+		
+		// Extract the user ID from response
+		var userResp map[string]interface{}
+		json.Unmarshal(w.Body.Bytes(), &userResp)
+		if id, ok := userResp["ID"].(string); ok {
+			developerUserID = id
+		} else {
+			// If ID field doesn't exist, try id or use username as fallback
+			if id, ok := userResp["id"].(string); ok {
+				developerUserID = id
+			} else {
+				developerUserID = "developer"
+			}
+		}
 	})
 
 	// Step 2: Create API key for developer with limited permissions
 	var devAPIKey string
 	t.Run("Create developer API key", func(t *testing.T) {
-		body := bytes.NewBufferString(`{
+		body := bytes.NewBufferString(fmt.Sprintf(`{
 			"name": "dev-key",
-			"user_id": "developer",
+			"user_id": "%s",
 			"permissions": ["repo:read", "repo:write"]
-		}`)
+		}`, developerUserID))
 		req := httptest.NewRequest("POST", "/api/v1/apikeys", body)
 		req.Header.Set("Authorization", "Bearer "+adminToken)
 		req.Header.Set("Content-Type", "application/json")
@@ -327,7 +345,7 @@ func TestRBACPermissions(t *testing.T) {
 	t.Run("Grant repository-specific permissions", func(t *testing.T) {
 		// Grant developer read-only access to a specific repo
 		body := bytes.NewBufferString(`{}`)
-		req := httptest.NewRequest("POST", "/api/v1/users/developer/repos/dev-repo/permissions/repo:read", body)
+		req := httptest.NewRequest("POST", fmt.Sprintf("/api/v1/users/%s/repos/dev-repo/permissions/repo:read", developerUserID), body)
 		req.Header.Set("Authorization", "Bearer "+adminToken)
 		req.Header.Set("Content-Type", "application/json")
 		w := httptest.NewRecorder()
@@ -342,7 +360,7 @@ func TestRBACPermissions(t *testing.T) {
 	// Step 6: Test role assignment
 	t.Run("Assign additional role", func(t *testing.T) {
 		body := bytes.NewBufferString(`{}`)
-		req := httptest.NewRequest("POST", "/api/v1/users/developer/roles/reader", body)
+		req := httptest.NewRequest("POST", fmt.Sprintf("/api/v1/users/%s/roles/reader", developerUserID), body)
 		req.Header.Set("Authorization", "Bearer "+adminToken)
 		req.Header.Set("Content-Type", "application/json")
 		w := httptest.NewRecorder()
@@ -356,7 +374,7 @@ func TestRBACPermissions(t *testing.T) {
 
 	// Step 7: Verify user information
 	t.Run("Get user information", func(t *testing.T) {
-		req := httptest.NewRequest("GET", "/api/v1/users/developer", nil)
+		req := httptest.NewRequest("GET", fmt.Sprintf("/api/v1/users/%s", developerUserID), nil)
 		req.Header.Set("Authorization", "Bearer "+adminToken)
 		w := httptest.NewRecorder()
 
@@ -402,7 +420,7 @@ func TestRBACPermissions(t *testing.T) {
 
 	// Verify we can still access the developer user
 	t.Run("Verify developer user exists", func(t *testing.T) {
-		req := httptest.NewRequest("GET", "/api/v1/users/developer", nil)
+		req := httptest.NewRequest("GET", fmt.Sprintf("/api/v1/users/%s", developerUserID), nil)
 		req.Header.Set("Authorization", "Bearer "+adminToken)
 		w := httptest.NewRecorder()
 

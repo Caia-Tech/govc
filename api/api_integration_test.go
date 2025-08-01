@@ -283,8 +283,8 @@ func TestTransactionalWorkflow(t *testing.T) {
 		var validResp map[string]interface{}
 		json.Unmarshal(w.Body.Bytes(), &validResp)
 		
-		if !validResp["valid"].(bool) {
-			t.Error("Transaction validation failed")
+		if valid, ok := validResp["valid"].(bool); !ok || !valid {
+			t.Errorf("Transaction validation failed: %v", validResp)
 		}
 	})
 

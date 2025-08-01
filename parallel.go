@@ -206,6 +206,9 @@ func (tc *TransactionalCommit) Commit(message string) (*object.Commit, error) {
 
 	tc.message = message
 	
+	// Update the author time to the current time when committing
+	tc.author.Time = time.Now()
+	
 	// Swap staging areas atomically
 	oldStaging := tc.repo.staging
 	tc.repo.staging = tc.staging
@@ -306,7 +309,12 @@ func (r *Repository) TimeTravel(moment time.Time) *HistoricalSnapshot {
 		}
 	}
 	
-	return nil
+	// Return empty snapshot for empty repository
+	return &HistoricalSnapshot{
+		repo:   r,
+		commit: nil,
+		time:   moment,
+	}
 }
 
 // HistoricalSnapshot represents a point-in-time view of the repository.
@@ -318,6 +326,10 @@ type HistoricalSnapshot struct {
 
 // Read returns file content at this point in history.
 func (hs *HistoricalSnapshot) Read(path string) ([]byte, error) {
+	if hs.commit == nil {
+		return nil, fmt.Errorf("no commit at this point in time")
+	}
+	
 	tree, err := hs.repo.store.GetTree(hs.commit.TreeHash)
 	if err != nil {
 		return nil, err

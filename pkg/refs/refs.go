@@ -82,7 +82,7 @@ func (m *MemoryRefStore) ListRefs(prefix string) ([]Ref, error) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
-	var refs []Ref
+	refs := make([]Ref, 0)
 	for name, hash := range m.refs {
 		if prefix == "" || strings.HasPrefix(name, prefix) {
 			refType := m.getRefType(name)

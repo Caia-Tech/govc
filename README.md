@@ -235,6 +235,19 @@ rbac.GrantRepositoryPermission("dev1", "critical-repo", auth.PermissionRepoRead)
 | `/api/v1/repos/{id}/branches` | GET | List branches |
 | `/api/v1/repos/{id}/branches` | POST | Create branch |
 
+### Container Operations
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/v1/repos/{id}/containers/definitions` | GET | List container definitions |
+| `/api/v1/repos/{id}/containers/definitions` | POST | Create container definition |
+| `/api/v1/repos/{id}/containers/definitions/*path` | GET | Get container definition |
+| `/api/v1/repos/{id}/containers/definitions/*path` | PUT | Update container definition |
+| `/api/v1/repos/{id}/containers/definitions/*path` | DELETE | Delete container definition |
+| `/api/v1/repos/{id}/containers/build` | POST | Start container build |
+| `/api/v1/repos/{id}/containers/builds` | GET | List builds |
+| `/api/v1/repos/{id}/containers/builds/{build_id}` | GET | Get build details |
+
 ### Authentication
 
 | Endpoint | Method | Description |

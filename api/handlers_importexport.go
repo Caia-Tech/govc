@@ -2,12 +2,10 @@ package api
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"net/http"
 	"os"
 	"path/filepath"
-	"strconv"
 	"time"
 
 	"github.com/caiatech/govc"
@@ -150,15 +148,22 @@ func (s *Server) ImportGitHandler(c *gin.Context) {
 	var govcRepo *govc.Repository
 	var err error
 
-	if _, exists := s.repos[req.RepoID]; exists {
+	// Check if repository already exists
+	s.mu.RLock()
+	if _, exists := s.repoMetadata[req.RepoID]; exists {
+		s.mu.RUnlock()
 		c.JSON(http.StatusConflict, gin.H{"error": "Repository already exists"})
 		return
 	}
+	s.mu.RUnlock()
 
+	var repoPath string
 	if req.MemoryOnly {
-		govcRepo, err = govc.InitMemory()
+		repoPath = ":memory:"
+		govcRepo = govc.New()
+		err = nil
 	} else {
-		repoPath := filepath.Join("/tmp", req.RepoID) // This should be configurable
+		repoPath = filepath.Join("/tmp", req.RepoID) // This should be configurable
 		govcRepo, err = govc.Init(repoPath)
 	}
 
@@ -196,8 +201,14 @@ func (s *Server) ImportGitHandler(c *gin.Context) {
 			job.Error = err
 		} else {
 			job.Status = "completed"
-			// Add repository to server registry
-			s.repos[req.RepoID] = govcRepo
+			// Register repository metadata
+			s.mu.Lock()
+			s.repoMetadata[req.RepoID] = &RepoMetadata{
+				ID:        req.RepoID,
+				CreatedAt: time.Now(),
+				Path:      repoPath,
+			}
+			s.mu.Unlock()
 		}
 	}()
 
@@ -220,8 +231,8 @@ func (s *Server) ExportGitHandler(c *gin.Context) {
 	}
 
 	// Get repository
-	repo, exists := s.repos[req.RepoID]
-	if !exists {
+	repo, err := s.getRepository(req.RepoID)
+	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Repository not found"})
 		return
 	}
@@ -284,11 +295,7 @@ func (s *Server) MigrateHandler(c *gin.Context) {
 	}
 
 	// Create temporary govc repository for migration
-	tempRepo, err := govc.InitMemory()
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("Failed to create temporary repository: %v", err)})
-		return
-	}
+	tempRepo := govc.New()
 
 	// Create job
 	jobID := generateJobID()
@@ -354,8 +361,8 @@ func (s *Server) BackupHandler(c *gin.Context) {
 	}
 
 	// Get repository
-	repo, exists := s.repos[req.RepoID]
-	if !exists {
+	repo, err := s.getRepository(req.RepoID)
+	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Repository not found"})
 		return
 	}
@@ -425,11 +432,7 @@ func (s *Server) RestoreHandler(c *gin.Context) {
 	}
 
 	// Create temporary repository for restoration
-	tempRepo, err := govc.InitMemory()
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("Failed to create temporary repository: %v", err)})
-		return
-	}
+	tempRepo := govc.New()
 
 	// Create job
 	jobID := generateJobID()
@@ -471,8 +474,15 @@ func (s *Server) RestoreHandler(c *gin.Context) {
 			
 			// If not dry run, load restored repository
 			if !req.DryRun {
-				if restoredRepo, err := govc.Open(req.TargetRepo); err == nil {
-					s.repos[req.TargetRepo] = restoredRepo
+				// Register restored repository
+				if _, err := govc.Open(req.TargetRepo); err == nil {
+					s.mu.Lock()
+					s.repoMetadata[req.TargetRepo] = &RepoMetadata{
+						ID:        req.TargetRepo,
+						CreatedAt: time.Now(),
+						Path:      req.TargetRepo,
+					}
+					s.mu.Unlock()
 				}
 			}
 		}
@@ -612,6 +622,9 @@ func generateJobID() string {
 }
 
 // SetupImportExportRoutes sets up import/export API routes
+// NOTE: This function needs to be updated to match the new routing pattern
+// where routes are passed in as a parameter instead of using s.router
+/*
 func (s *Server) SetupImportExportRoutes() {
 	// Import/Export routes
 	v1 := s.router.Group("/api/v1")
@@ -635,3 +648,4 @@ func (s *Server) SetupImportExportRoutes() {
 	v1.GET("/jobs/:job_id/progress", s.ProgressHandler)
 	v1.POST("/jobs/:job_id/cancel", s.CancelJobHandler)
 }
+*/

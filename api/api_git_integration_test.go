@@ -40,7 +40,12 @@ func TestCompleteGitWorkflow(t *testing.T) {
 		}
 
 		for path, content := range files {
-			body := bytes.NewBufferString(fmt.Sprintf(`{"path": "%s", "content": "%s"}`, path, content))
+			requestData := map[string]string{
+				"path":    path,
+				"content": content,
+			}
+			jsonData, _ := json.Marshal(requestData)
+			body := bytes.NewBuffer(jsonData)
 			req := httptest.NewRequest("POST", fmt.Sprintf("/api/v1/repos/%s/add", repoID), body)
 			req.Header.Set("Content-Type", "application/json")
 			w := httptest.NewRecorder()
@@ -81,7 +86,8 @@ func TestCompleteGitWorkflow(t *testing.T) {
 	t.Run("Create initial commit", func(t *testing.T) {
 		body := bytes.NewBufferString(`{
 			"message": "Initial commit: Add project structure",
-			"author": {"name": "Test User", "email": "test@example.com"}
+			"author": "Test User",
+			"email": "test@example.com"
 		}`)
 		req := httptest.NewRequest("POST", fmt.Sprintf("/api/v1/repos/%s/commit", repoID), body)
 		req.Header.Set("Content-Type", "application/json")
@@ -135,7 +141,12 @@ func TestCompleteGitWorkflow(t *testing.T) {
 		}
 
 		for path, content := range testFiles {
-			body := bytes.NewBufferString(fmt.Sprintf(`{"path": "%s", "content": "%s"}`, path, content))
+			requestData := map[string]string{
+				"path":    path,
+				"content": content,
+			}
+			jsonData, _ := json.Marshal(requestData)
+			body := bytes.NewBuffer(jsonData)
 			req := httptest.NewRequest("POST", fmt.Sprintf("/api/v1/repos/%s/add", repoID), body)
 			req.Header.Set("Content-Type", "application/json")
 			w := httptest.NewRecorder()
@@ -151,7 +162,12 @@ func TestCompleteGitWorkflow(t *testing.T) {
 	// Step 8: Modify existing file
 	t.Run("Modify existing file", func(t *testing.T) {
 		newContent := "# Git Workflow Test\n\nThis is a comprehensive test with testing infrastructure.\n\n## Testing\n\nRun `make test` to execute tests."
-		body := bytes.NewBufferString(fmt.Sprintf(`{"path": "README.md", "content": "%s"}`, newContent))
+		requestData := map[string]string{
+			"path":    "README.md",
+			"content": newContent,
+		}
+		jsonData, _ := json.Marshal(requestData)
+		body := bytes.NewBuffer(jsonData)
 		req := httptest.NewRequest("POST", fmt.Sprintf("/api/v1/repos/%s/add", repoID), body)
 		req.Header.Set("Content-Type", "application/json")
 		w := httptest.NewRecorder()
@@ -188,7 +204,8 @@ func TestCompleteGitWorkflow(t *testing.T) {
 	t.Run("Commit feature changes", func(t *testing.T) {
 		body := bytes.NewBufferString(`{
 			"message": "Add comprehensive test infrastructure\n\n- Add unit tests for main package\n- Add integration test structure\n- Add Makefile for build automation\n- Update README with testing instructions",
-			"author": {"name": "Test Developer", "email": "dev@example.com"}
+			"author": "Test Developer",
+			"email": "dev@example.com"
 		}`)
 		req := httptest.NewRequest("POST", fmt.Sprintf("/api/v1/repos/%s/commit", repoID), body)
 		req.Header.Set("Content-Type", "application/json")
@@ -543,7 +560,7 @@ func TestAdvancedGitOperations(t *testing.T) {
 
 		router.ServeHTTP(w, req)
 
-		if w.Code != 200 {
+		if w.Code != 201 {
 			t.Errorf("Cherry-pick failed: %d - %s", w.Code, w.Body.String())
 		}
 	})
@@ -570,7 +587,7 @@ func TestAdvancedGitOperations(t *testing.T) {
 
 		router.ServeHTTP(w, req)
 
-		if w.Code != 200 {
+		if w.Code != 201 {
 			t.Errorf("Revert failed: %d - %s", w.Code, w.Body.String())
 		}
 	})
@@ -591,7 +608,7 @@ func TestAdvancedGitOperations(t *testing.T) {
 			commitHash := targetCommit["hash"].(string)
 
 			// Reset to that commit (soft reset)
-			body := bytes.NewBufferString(fmt.Sprintf(`{"commit": "%s", "mode": "soft"}`, commitHash))
+			body := bytes.NewBufferString(fmt.Sprintf(`{"target": "%s", "mode": "soft"}`, commitHash))
 			req = httptest.NewRequest("POST", fmt.Sprintf("/api/v1/repos/%s/reset", repoID), body)
 			req.Header.Set("Content-Type", "application/json")
 			w = httptest.NewRecorder()
@@ -624,7 +641,12 @@ func TestFileOperations(t *testing.T) {
 
 		for path, content := range files {
 			// Write file
-			body := bytes.NewBufferString(fmt.Sprintf(`{"path": "%s", "content": "%s"}`, path, content))
+			requestData := map[string]string{
+				"path":    path,
+				"content": content,
+			}
+			jsonData, _ := json.Marshal(requestData)
+			body := bytes.NewBuffer(jsonData)
 			req := httptest.NewRequest("POST", fmt.Sprintf("/api/v1/repos/%s/add", repoID), body)
 			req.Header.Set("Content-Type", "application/json")
 			w := httptest.NewRecorder()
