@@ -192,9 +192,9 @@ func testRefStoreErrors(t *testing.T, store RefStore) {
 	err = store.UpdateRef("refs/heads/test", "")
 	assert.Error(t, err)
 	
-	// Test DeleteRef non-existent
+	// Test DeleteRef non-existent (should be idempotent)
 	err = store.DeleteRef("refs/heads/nonexistent")
-	assert.Error(t, err)
+	assert.NoError(t, err)
 }
 
 func testRefStoreHEAD(t *testing.T, store RefStore) {

@@ -83,12 +83,13 @@ func TestRefStoreEdgeCases(t *testing.T) {
 
 	t.Run("Empty ref name", func(t *testing.T) {
 		err := store.UpdateRef("", "abc123")
-		// Should succeed - Git allows empty ref names in some contexts
-		assert.NoError(t, err)
+		// Should fail - empty ref names are invalid
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "reference name cannot be empty")
 		
-		hash, err := store.GetRef("")
-		require.NoError(t, err)
-		assert.Equal(t, "abc123", hash)
+		_, err = store.GetRef("")
+		// Getting empty ref should also fail
+		assert.Error(t, err)
 	})
 
 	t.Run("Special characters in ref name", func(t *testing.T) {
@@ -143,7 +144,7 @@ func TestRefStoreEdgeCases(t *testing.T) {
 	t.Run("Set HEAD to empty", func(t *testing.T) {
 		err := store.SetHEAD("")
 		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "HEAD cannot be empty")
+		assert.Contains(t, err.Error(), "HEAD target cannot be empty")
 	})
 }
 

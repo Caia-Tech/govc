@@ -1,0 +1,3107 @@
+
+<!DOCTYPE html>
+<html>
+	<head>
+		<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+		<title>api: Go Coverage Report</title>
+		<style>
+			body {
+				background: black;
+				color: rgb(80, 80, 80);
+			}
+			body, pre, #legend span {
+				font-family: Menlo, monospace;
+				font-weight: bold;
+			}
+			#topbar {
+				background: black;
+				position: fixed;
+				top: 0; left: 0; right: 0;
+				height: 42px;
+				border-bottom: 1px solid rgb(80, 80, 80);
+			}
+			#content {
+				margin-top: 50px;
+			}
+			#nav, #legend {
+				float: left;
+				margin-left: 10px;
+			}
+			#legend {
+				margin-top: 12px;
+			}
+			#nav {
+				margin-top: 10px;
+			}
+			#legend span {
+				margin: 0 5px;
+			}
+			.cov0 { color: rgb(192, 0, 0) }
+.cov1 { color: rgb(128, 128, 128) }
+.cov2 { color: rgb(116, 140, 131) }
+.cov3 { color: rgb(104, 152, 134) }
+.cov4 { color: rgb(92, 164, 137) }
+.cov5 { color: rgb(80, 176, 140) }
+.cov6 { color: rgb(68, 188, 143) }
+.cov7 { color: rgb(56, 200, 146) }
+.cov8 { color: rgb(44, 212, 149) }
+.cov9 { color: rgb(32, 224, 152) }
+.cov10 { color: rgb(20, 236, 155) }
+
+		</style>
+	</head>
+	<body>
+		<div id="topbar">
+			<div id="nav">
+				<select id="files">
+				
+				<option value="file0">github.com/caiatech/govc/pkg/api/server.go (0.0%)</option>
+				
+				<option value="file1">github.com/caiatech/govc/pkg/object/object.go (54.4%)</option>
+				
+				<option value="file2">github.com/caiatech/govc/pkg/refs/refs.go (60.5%)</option>
+				
+				<option value="file3">github.com/caiatech/govc/pkg/storage/hybrid.go (0.0%)</option>
+				
+				<option value="file4">github.com/caiatech/govc/pkg/storage/interfaces.go (100.0%)</option>
+				
+				<option value="file5">github.com/caiatech/govc/pkg/storage/memory.go (89.0%)</option>
+				
+				<option value="file6">github.com/caiatech/govc/pkg/storage/refs_adapter.go (0.0%)</option>
+				
+				<option value="file7">github.com/caiatech/govc/pkg/storage/refs_store_adapter.go (83.3%)</option>
+				
+				<option value="file8">github.com/caiatech/govc/pkg/storage/storage.go (60.9%)</option>
+				
+				<option value="file9">github.com/caiatech/govc/pkg/storage/store_adapter.go (65.0%)</option>
+				
+				<option value="file10">github.com/caiatech/govc/pkg/workspace/workspace.go (86.3%)</option>
+				
+				</select>
+			</div>
+			<div id="legend">
+				<span>not tracked</span>
+			
+				<span class="cov0">no coverage</span>
+				<span class="cov1">low coverage</span>
+				<span class="cov2">*</span>
+				<span class="cov3">*</span>
+				<span class="cov4">*</span>
+				<span class="cov5">*</span>
+				<span class="cov6">*</span>
+				<span class="cov7">*</span>
+				<span class="cov8">*</span>
+				<span class="cov9">*</span>
+				<span class="cov10">high coverage</span>
+			
+			</div>
+		</div>
+		<div id="content">
+		
+		<pre class="file" id="file0" style="display: none">package api
+
+import (
+        "compress/gzip"
+        "encoding/json"
+        "fmt"
+        "net/http"
+        "strings"
+
+        "github.com/caiatech/govc"
+        "github.com/caiatech/govc/pkg/object"
+        "github.com/gorilla/mux"
+)
+
+type Server struct {
+        repo   *govc.Repository
+        router *mux.Router
+}
+
+func NewServer(repo *govc.Repository) *Server <span class="cov0" title="0">{
+        s := &amp;Server{
+                repo:   repo,
+                router: mux.NewRouter(),
+        }
+        s.setupRoutes()
+        return s
+}</span>
+
+func (s *Server) setupRoutes() <span class="cov0" title="0">{
+        s.router.HandleFunc("/{repo}/info/refs", s.handleInfoRefs).Methods("GET")
+        s.router.HandleFunc("/{repo}/git-upload-pack", s.handleUploadPack).Methods("POST")
+        s.router.HandleFunc("/{repo}/git-receive-pack", s.handleReceivePack).Methods("POST")
+        
+        s.router.HandleFunc("/api/status", s.handleAPIStatus).Methods("GET")
+        s.router.HandleFunc("/api/branches", s.handleAPIBranches).Methods("GET")
+        s.router.HandleFunc("/api/branches", s.handleAPICreateBranch).Methods("POST")
+        s.router.HandleFunc("/api/branches/{branch}", s.handleAPIDeleteBranch).Methods("DELETE")
+        s.router.HandleFunc("/api/commits", s.handleAPICommits).Methods("GET")
+        s.router.HandleFunc("/api/commits", s.handleAPICreateCommit).Methods("POST")
+        s.router.HandleFunc("/api/checkout", s.handleAPICheckout).Methods("POST")
+        s.router.HandleFunc("/api/merge", s.handleAPIMerge).Methods("POST")
+}</span>
+
+func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) <span class="cov0" title="0">{
+        s.router.ServeHTTP(w, r)
+}</span>
+
+func (s *Server) handleInfoRefs(w http.ResponseWriter, r *http.Request) <span class="cov0" title="0">{
+        service := r.URL.Query().Get("service")
+        
+        if service == "" </span><span class="cov0" title="0">{
+                s.handleDumbInfoRefs(w, r)
+                return
+        }</span>
+
+        <span class="cov0" title="0">if service != "git-upload-pack" &amp;&amp; service != "git-receive-pack" </span><span class="cov0" title="0">{
+                http.Error(w, "Invalid service", http.StatusBadRequest)
+                return
+        }</span>
+
+        <span class="cov0" title="0">w.Header().Set("Content-Type", fmt.Sprintf("application/x-%s-advertisement", service))
+        w.Header().Set("Cache-Control", "no-cache")
+
+        packet := fmt.Sprintf("# service=%s\n", service)
+        fmt.Fprintf(w, "%04x%s0000", len(packet)+4, packet)
+
+        branches, err := s.repo.ListBranches()
+        if err != nil </span><span class="cov0" title="0">{
+                http.Error(w, err.Error(), http.StatusInternalServerError)
+                return
+        }</span>
+
+        <span class="cov0" title="0">for i, branch := range branches </span><span class="cov0" title="0">{
+                line := fmt.Sprintf("%s %s", branch.Hash, branch.Name)
+                if i == 0 </span><span class="cov0" title="0">{
+                        line += "\x00capabilities^{}\x00multi_ack thin-pack side-band ofs-delta shallow no-progress include-tag multi_ack_detailed allow-tip-sha1-in-want allow-reachable-sha1-in-want no-done filter"
+                }</span>
+                <span class="cov0" title="0">fmt.Fprintf(w, "%04x%s\n", len(line)+5, line)</span>
+        }
+
+        <span class="cov0" title="0">fmt.Fprint(w, "0000")</span>
+}
+
+func (s *Server) handleDumbInfoRefs(w http.ResponseWriter, r *http.Request) <span class="cov0" title="0">{
+        branches, err := s.repo.ListBranches()
+        if err != nil </span><span class="cov0" title="0">{
+                http.Error(w, err.Error(), http.StatusInternalServerError)
+                return
+        }</span>
+
+        <span class="cov0" title="0">w.Header().Set("Content-Type", "text/plain")
+        
+        for _, branch := range branches </span><span class="cov0" title="0">{
+                fmt.Fprintf(w, "%s\t%s\n", branch.Hash, branch.Name)
+        }</span>
+}
+
+func (s *Server) handleUploadPack(w http.ResponseWriter, r *http.Request) <span class="cov0" title="0">{
+        contentType := r.Header.Get("Content-Type")
+        if contentType != "application/x-git-upload-pack-request" </span><span class="cov0" title="0">{
+                http.Error(w, "Invalid content type", http.StatusBadRequest)
+                return
+        }</span>
+
+        <span class="cov0" title="0">encoding := r.Header.Get("Content-Encoding")
+        
+        if encoding == "gzip" </span><span class="cov0" title="0">{
+                // In a full implementation, we would decompress and process the request
+                gzReader, err := gzip.NewReader(r.Body)
+                if err != nil </span><span class="cov0" title="0">{
+                        http.Error(w, err.Error(), http.StatusBadRequest)
+                        return
+                }</span>
+                <span class="cov0" title="0">defer gzReader.Close()</span>
+        }
+
+        <span class="cov0" title="0">w.Header().Set("Content-Type", "application/x-git-upload-pack-result")
+        w.Header().Set("Cache-Control", "no-cache")
+
+        fmt.Fprint(w, "0008NAK\n")</span>
+}
+
+func (s *Server) handleReceivePack(w http.ResponseWriter, r *http.Request) <span class="cov0" title="0">{
+        contentType := r.Header.Get("Content-Type")
+        if contentType != "application/x-git-receive-pack-request" </span><span class="cov0" title="0">{
+                http.Error(w, "Invalid content type", http.StatusBadRequest)
+                return
+        }</span>
+
+        <span class="cov0" title="0">w.Header().Set("Content-Type", "application/x-git-receive-pack-result")
+        w.Header().Set("Cache-Control", "no-cache")
+
+        fmt.Fprint(w, "0000")</span>
+}
+
+func (s *Server) handleAPIStatus(w http.ResponseWriter, r *http.Request) <span class="cov0" title="0">{
+        status, err := s.repo.Status()
+        if err != nil </span><span class="cov0" title="0">{
+                http.Error(w, err.Error(), http.StatusInternalServerError)
+                return
+        }</span>
+
+        <span class="cov0" title="0">w.Header().Set("Content-Type", "application/json")
+        json.NewEncoder(w).Encode(status)</span>
+}
+
+func (s *Server) handleAPIBranches(w http.ResponseWriter, r *http.Request) <span class="cov0" title="0">{
+        branches, err := s.repo.ListBranches()
+        if err != nil </span><span class="cov0" title="0">{
+                http.Error(w, err.Error(), http.StatusInternalServerError)
+                return
+        }</span>
+
+        <span class="cov0" title="0">type BranchInfo struct {
+                Name    string `json:"name"`
+                Hash    string `json:"hash"`
+                Current bool   `json:"current"`
+        }
+
+        currentBranch, _ := s.repo.CurrentBranch()
+        
+        branchInfos := make([]BranchInfo, 0, len(branches))
+        for _, branch := range branches </span><span class="cov0" title="0">{
+                name := strings.TrimPrefix(branch.Name, "refs/heads/")
+                branchInfos = append(branchInfos, BranchInfo{
+                        Name:    name,
+                        Hash:    branch.Hash,
+                        Current: name == currentBranch,
+                })
+        }</span>
+
+        <span class="cov0" title="0">w.Header().Set("Content-Type", "application/json")
+        json.NewEncoder(w).Encode(branchInfos)</span>
+}
+
+func (s *Server) handleAPICreateBranch(w http.ResponseWriter, r *http.Request) <span class="cov0" title="0">{
+        var req struct {
+                Name string `json:"name"`
+                From string `json:"from"`
+        }
+
+        if err := json.NewDecoder(r.Body).Decode(&amp;req); err != nil </span><span class="cov0" title="0">{
+                http.Error(w, err.Error(), http.StatusBadRequest)
+                return
+        }</span>
+
+        <span class="cov0" title="0">if req.Name == "" </span><span class="cov0" title="0">{
+                http.Error(w, "Branch name required", http.StatusBadRequest)
+                return
+        }</span>
+
+        <span class="cov0" title="0">builder := s.repo.Branch(req.Name)
+        if err := builder.Create(); err != nil </span><span class="cov0" title="0">{
+                http.Error(w, err.Error(), http.StatusInternalServerError)
+                return
+        }</span>
+
+        <span class="cov0" title="0">w.WriteHeader(http.StatusCreated)
+        json.NewEncoder(w).Encode(map[string]string{
+                "name": req.Name,
+                "status": "created",
+        })</span>
+}
+
+func (s *Server) handleAPIDeleteBranch(w http.ResponseWriter, r *http.Request) <span class="cov0" title="0">{
+        vars := mux.Vars(r)
+        branch := vars["branch"]
+
+        builder := s.repo.Branch(branch)
+        if err := builder.Delete(); err != nil </span><span class="cov0" title="0">{
+                http.Error(w, err.Error(), http.StatusInternalServerError)
+                return
+        }</span>
+
+        <span class="cov0" title="0">w.WriteHeader(http.StatusNoContent)</span>
+}
+
+func (s *Server) handleAPICommits(w http.ResponseWriter, r *http.Request) <span class="cov0" title="0">{
+        limitStr := r.URL.Query().Get("limit")
+        limit := 10
+        if limitStr != "" </span><span class="cov0" title="0">{
+                fmt.Sscanf(limitStr, "%d", &amp;limit)
+        }</span>
+
+        <span class="cov0" title="0">commits, err := s.repo.Log(limit)
+        if err != nil </span><span class="cov0" title="0">{
+                http.Error(w, err.Error(), http.StatusInternalServerError)
+                return
+        }</span>
+
+        <span class="cov0" title="0">type CommitInfo struct {
+                Hash      string `json:"hash"`
+                Author    string `json:"author"`
+                Email     string `json:"email"`
+                Message   string `json:"message"`
+                Timestamp int64  `json:"timestamp"`
+                Parent    string `json:"parent,omitempty"`
+        }
+
+        commitInfos := make([]CommitInfo, 0, len(commits))
+        for _, commit := range commits </span><span class="cov0" title="0">{
+                hash := commit.Hash()
+                commitInfos = append(commitInfos, CommitInfo{
+                        Hash:      hash,
+                        Author:    commit.Author.Name,
+                        Email:     commit.Author.Email,
+                        Message:   commit.Message,
+                        Timestamp: commit.Author.Time.Unix(),
+                        Parent:    commit.ParentHash,
+                })
+        }</span>
+
+        <span class="cov0" title="0">w.Header().Set("Content-Type", "application/json")
+        json.NewEncoder(w).Encode(commitInfos)</span>
+}
+
+func (s *Server) handleAPICreateCommit(w http.ResponseWriter, r *http.Request) <span class="cov0" title="0">{
+        var req struct {
+                Message string   `json:"message"`
+                Files   []string `json:"files"`
+        }
+
+        if err := json.NewDecoder(r.Body).Decode(&amp;req); err != nil </span><span class="cov0" title="0">{
+                http.Error(w, err.Error(), http.StatusBadRequest)
+                return
+        }</span>
+
+        <span class="cov0" title="0">if req.Message == "" </span><span class="cov0" title="0">{
+                http.Error(w, "Commit message required", http.StatusBadRequest)
+                return
+        }</span>
+
+        <span class="cov0" title="0">if len(req.Files) &gt; 0 </span><span class="cov0" title="0">{
+                if err := s.repo.Add(req.Files...); err != nil </span><span class="cov0" title="0">{
+                        http.Error(w, err.Error(), http.StatusInternalServerError)
+                        return
+                }</span>
+        }
+
+        <span class="cov0" title="0">commit, err := s.repo.Commit(req.Message)
+        if err != nil </span><span class="cov0" title="0">{
+                http.Error(w, err.Error(), http.StatusInternalServerError)
+                return
+        }</span>
+
+        <span class="cov0" title="0">w.WriteHeader(http.StatusCreated)
+        json.NewEncoder(w).Encode(map[string]string{
+                "hash":    commit.Hash(),
+                "message": commit.Message,
+        })</span>
+}
+
+func (s *Server) handleAPICheckout(w http.ResponseWriter, r *http.Request) <span class="cov0" title="0">{
+        var req struct {
+                Ref string `json:"ref"`
+        }
+
+        if err := json.NewDecoder(r.Body).Decode(&amp;req); err != nil </span><span class="cov0" title="0">{
+                http.Error(w, err.Error(), http.StatusBadRequest)
+                return
+        }</span>
+
+        <span class="cov0" title="0">if req.Ref == "" </span><span class="cov0" title="0">{
+                http.Error(w, "Ref required", http.StatusBadRequest)
+                return
+        }</span>
+
+        <span class="cov0" title="0">if err := s.repo.Checkout(req.Ref); err != nil </span><span class="cov0" title="0">{
+                http.Error(w, err.Error(), http.StatusInternalServerError)
+                return
+        }</span>
+
+        <span class="cov0" title="0">w.WriteHeader(http.StatusOK)
+        json.NewEncoder(w).Encode(map[string]string{
+                "status": "checked out",
+                "ref":    req.Ref,
+        })</span>
+}
+
+func (s *Server) handleAPIMerge(w http.ResponseWriter, r *http.Request) <span class="cov0" title="0">{
+        var req struct {
+                Branch string `json:"branch"`
+        }
+
+        if err := json.NewDecoder(r.Body).Decode(&amp;req); err != nil </span><span class="cov0" title="0">{
+                http.Error(w, err.Error(), http.StatusBadRequest)
+                return
+        }</span>
+
+        <span class="cov0" title="0">if req.Branch == "" </span><span class="cov0" title="0">{
+                http.Error(w, "Branch required", http.StatusBadRequest)
+                return
+        }</span>
+
+        <span class="cov0" title="0">currentBranch, _ := s.repo.CurrentBranch()
+        if err := s.repo.Merge(req.Branch, currentBranch); err != nil </span><span class="cov0" title="0">{
+                if strings.Contains(err.Error(), "conflicts") </span><span class="cov0" title="0">{
+                        w.WriteHeader(http.StatusConflict)
+                        json.NewEncoder(w).Encode(map[string]string{
+                                "error": err.Error(),
+                                "status": "conflict",
+                        })
+                        return
+                }</span>
+                <span class="cov0" title="0">http.Error(w, err.Error(), http.StatusInternalServerError)
+                return</span>
+        }
+
+        <span class="cov0" title="0">w.WriteHeader(http.StatusOK)
+        json.NewEncoder(w).Encode(map[string]string{
+                "status": "merged",
+                "branch": req.Branch,
+        })</span>
+}
+
+func StartServer(repo *govc.Repository, addr string) error <span class="cov0" title="0">{
+        server := NewServer(repo)
+        return http.ListenAndServe(addr, server)
+}</span>
+
+type WebSocketHandler struct {
+        repo *govc.Repository
+}
+
+func NewWebSocketHandler(repo *govc.Repository) *WebSocketHandler <span class="cov0" title="0">{
+        return &amp;WebSocketHandler{repo: repo}
+}</span>
+
+func parsePacketLine(data []byte) ([]byte, []byte) <span class="cov0" title="0">{
+        if len(data) &lt; 4 </span><span class="cov0" title="0">{
+                return nil, data
+        }</span>
+
+        <span class="cov0" title="0">var length int
+        fmt.Sscanf(string(data[:4]), "%04x", &amp;length)
+        
+        if length == 0 </span><span class="cov0" title="0">{
+                return []byte{}, data[4:]
+        }</span>
+
+        <span class="cov0" title="0">if length &lt; 4 || len(data) &lt; length </span><span class="cov0" title="0">{
+                return nil, data
+        }</span>
+
+        <span class="cov0" title="0">return data[4:length], data[length:]</span>
+}
+
+func formatPacketLine(data []byte) []byte <span class="cov0" title="0">{
+        if len(data) == 0 </span><span class="cov0" title="0">{
+                return []byte("0000")
+        }</span>
+        
+        <span class="cov0" title="0">length := len(data) + 4
+        return []byte(fmt.Sprintf("%04x%s", length, data))</span>
+}
+
+type GitProtocolHandler struct {
+        repo *govc.Repository
+}
+
+func NewGitProtocolHandler(repo *govc.Repository) *GitProtocolHandler <span class="cov0" title="0">{
+        return &amp;GitProtocolHandler{repo: repo}
+}</span>
+
+func (h *GitProtocolHandler) handleWants(wants []string) ([]object.Object, error) <span class="cov0" title="0">{
+        objects := make([]object.Object, 0)
+        
+        for _, want := range wants </span><span class="cov0" title="0">{
+                obj, err := h.repo.GetObject(want)
+                if err != nil </span><span class="cov0" title="0">{
+                        continue</span>
+                }
+                <span class="cov0" title="0">objects = append(objects, obj)</span>
+        }
+        
+        <span class="cov0" title="0">return objects, nil</span>
+}
+
+func (h *GitProtocolHandler) handleHaves(haves []string) map[string]bool <span class="cov0" title="0">{
+        hasMap := make(map[string]bool)
+        
+        for _, have := range haves </span><span class="cov0" title="0">{
+                if h.repo.HasObject(have) </span><span class="cov0" title="0">{
+                        hasMap[have] = true
+                }</span>
+        }
+        
+        <span class="cov0" title="0">return hasMap</span>
+}
+
+// Repository extension methods are defined in the main repository.go file</pre>
+		
+		<pre class="file" id="file1" style="display: none">package object
+
+import (
+        "bytes"
+        "compress/zlib"
+        "crypto/sha1"
+        "encoding/hex"
+        "fmt"
+        "io"
+        "strconv"
+        "strings"
+        "time"
+)
+
+type Type string
+
+const (
+        TypeBlob   Type = "blob"
+        TypeTree   Type = "tree"
+        TypeCommit Type = "commit"
+        TypeTag    Type = "tag"
+)
+
+type Object interface {
+        Type() Type
+        Size() int64
+        Hash() string
+        Serialize() ([]byte, error)
+}
+
+type Blob struct {
+        Content []byte
+}
+
+func NewBlob(content []byte) *Blob <span class="cov5" title="3">{
+        return &amp;Blob{Content: content}
+}</span>
+
+func (b *Blob) Type() Type <span class="cov8" title="6">{
+        return TypeBlob
+}</span>
+
+func (b *Blob) Size() int64 <span class="cov8" title="6">{
+        return int64(len(b.Content))
+}</span>
+
+func (b *Blob) Hash() string <span class="cov5" title="3">{
+        data, _ := b.Serialize()
+        return HashObject(data)
+}</span>
+
+func (b *Blob) Serialize() ([]byte, error) <span class="cov5" title="3">{
+        header := fmt.Sprintf("%s %d\x00", b.Type(), b.Size())
+        return append([]byte(header), b.Content...), nil
+}</span>
+
+type TreeEntry struct {
+        Mode string
+        Name string
+        Hash string
+}
+
+type Tree struct {
+        Entries []TreeEntry
+}
+
+func NewTree() *Tree <span class="cov5" title="3">{
+        return &amp;Tree{
+                Entries: make([]TreeEntry, 0),
+        }
+}</span>
+
+func (t *Tree) AddEntry(mode, name, hash string) <span class="cov9" title="7">{
+        t.Entries = append(t.Entries, TreeEntry{
+                Mode: mode,
+                Name: name,
+                Hash: hash,
+        })
+}</span>
+
+func (t *Tree) Type() Type <span class="cov7" title="4">{
+        return TypeTree
+}</span>
+
+func (t *Tree) Size() int64 <span class="cov0" title="0">{
+        content := t.serializeContent()
+        return int64(len(content))
+}</span>
+
+func (t *Tree) Hash() string <span class="cov4" title="2">{
+        data, _ := t.Serialize()
+        return HashObject(data)
+}</span>
+
+func (t *Tree) serializeContent() []byte <span class="cov5" title="3">{
+        var buf bytes.Buffer
+        for _, entry := range t.Entries </span><span class="cov10" title="8">{
+                fmt.Fprintf(&amp;buf, "%s %s\x00", entry.Mode, entry.Name)
+                hash, _ := hex.DecodeString(entry.Hash)
+                buf.Write(hash)
+        }</span>
+        <span class="cov5" title="3">return buf.Bytes()</span>
+}
+
+func (t *Tree) Serialize() ([]byte, error) <span class="cov5" title="3">{
+        content := t.serializeContent()
+        header := fmt.Sprintf("%s %d\x00", t.Type(), len(content))
+        return append([]byte(header), content...), nil
+}</span>
+
+type Author struct {
+        Name  string
+        Email string
+        Time  time.Time
+}
+
+func (a Author) String() string <span class="cov7" title="5">{
+        timestamp := a.Time.Unix()
+        tz := a.Time.Format("-0700")
+        return fmt.Sprintf("%s &lt;%s&gt; %d %s", a.Name, a.Email, timestamp, tz)
+}</span>
+
+type Commit struct {
+        TreeHash   string
+        ParentHash string
+        Author     Author
+        Committer  Author
+        Message    string
+}
+
+func NewCommit(treeHash string, author Author, message string) *Commit <span class="cov1" title="1">{
+        return &amp;Commit{
+                TreeHash:  treeHash,
+                Author:    author,
+                Committer: author,
+                Message:   message,
+        }
+}</span>
+
+func (c *Commit) SetParent(parentHash string) <span class="cov1" title="1">{
+        c.ParentHash = parentHash
+}</span>
+
+func (c *Commit) Type() Type <span class="cov4" title="2">{
+        return TypeCommit
+}</span>
+
+func (c *Commit) Size() int64 <span class="cov0" title="0">{
+        content := c.serializeContent()
+        return int64(len(content))
+}</span>
+
+func (c *Commit) Hash() string <span class="cov0" title="0">{
+        data, _ := c.Serialize()
+        return HashObject(data)
+}</span>
+
+func (c *Commit) serializeContent() []byte <span class="cov1" title="1">{
+        var buf bytes.Buffer
+        fmt.Fprintf(&amp;buf, "tree %s\n", c.TreeHash)
+        if c.ParentHash != "" </span><span class="cov1" title="1">{
+                fmt.Fprintf(&amp;buf, "parent %s\n", c.ParentHash)
+        }</span>
+        <span class="cov1" title="1">fmt.Fprintf(&amp;buf, "author %s\n", c.Author.String())
+        fmt.Fprintf(&amp;buf, "committer %s\n", c.Committer.String())
+        fmt.Fprintf(&amp;buf, "\n%s", c.Message)
+        return buf.Bytes()</span>
+}
+
+func (c *Commit) Serialize() ([]byte, error) <span class="cov1" title="1">{
+        content := c.serializeContent()
+        header := fmt.Sprintf("%s %d\x00", c.Type(), len(content))
+        return append([]byte(header), content...), nil
+}</span>
+
+type Tag struct {
+        ObjectHash string
+        ObjectType Type
+        TagName    string
+        Tagger     Author
+        Message    string
+}
+
+func NewTag(objectHash string, objectType Type, tagName string, tagger Author, message string) *Tag <span class="cov1" title="1">{
+        return &amp;Tag{
+                ObjectHash: objectHash,
+                ObjectType: objectType,
+                TagName:    tagName,
+                Tagger:     tagger,
+                Message:    message,
+        }
+}</span>
+
+func (t *Tag) Type() Type <span class="cov5" title="3">{
+        return TypeTag
+}</span>
+
+func (t *Tag) Size() int64 <span class="cov0" title="0">{
+        content := t.serializeContent()
+        return int64(len(content))
+}</span>
+
+func (t *Tag) Hash() string <span class="cov4" title="2">{
+        data, _ := t.Serialize()
+        return HashObject(data)
+}</span>
+
+func (t *Tag) serializeContent() []byte <span class="cov4" title="2">{
+        var buf bytes.Buffer
+        fmt.Fprintf(&amp;buf, "object %s\n", t.ObjectHash)
+        fmt.Fprintf(&amp;buf, "type %s\n", t.ObjectType)
+        fmt.Fprintf(&amp;buf, "tag %s\n", t.TagName)
+        fmt.Fprintf(&amp;buf, "tagger %s\n", t.Tagger.String())
+        fmt.Fprintf(&amp;buf, "\n%s", t.Message)
+        return buf.Bytes()
+}</span>
+
+func (t *Tag) Serialize() ([]byte, error) <span class="cov4" title="2">{
+        content := t.serializeContent()
+        header := fmt.Sprintf("%s %d\x00", t.Type(), len(content))
+        return append([]byte(header), content...), nil
+}</span>
+
+func HashObject(data []byte) string <span class="cov9" title="7">{
+        h := sha1.New()
+        h.Write(data)
+        return hex.EncodeToString(h.Sum(nil))
+}</span>
+
+func Compress(data []byte) ([]byte, error) <span class="cov1" title="1">{
+        var buf bytes.Buffer
+        w := zlib.NewWriter(&amp;buf)
+        if _, err := w.Write(data); err != nil </span><span class="cov0" title="0">{
+                return nil, err
+        }</span>
+        <span class="cov1" title="1">if err := w.Close(); err != nil </span><span class="cov0" title="0">{
+                return nil, err
+        }</span>
+        <span class="cov1" title="1">return buf.Bytes(), nil</span>
+}
+
+func Decompress(data []byte) ([]byte, error) <span class="cov1" title="1">{
+        r, err := zlib.NewReader(bytes.NewReader(data))
+        if err != nil </span><span class="cov0" title="0">{
+                return nil, err
+        }</span>
+        <span class="cov1" title="1">defer r.Close()
+        return io.ReadAll(r)</span>
+}
+
+func ParseObject(data []byte) (Object, error) <span class="cov7" title="5">{
+        nullIndex := bytes.IndexByte(data, 0)
+        if nullIndex == -1 </span><span class="cov1" title="1">{
+                return nil, fmt.Errorf("invalid object format: no null byte")
+        }</span>
+
+        <span class="cov7" title="4">header := string(data[:nullIndex])
+        parts := strings.Split(header, " ")
+        if len(parts) != 2 </span><span class="cov1" title="1">{
+                return nil, fmt.Errorf("invalid header format: %s", header)
+        }</span>
+
+        <span class="cov5" title="3">objType := Type(parts[0])
+        size, err := strconv.ParseInt(parts[1], 10, 64)
+        if err != nil </span><span class="cov0" title="0">{
+                return nil, fmt.Errorf("invalid size: %v", err)
+        }</span>
+
+        <span class="cov5" title="3">content := data[nullIndex+1:]
+        if int64(len(content)) != size </span><span class="cov1" title="1">{
+                return nil, fmt.Errorf("content size mismatch: expected %d, got %d", size, len(content))
+        }</span>
+
+        <span class="cov4" title="2">switch objType </span>{
+        case TypeBlob:<span class="cov1" title="1">
+                return &amp;Blob{Content: content}, nil</span>
+        case TypeTree:<span class="cov1" title="1">
+                return parseTree(content)</span>
+        case TypeCommit:<span class="cov0" title="0">
+                return parseCommit(content)</span>
+        case TypeTag:<span class="cov0" title="0">
+                return parseTag(content)</span>
+        default:<span class="cov0" title="0">
+                return nil, fmt.Errorf("unknown object type: %s", objType)</span>
+        }
+}
+
+func parseTree(content []byte) (*Tree, error) <span class="cov1" title="1">{
+        tree := NewTree()
+        buf := bytes.NewBuffer(content)
+
+        for buf.Len() &gt; 0 </span><span class="cov4" title="2">{
+                modeAndName, err := buf.ReadBytes(0)
+                if err != nil </span><span class="cov0" title="0">{
+                        return nil, fmt.Errorf("error reading tree entry: %v", err)
+                }</span>
+                <span class="cov4" title="2">modeAndName = modeAndName[:len(modeAndName)-1]
+
+                parts := strings.SplitN(string(modeAndName), " ", 2)
+                if len(parts) != 2 </span><span class="cov0" title="0">{
+                        return nil, fmt.Errorf("invalid tree entry format")
+                }</span>
+
+                <span class="cov4" title="2">hash := make([]byte, 20)
+                if _, err := buf.Read(hash); err != nil </span><span class="cov0" title="0">{
+                        return nil, fmt.Errorf("error reading hash: %v", err)
+                }</span>
+
+                <span class="cov4" title="2">tree.AddEntry(parts[0], parts[1], hex.EncodeToString(hash))</span>
+        }
+
+        <span class="cov1" title="1">return tree, nil</span>
+}
+
+func parseCommit(content []byte) (*Commit, error) <span class="cov0" title="0">{
+        lines := strings.Split(string(content), "\n")
+        commit := &amp;Commit{}
+
+        messageStart := 0
+        for i, line := range lines </span><span class="cov0" title="0">{
+                if line == "" </span><span class="cov0" title="0">{
+                        messageStart = i + 1
+                        break</span>
+                }
+
+                <span class="cov0" title="0">parts := strings.SplitN(line, " ", 2)
+                if len(parts) != 2 </span><span class="cov0" title="0">{
+                        continue</span>
+                }
+
+                <span class="cov0" title="0">switch parts[0] </span>{
+                case "tree":<span class="cov0" title="0">
+                        commit.TreeHash = parts[1]</span>
+                case "parent":<span class="cov0" title="0">
+                        commit.ParentHash = parts[1]</span>
+                case "author":<span class="cov0" title="0">
+                        author, err := parseAuthor(parts[1])
+                        if err != nil </span><span class="cov0" title="0">{
+                                return nil, fmt.Errorf("error parsing author: %v", err)
+                        }</span>
+                        <span class="cov0" title="0">commit.Author = author</span>
+                case "committer":<span class="cov0" title="0">
+                        committer, err := parseAuthor(parts[1])
+                        if err != nil </span><span class="cov0" title="0">{
+                                return nil, fmt.Errorf("error parsing committer: %v", err)
+                        }</span>
+                        <span class="cov0" title="0">commit.Committer = committer</span>
+                }
+        }
+
+        <span class="cov0" title="0">if messageStart &lt; len(lines) </span><span class="cov0" title="0">{
+                commit.Message = strings.Join(lines[messageStart:], "\n")
+        }</span>
+
+        <span class="cov0" title="0">return commit, nil</span>
+}
+
+func parseAuthor(authorStr string) (Author, error) <span class="cov0" title="0">{
+        emailStart := strings.Index(authorStr, "&lt;")
+        emailEnd := strings.Index(authorStr, "&gt;")
+        if emailStart == -1 || emailEnd == -1 || emailStart &gt;= emailEnd </span><span class="cov0" title="0">{
+                return Author{}, fmt.Errorf("invalid author format")
+        }</span>
+
+        <span class="cov0" title="0">name := strings.TrimSpace(authorStr[:emailStart])
+        email := authorStr[emailStart+1 : emailEnd]
+        
+        timestampParts := strings.Fields(authorStr[emailEnd+1:])
+        if len(timestampParts) &lt; 2 </span><span class="cov0" title="0">{
+                return Author{}, fmt.Errorf("invalid timestamp format")
+        }</span>
+
+        <span class="cov0" title="0">timestamp, err := strconv.ParseInt(timestampParts[0], 10, 64)
+        if err != nil </span><span class="cov0" title="0">{
+                return Author{}, fmt.Errorf("invalid timestamp: %v", err)
+        }</span>
+
+        <span class="cov0" title="0">return Author{
+                Name:  name,
+                Email: email,
+                Time:  time.Unix(timestamp, 0),
+        }, nil</span>
+}
+
+func parseTag(content []byte) (*Tag, error) <span class="cov0" title="0">{
+        lines := strings.Split(string(content), "\n")
+        tag := &amp;Tag{}
+
+        messageStart := 0
+        for i, line := range lines </span><span class="cov0" title="0">{
+                if line == "" </span><span class="cov0" title="0">{
+                        messageStart = i + 1
+                        break</span>
+                }
+
+                <span class="cov0" title="0">parts := strings.SplitN(line, " ", 2)
+                if len(parts) != 2 </span><span class="cov0" title="0">{
+                        continue</span>
+                }
+
+                <span class="cov0" title="0">switch parts[0] </span>{
+                case "object":<span class="cov0" title="0">
+                        tag.ObjectHash = parts[1]</span>
+                case "type":<span class="cov0" title="0">
+                        tag.ObjectType = Type(parts[1])</span>
+                case "tag":<span class="cov0" title="0">
+                        tag.TagName = parts[1]</span>
+                case "tagger":<span class="cov0" title="0">
+                        tagger, err := parseAuthor(parts[1])
+                        if err != nil </span><span class="cov0" title="0">{
+                                return nil, fmt.Errorf("error parsing tagger: %v", err)
+                        }</span>
+                        <span class="cov0" title="0">tag.Tagger = tagger</span>
+                }
+        }
+
+        <span class="cov0" title="0">if messageStart &lt; len(lines) </span><span class="cov0" title="0">{
+                tag.Message = strings.Join(lines[messageStart:], "\n")
+        }</span>
+
+        <span class="cov0" title="0">return tag, nil</span>
+}
+
+// Deserialize creates an object from serialized data
+func Deserialize(data []byte) (Object, error) <span class="cov0" title="0">{
+        return ParseObject(data)
+}</pre>
+		
+		<pre class="file" id="file2" style="display: none">package refs
+
+import (
+        "fmt"
+        "os"
+        "path/filepath"
+        "strings"
+        "sync"
+)
+
+type RefType string
+
+const (
+        RefTypeBranch RefType = "branch"
+        RefTypeTag    RefType = "tag"
+        RefTypeRemote RefType = "remote"
+)
+
+type Ref struct {
+        Name string
+        Hash string
+        Type RefType
+}
+
+type RefStore interface {
+        GetRef(name string) (string, error)
+        SetRef(name string, hash string) error
+        DeleteRef(name string) error
+        ListRefs(prefix string) ([]Ref, error)
+        GetHEAD() (string, error)
+        SetHEAD(ref string) error
+}
+
+// MemoryRefStore keeps all references in memory.
+// In traditional Git, each ref is a file. Here, refs are just map entries.
+// This is why operations like creating branches or switching between them
+// are instant - no file I/O, just pointer updates.
+type MemoryRefStore struct {
+        refs map[string]string
+        head string
+        mu   sync.RWMutex
+}
+
+func NewMemoryRefStore() *MemoryRefStore <span class="cov2" title="3">{
+        return &amp;MemoryRefStore{
+                refs: make(map[string]string),
+                head: "refs/heads/main",
+        }
+}</span>
+
+func (m *MemoryRefStore) GetRef(name string) (string, error) <span class="cov4" title="21">{
+        m.mu.RLock()
+        defer m.mu.RUnlock()
+
+        fullName := m.normalizeRefName(name)
+        hash, exists := m.refs[fullName]
+        if !exists </span><span class="cov4" title="12">{
+                return "", fmt.Errorf("ref not found: %s", name)
+        }</span>
+        <span class="cov3" title="9">return hash, nil</span>
+}
+
+func (m *MemoryRefStore) SetRef(name string, hash string) error <span class="cov9" title="1021">{
+        m.mu.Lock()
+        defer m.mu.Unlock()
+
+        fullName := m.normalizeRefName(name)
+        m.refs[fullName] = hash
+        return nil
+}</span>
+
+func (m *MemoryRefStore) DeleteRef(name string) error <span class="cov1" title="2">{
+        m.mu.Lock()
+        defer m.mu.Unlock()
+
+        fullName := m.normalizeRefName(name)
+        delete(m.refs, fullName)
+        return nil
+}</span>
+
+func (m *MemoryRefStore) ListRefs(prefix string) ([]Ref, error) <span class="cov3" title="6">{
+        m.mu.RLock()
+        defer m.mu.RUnlock()
+
+        refs := make([]Ref, 0)
+        for name, hash := range m.refs </span><span class="cov9" title="1017">{
+                if prefix == "" || strings.HasPrefix(name, prefix) </span><span class="cov9" title="1011">{
+                        refType := m.getRefType(name)
+                        refs = append(refs, Ref{
+                                Name: name,
+                                Hash: hash,
+                                Type: refType,
+                        })
+                }</span>
+        }
+        <span class="cov3" title="6">return refs, nil</span>
+}
+
+func (m *MemoryRefStore) GetHEAD() (string, error) <span class="cov2" title="4">{
+        m.mu.RLock()
+        defer m.mu.RUnlock()
+
+        if m.head == "" </span><span class="cov0" title="0">{
+                return "", fmt.Errorf("HEAD not set")
+        }</span>
+
+        // Handle symbolic references (e.g., "ref: refs/heads/main")
+        <span class="cov2" title="4">if strings.HasPrefix(m.head, "ref: ") </span><span class="cov1" title="1">{
+                ref := strings.TrimPrefix(m.head, "ref: ")
+                hash, exists := m.refs[ref]
+                if !exists </span><span class="cov0" title="0">{
+                        return "", fmt.Errorf("HEAD points to non-existent ref: %s", ref)
+                }</span>
+                <span class="cov1" title="1">return hash, nil</span>
+        }
+
+        // Handle direct references that start with refs/
+        <span class="cov2" title="3">if strings.HasPrefix(m.head, "refs/") </span><span class="cov1" title="1">{
+                hash, exists := m.refs[m.head]
+                if !exists </span><span class="cov0" title="0">{
+                        return "", fmt.Errorf("HEAD points to non-existent ref: %s", m.head)
+                }</span>
+                <span class="cov1" title="1">return hash, nil</span>
+        }
+
+        <span class="cov1" title="2">return m.head, nil</span>
+}
+
+func (m *MemoryRefStore) SetHEAD(ref string) error <span class="cov2" title="4">{
+        m.mu.Lock()
+        defer m.mu.Unlock()
+
+        m.head = ref
+        return nil
+}</span>
+
+func (m *MemoryRefStore) normalizeRefName(name string) string <span class="cov10" title="1044">{
+        if strings.HasPrefix(name, "refs/") </span><span class="cov9" title="1042">{
+                return name
+        }</span>
+        <span class="cov1" title="2">if strings.Contains(name, "/") </span><span class="cov0" title="0">{
+                return name
+        }</span>
+        <span class="cov1" title="2">return "refs/heads/" + name</span>
+}
+
+func (m *MemoryRefStore) getRefType(name string) RefType <span class="cov9" title="1011">{
+        if strings.HasPrefix(name, "refs/heads/") </span><span class="cov9" title="1007">{
+                return RefTypeBranch
+        }</span>
+        <span class="cov2" title="4">if strings.HasPrefix(name, "refs/tags/") </span><span class="cov2" title="3">{
+                return RefTypeTag
+        }</span>
+        <span class="cov1" title="1">if strings.HasPrefix(name, "refs/remotes/") </span><span class="cov1" title="1">{
+                return RefTypeRemote
+        }</span>
+        <span class="cov0" title="0">return RefTypeBranch</span>
+}
+
+type FileRefStore struct {
+        path string
+        mu   sync.RWMutex
+}
+
+func NewFileRefStore(path string) *FileRefStore <span class="cov1" title="1">{
+        return &amp;FileRefStore{
+                path: path,
+        }
+}</span>
+
+func (f *FileRefStore) GetRef(name string) (string, error) <span class="cov2" title="3">{
+        f.mu.RLock()
+        defer f.mu.RUnlock()
+
+        fullName := f.normalizeRefName(name)
+        refPath := filepath.Join(f.path, fullName)
+
+        data, err := os.ReadFile(refPath)
+        if err != nil </span><span class="cov1" title="1">{
+                packedRefs, err := f.readPackedRefs()
+                if err != nil </span><span class="cov0" title="0">{
+                        return "", fmt.Errorf("ref not found: %s", name)
+                }</span>
+                <span class="cov1" title="1">hash, exists := packedRefs[fullName]
+                if !exists </span><span class="cov0" title="0">{
+                        return "", fmt.Errorf("ref not found: %s", name)
+                }</span>
+                <span class="cov1" title="1">return hash, nil</span>
+        }
+
+        <span class="cov1" title="2">return strings.TrimSpace(string(data)), nil</span>
+}
+
+func (f *FileRefStore) SetRef(name string, hash string) error <span class="cov1" title="1">{
+        f.mu.Lock()
+        defer f.mu.Unlock()
+
+        fullName := f.normalizeRefName(name)
+        refPath := filepath.Join(f.path, fullName)
+        dir := filepath.Dir(refPath)
+
+        if err := os.MkdirAll(dir, 0755); err != nil </span><span class="cov0" title="0">{
+                return fmt.Errorf("failed to create ref directory: %v", err)
+        }</span>
+
+        <span class="cov1" title="1">return os.WriteFile(refPath, []byte(hash+"\n"), 0644)</span>
+}
+
+func (f *FileRefStore) DeleteRef(name string) error <span class="cov0" title="0">{
+        f.mu.Lock()
+        defer f.mu.Unlock()
+
+        fullName := f.normalizeRefName(name)
+        refPath := filepath.Join(f.path, fullName)
+
+        return os.Remove(refPath)
+}</span>
+
+func (f *FileRefStore) ListRefs(prefix string) ([]Ref, error) <span class="cov0" title="0">{
+        f.mu.RLock()
+        defer f.mu.RUnlock()
+
+        refs := make([]Ref, 0)
+
+        looseRefs, err := f.listLooseRefs(prefix)
+        if err != nil </span><span class="cov0" title="0">{
+                return nil, err
+        }</span>
+        <span class="cov0" title="0">refs = append(refs, looseRefs...)
+
+        packedRefs, err := f.readPackedRefs()
+        if err == nil </span><span class="cov0" title="0">{
+                for name, hash := range packedRefs </span><span class="cov0" title="0">{
+                        if prefix == "" || strings.HasPrefix(name, prefix) </span><span class="cov0" title="0">{
+                                refType := f.getRefType(name)
+                                refs = append(refs, Ref{
+                                        Name: name,
+                                        Hash: hash,
+                                        Type: refType,
+                                })
+                        }</span>
+                }
+        }
+
+        <span class="cov0" title="0">return refs, nil</span>
+}
+
+func (f *FileRefStore) GetHEAD() (string, error) <span class="cov1" title="1">{
+        f.mu.RLock()
+        defer f.mu.RUnlock()
+
+        headPath := filepath.Join(f.path, "HEAD")
+        data, err := os.ReadFile(headPath)
+        if err != nil </span><span class="cov0" title="0">{
+                return "", fmt.Errorf("failed to read HEAD: %v", err)
+        }</span>
+
+        <span class="cov1" title="1">content := strings.TrimSpace(string(data))
+        if strings.HasPrefix(content, "ref: ") </span><span class="cov1" title="1">{
+                ref := strings.TrimPrefix(content, "ref: ")
+                return f.GetRef(ref)
+        }</span>
+
+        <span class="cov0" title="0">return content, nil</span>
+}
+
+func (f *FileRefStore) SetHEAD(ref string) error <span class="cov1" title="1">{
+        f.mu.Lock()
+        defer f.mu.Unlock()
+
+        headPath := filepath.Join(f.path, "HEAD")
+        content := ref
+        if strings.HasPrefix(ref, "refs/") </span><span class="cov1" title="1">{
+                content = "ref: " + ref
+        }</span>
+        <span class="cov1" title="1">return os.WriteFile(headPath, []byte(content+"\n"), 0644)</span>
+}
+
+func (f *FileRefStore) normalizeRefName(name string) string <span class="cov2" title="4">{
+        if strings.HasPrefix(name, "refs/") </span><span class="cov2" title="4">{
+                return name
+        }</span>
+        <span class="cov0" title="0">if strings.Contains(name, "/") </span><span class="cov0" title="0">{
+                return name
+        }</span>
+        <span class="cov0" title="0">return "refs/heads/" + name</span>
+}
+
+func (f *FileRefStore) getRefType(name string) RefType <span class="cov0" title="0">{
+        if strings.HasPrefix(name, "refs/heads/") </span><span class="cov0" title="0">{
+                return RefTypeBranch
+        }</span>
+        <span class="cov0" title="0">if strings.HasPrefix(name, "refs/tags/") </span><span class="cov0" title="0">{
+                return RefTypeTag
+        }</span>
+        <span class="cov0" title="0">if strings.HasPrefix(name, "refs/remotes/") </span><span class="cov0" title="0">{
+                return RefTypeRemote
+        }</span>
+        <span class="cov0" title="0">return RefTypeBranch</span>
+}
+
+func (f *FileRefStore) listLooseRefs(prefix string) ([]Ref, error) <span class="cov0" title="0">{
+        refs := make([]Ref, 0)
+        refsDir := filepath.Join(f.path, "refs")
+
+        err := filepath.Walk(refsDir, func(path string, info os.FileInfo, err error) error </span><span class="cov0" title="0">{
+                if err != nil || info.IsDir() </span><span class="cov0" title="0">{
+                        return nil
+                }</span>
+
+                <span class="cov0" title="0">relPath, err := filepath.Rel(f.path, path)
+                if err != nil </span><span class="cov0" title="0">{
+                        return err
+                }</span>
+
+                <span class="cov0" title="0">if prefix != "" &amp;&amp; !strings.HasPrefix(relPath, prefix) </span><span class="cov0" title="0">{
+                        return nil
+                }</span>
+
+                <span class="cov0" title="0">hash, err := f.GetRef(relPath)
+                if err != nil </span><span class="cov0" title="0">{
+                        return nil
+                }</span>
+
+                <span class="cov0" title="0">refType := f.getRefType(relPath)
+                refs = append(refs, Ref{
+                        Name: relPath,
+                        Hash: hash,
+                        Type: refType,
+                })
+
+                return nil</span>
+        })
+
+        <span class="cov0" title="0">return refs, err</span>
+}
+
+func (f *FileRefStore) readPackedRefs() (map[string]string, error) <span class="cov1" title="1">{
+        packedPath := filepath.Join(f.path, "packed-refs")
+        data, err := os.ReadFile(packedPath)
+        if err != nil </span><span class="cov0" title="0">{
+                return nil, err
+        }</span>
+
+        <span class="cov1" title="1">refs := make(map[string]string)
+        lines := strings.Split(string(data), "\n")
+        for _, line := range lines </span><span class="cov2" title="4">{
+                line = strings.TrimSpace(line)
+                if line == "" || strings.HasPrefix(line, "#") </span><span class="cov1" title="2">{
+                        continue</span>
+                }
+
+                <span class="cov1" title="2">parts := strings.Fields(line)
+                if len(parts) == 2 </span><span class="cov1" title="2">{
+                        refs[parts[1]] = parts[0]
+                }</span>
+        }
+
+        <span class="cov1" title="1">return refs, nil</span>
+}
+
+type RefManager struct {
+        store RefStore
+}
+
+func NewRefManager(store RefStore) *RefManager <span class="cov1" title="2">{
+        return &amp;RefManager{
+                store: store,
+        }
+}</span>
+
+func (r *RefManager) CreateBranch(name string, commitHash string) error <span class="cov9" title="1003">{
+        return r.store.SetRef("refs/heads/"+name, commitHash)
+}</span>
+
+func (r *RefManager) DeleteBranch(name string) error <span class="cov1" title="1">{
+        return r.store.DeleteRef("refs/heads/" + name)
+}</span>
+
+func (r *RefManager) ListBranches() ([]Ref, error) <span class="cov1" title="2">{
+        return r.store.ListRefs("refs/heads/")
+}</span>
+
+func (r *RefManager) GetBranch(name string) (string, error) <span class="cov2" title="3">{
+        return r.store.GetRef("refs/heads/" + name)
+}</span>
+
+func (r *RefManager) CreateTag(name string, objectHash string) error <span class="cov1" title="1">{
+        return r.store.SetRef("refs/tags/"+name, objectHash)
+}</span>
+
+func (r *RefManager) DeleteTag(name string) error <span class="cov0" title="0">{
+        return r.store.DeleteRef("refs/tags/" + name)
+}</span>
+
+func (r *RefManager) ListTags() ([]Ref, error) <span class="cov1" title="1">{
+        return r.store.ListRefs("refs/tags/")
+}</span>
+
+func (r *RefManager) GetTag(name string) (string, error) <span class="cov1" title="1">{
+        return r.store.GetRef("refs/tags/" + name)
+}</span>
+
+func (r *RefManager) GetHEAD() (string, error) <span class="cov1" title="2">{
+        return r.store.GetHEAD()
+}</span>
+
+func (r *RefManager) SetHEAD(ref string) error <span class="cov0" title="0">{
+        return r.store.SetHEAD(ref)
+}</span>
+
+func (r *RefManager) SetHEADToBranch(branchName string) error <span class="cov1" title="1">{
+        return r.store.SetHEAD("ref: refs/heads/" + branchName)
+}</span>
+
+func (r *RefManager) SetHEADToCommit(commitHash string) error <span class="cov1" title="1">{
+        return r.store.SetHEAD(commitHash)
+}</span>
+
+func (r *RefManager) GetCurrentBranch() (string, error) <span class="cov0" title="0">{
+        // We need to get the raw HEAD value, not the resolved one
+        // For MemoryRefStore, we need to access the head field directly
+        if memStore, ok := r.store.(*MemoryRefStore); ok </span><span class="cov0" title="0">{
+                memStore.mu.RLock()
+                head := memStore.head
+                memStore.mu.RUnlock()
+                
+                if strings.HasPrefix(head, "ref: refs/heads/") </span><span class="cov0" title="0">{
+                        return strings.TrimPrefix(head, "ref: refs/heads/"), nil
+                }</span>
+                <span class="cov0" title="0">return "", fmt.Errorf("HEAD is detached")</span>
+        }
+        
+        // For FileRefStore, read HEAD file directly
+        <span class="cov0" title="0">if fileStore, ok := r.store.(*FileRefStore); ok </span><span class="cov0" title="0">{
+                fileStore.mu.RLock()
+                defer fileStore.mu.RUnlock()
+                
+                headPath := filepath.Join(fileStore.path, "HEAD")
+                data, err := os.ReadFile(headPath)
+                if err != nil </span><span class="cov0" title="0">{
+                        return "", fmt.Errorf("failed to read HEAD: %v", err)
+                }</span>
+                
+                <span class="cov0" title="0">content := strings.TrimSpace(string(data))
+                if strings.HasPrefix(content, "ref: refs/heads/") </span><span class="cov0" title="0">{
+                        return strings.TrimPrefix(content, "ref: refs/heads/"), nil
+                }</span>
+                <span class="cov0" title="0">return "", fmt.Errorf("HEAD is detached")</span>
+        }
+        
+        <span class="cov0" title="0">return "", fmt.Errorf("unknown ref store type")</span>
+}
+
+func (r *RefManager) UpdateRef(name string, newHash string, oldHash string) error <span class="cov1" title="2">{
+        if oldHash != "" </span><span class="cov1" title="2">{
+                currentHash, err := r.store.GetRef(name)
+                if err != nil </span><span class="cov0" title="0">{
+                        return err
+                }</span>
+                <span class="cov1" title="2">if currentHash != oldHash </span><span class="cov1" title="1">{
+                        return fmt.Errorf("ref %s has changed", name)
+                }</span>
+        }
+        <span class="cov1" title="1">return r.store.SetRef(name, newHash)</span>
+}</pre>
+		
+		<pre class="file" id="file3" style="display: none">package storage
+
+import (
+        "fmt"
+        "os"
+        "path/filepath"
+        "sync"
+        "sync/atomic"
+
+        "github.com/caiatech/govc/pkg/object"
+)
+
+// HybridObjectStore implements memory-first storage with disk backup
+// Objects are kept in memory for speed but also persisted to disk
+type HybridObjectStore struct {
+        memory     *MemoryObjectStore
+        diskPath   string
+        maxMemory  int64
+        usedMemory int64
+        mu         sync.RWMutex
+}
+
+// NewHybridObjectStore creates a memory-first object store with disk backup
+func NewHybridObjectStore(diskPath string, maxMemory int64) (*HybridObjectStore, error) <span class="cov0" title="0">{
+        if err := os.MkdirAll(filepath.Join(diskPath, "objects"), 0755); err != nil </span><span class="cov0" title="0">{
+                return nil, IOError("failed to create objects directory", err)
+        }</span>
+        
+        <span class="cov0" title="0">return &amp;HybridObjectStore{
+                memory:    NewMemoryObjectStore(),
+                diskPath:  diskPath,
+                maxMemory: maxMemory,
+        }, nil</span>
+}
+
+func (s *HybridObjectStore) Get(hash string) (object.Object, error) <span class="cov0" title="0">{
+        // Try memory first
+        obj, err := s.memory.Get(hash)
+        if err == nil </span><span class="cov0" title="0">{
+                return obj, nil
+        }</span>
+        
+        // If not in memory, try disk
+        <span class="cov0" title="0">obj, err = s.loadFromDisk(hash)
+        if err != nil </span><span class="cov0" title="0">{
+                return nil, err
+        }</span>
+        
+        // Load into memory for future access
+        <span class="cov0" title="0">s.memory.Put(obj)
+        atomic.AddInt64(&amp;s.usedMemory, s.estimateObjectSize(obj))
+        
+        return obj, nil</span>
+}
+
+func (s *HybridObjectStore) Put(obj object.Object) (string, error) <span class="cov0" title="0">{
+        if obj == nil </span><span class="cov0" title="0">{
+                return "", InvalidObjectError("cannot store nil object")
+        }</span>
+        
+        <span class="cov0" title="0">hash := obj.Hash()
+        
+        // Always store in memory first
+        _, err := s.memory.Put(obj)
+        if err != nil </span><span class="cov0" title="0">{
+                return "", err
+        }</span>
+        
+        // Update memory usage
+        <span class="cov0" title="0">size := s.estimateObjectSize(obj)
+        newUsage := atomic.AddInt64(&amp;s.usedMemory, size)
+        
+        // If over memory limit, evict some objects
+        if newUsage &gt; s.maxMemory </span><span class="cov0" title="0">{
+                s.evictLRU()
+        }</span>
+        
+        // Also persist to disk
+        <span class="cov0" title="0">if err := s.saveToDisk(hash, obj); err != nil </span>{<span class="cov0" title="0">
+                // Log error but don't fail - memory storage succeeded
+                // In a production system, you'd want proper logging here
+        }</span>
+        
+        <span class="cov0" title="0">return hash, nil</span>
+}
+
+func (s *HybridObjectStore) Exists(hash string) bool <span class="cov0" title="0">{
+        // Check memory first
+        if s.memory.Exists(hash) </span><span class="cov0" title="0">{
+                return true
+        }</span>
+        
+        // Check disk
+        <span class="cov0" title="0">objPath := filepath.Join(s.diskPath, "objects", hash[:2], hash[2:])
+        _, err := os.Stat(objPath)
+        return err == nil</span>
+}
+
+func (s *HybridObjectStore) List() ([]string, error) <span class="cov0" title="0">{
+        // Start with memory objects
+        memoryHashes, err := s.memory.List()
+        if err != nil </span><span class="cov0" title="0">{
+                return nil, err
+        }</span>
+        
+        // Add disk objects
+        <span class="cov0" title="0">hashSet := make(map[string]bool)
+        for _, hash := range memoryHashes </span><span class="cov0" title="0">{
+                hashSet[hash] = true
+        }</span>
+        
+        // Walk disk objects directory
+        <span class="cov0" title="0">objectsDir := filepath.Join(s.diskPath, "objects")
+        err = filepath.Walk(objectsDir, func(path string, info os.FileInfo, err error) error </span><span class="cov0" title="0">{
+                if err != nil </span><span class="cov0" title="0">{
+                        return err
+                }</span>
+                
+                <span class="cov0" title="0">if !info.IsDir() </span><span class="cov0" title="0">{
+                        // Reconstruct hash from directory structure
+                        rel, _ := filepath.Rel(objectsDir, path)
+                        if len(rel) &gt;= 3 </span><span class="cov0" title="0">{
+                                hash := filepath.Dir(rel) + filepath.Base(rel)
+                                hashSet[hash] = true
+                        }</span>
+                }
+                <span class="cov0" title="0">return nil</span>
+        })
+        
+        <span class="cov0" title="0">if err != nil </span><span class="cov0" title="0">{
+                // Return memory hashes if disk walk fails
+                return memoryHashes, nil
+        }</span>
+        
+        // Convert back to slice
+        <span class="cov0" title="0">result := make([]string, 0, len(hashSet))
+        for hash := range hashSet </span><span class="cov0" title="0">{
+                result = append(result, hash)
+        }</span>
+        
+        <span class="cov0" title="0">return result, nil</span>
+}
+
+func (s *HybridObjectStore) Size() (int64, error) <span class="cov0" title="0">{
+        return atomic.LoadInt64(&amp;s.usedMemory), nil
+}</span>
+
+func (s *HybridObjectStore) Close() error <span class="cov0" title="0">{
+        s.memory.Close()
+        return nil
+}</span>
+
+// Helper methods
+
+func (s *HybridObjectStore) loadFromDisk(hash string) (object.Object, error) <span class="cov0" title="0">{
+        objPath := filepath.Join(s.diskPath, "objects", hash[:2], hash[2:])
+        
+        data, err := os.ReadFile(objPath)
+        if err != nil </span><span class="cov0" title="0">{
+                if os.IsNotExist(err) </span><span class="cov0" title="0">{
+                        return nil, NotFoundError(fmt.Sprintf("object %s not found", hash))
+                }</span>
+                <span class="cov0" title="0">return nil, IOError(fmt.Sprintf("failed to read object %s", hash), err)</span>
+        }
+        
+        // Deserialize object based on type
+        // This is a simplified implementation - in reality you'd need proper deserialization
+        <span class="cov0" title="0">obj, err := object.Deserialize(data)
+        if err != nil </span><span class="cov0" title="0">{
+                return nil, InvalidObjectError(fmt.Sprintf("failed to deserialize object %s", hash))
+        }</span>
+        
+        <span class="cov0" title="0">return obj, nil</span>
+}
+
+func (s *HybridObjectStore) saveToDisk(hash string, obj object.Object) error <span class="cov0" title="0">{
+        objDir := filepath.Join(s.diskPath, "objects", hash[:2])
+        if err := os.MkdirAll(objDir, 0755); err != nil </span><span class="cov0" title="0">{
+                return IOError("failed to create object directory", err)
+        }</span>
+        
+        <span class="cov0" title="0">objPath := filepath.Join(objDir, hash[2:])
+        
+        // Serialize object
+        data, err := obj.Serialize()
+        if err != nil </span><span class="cov0" title="0">{
+                return IOError("failed to serialize object", err)
+        }</span>
+        
+        <span class="cov0" title="0">return os.WriteFile(objPath, data, 0644)</span>
+}
+
+func (s *HybridObjectStore) estimateObjectSize(obj object.Object) int64 <span class="cov0" title="0">{
+        // Rough estimate - in production you'd want more accurate sizing
+        data, err := obj.Serialize()
+        if err != nil </span><span class="cov0" title="0">{
+                return 1024 // fallback estimate
+        }</span>
+        <span class="cov0" title="0">return int64(len(data))</span>
+}
+
+func (s *HybridObjectStore) evictLRU() <span class="cov0" title="0">{
+        // Simplified LRU eviction - remove half the objects
+        // In production you'd want proper LRU tracking
+        s.mu.Lock()
+        defer s.mu.Unlock()
+        
+        hashes, _ := s.memory.List()
+        evictCount := len(hashes) / 2
+        
+        for i := 0; i &lt; evictCount &amp;&amp; i &lt; len(hashes); i++ </span><span class="cov0" title="0">{
+                hash := hashes[i]
+                if obj, err := s.memory.Get(hash); err == nil </span><span class="cov0" title="0">{
+                        size := s.estimateObjectSize(obj)
+                        atomic.AddInt64(&amp;s.usedMemory, -size)
+                }</span>
+                
+                // Remove from memory (but keep on disk)
+                <span class="cov0" title="0">s.memory.objects[hash] = nil
+                delete(s.memory.objects, hash)</span>
+        }
+}
+
+// HybridStorageFactory creates hybrid storage instances
+type HybridStorageFactory struct {
+        basePath string
+}
+
+// NewHybridStorageFactory creates a new hybrid storage factory
+func NewHybridStorageFactory(basePath string) *HybridStorageFactory <span class="cov0" title="0">{
+        return &amp;HybridStorageFactory{basePath: basePath}
+}</span>
+
+func (f *HybridStorageFactory) CreateObjectStore(config ObjectStoreConfig) (ObjectStore, error) <span class="cov0" title="0">{
+        if config.Type != "hybrid" </span><span class="cov0" title="0">{
+                return nil, fmt.Errorf("unsupported object store type: %s", config.Type)
+        }</span>
+        
+        <span class="cov0" title="0">path := config.Path
+        if path == "" </span><span class="cov0" title="0">{
+                path = filepath.Join(f.basePath, "objects")
+        }</span>
+        
+        <span class="cov0" title="0">maxMemory := config.MaxMemory
+        if maxMemory &lt;= 0 </span><span class="cov0" title="0">{
+                maxMemory = 100 * 1024 * 1024 // 100MB default
+        }</span>
+        
+        <span class="cov0" title="0">return NewHybridObjectStore(path, maxMemory)</span>
+}
+
+func (f *HybridStorageFactory) CreateRefStore(config RefStoreConfig) (RefStore, error) <span class="cov0" title="0">{
+        // For now, refs are always in memory for speed
+        // Could be extended to hybrid as well
+        return NewMemoryRefStore(), nil
+}</span>
+
+func (f *HybridStorageFactory) CreateWorkingStorage(config WorkingStorageConfig) (WorkingStorage, error) <span class="cov0" title="0">{
+        // Working storage is typically memory-based for performance
+        return NewMemoryWorkingStorage(), nil
+}</pre>
+		
+		<pre class="file" id="file4" style="display: none">package storage
+
+import (
+        "github.com/caiatech/govc/pkg/object"
+)
+
+// ObjectStore handles immutable Git objects (commits, trees, blobs)
+// This is the core of Git's content-addressable storage
+type ObjectStore interface {
+        // Get retrieves an object by its hash
+        Get(hash string) (object.Object, error)
+        
+        // Put stores an object and returns its hash
+        Put(obj object.Object) (string, error)
+        
+        // Exists checks if an object exists without retrieving it
+        Exists(hash string) bool
+        
+        // List returns all object hashes (for debugging/maintenance)
+        List() ([]string, error)
+        
+        // Size returns the storage size metrics
+        Size() (int64, error)
+        
+        // Close releases any resources held by the store
+        Close() error
+}
+
+// RefStore handles mutable references (branches, tags, HEAD)
+// These are pointers to commits in the object store
+type RefStore interface {
+        // GetRef returns the hash that a reference points to
+        GetRef(name string) (string, error)
+        
+        // UpdateRef updates a reference to point to a new hash
+        UpdateRef(name string, hash string) error
+        
+        // DeleteRef removes a reference
+        DeleteRef(name string) error
+        
+        // ListRefs returns all references with their target hashes
+        ListRefs() (map[string]string, error)
+        
+        // GetHEAD returns what HEAD points to (branch name or commit hash)
+        GetHEAD() (string, error)
+        
+        // SetHEAD updates HEAD to point to a branch or commit
+        SetHEAD(target string) error
+        
+        // Close releases any resources held by the store
+        Close() error
+}
+
+// WorkingStorage handles mutable working directory content
+// This is separate from Git objects and can be cleared/restored
+type WorkingStorage interface {
+        // Read retrieves file content from the working directory
+        Read(path string) ([]byte, error)
+        
+        // Write stores file content in the working directory
+        Write(path string, data []byte) error
+        
+        // Delete removes a file from the working directory
+        Delete(path string) error
+        
+        // List returns all files in the working directory
+        List() ([]string, error)
+        
+        // Clear removes all files from the working directory
+        Clear() error
+        
+        // Exists checks if a file exists
+        Exists(path string) bool
+        
+        // Close releases any resources held by the storage
+        Close() error
+}
+
+// StorageFactory creates storage instances
+// This allows different storage backends (memory, disk, hybrid)
+type StorageFactory interface {
+        // CreateObjectStore creates an object store with the given configuration
+        CreateObjectStore(config ObjectStoreConfig) (ObjectStore, error)
+        
+        // CreateRefStore creates a reference store with the given configuration
+        CreateRefStore(config RefStoreConfig) (RefStore, error)
+        
+        // CreateWorkingStorage creates working storage with the given configuration
+        CreateWorkingStorage(config WorkingStorageConfig) (WorkingStorage, error)
+}
+
+// Configuration types for different storage backends
+
+type ObjectStoreConfig struct {
+        Type        string                 // "memory", "disk", "hybrid"
+        Path        string                // For disk storage
+        MaxMemory   int64                 // For hybrid storage
+        Options     map[string]interface{} // Backend-specific options
+}
+
+type RefStoreConfig struct {
+        Type        string                 // "memory", "disk", "hybrid"
+        Path        string                // For disk storage
+        Options     map[string]interface{} // Backend-specific options
+}
+
+type WorkingStorageConfig struct {
+        Type        string                 // "memory", "disk", "hybrid"
+        Path        string                // For disk storage
+        Options     map[string]interface{} // Backend-specific options
+}
+
+// Errors for storage operations
+type Error struct {
+        Type    string // "not_found", "invalid_object", "io_error", etc.
+        Message string
+        Cause   error
+}
+
+func (e *Error) Error() string <span class="cov5" title="3">{
+        if e.Cause != nil </span><span class="cov3" title="2">{
+                return e.Message + ": " + e.Cause.Error()
+        }</span>
+        <span class="cov1" title="1">return e.Message</span>
+}
+
+func (e *Error) Unwrap() error <span class="cov1" title="1">{
+        return e.Cause
+}</span>
+
+// Common error constructors
+func NotFoundError(message string) *Error <span class="cov9" title="9">{
+        return &amp;Error{Type: "not_found", Message: message}
+}</span>
+
+func InvalidObjectError(message string) *Error <span class="cov10" title="10">{
+        return &amp;Error{Type: "invalid_object", Message: message}
+}</span>
+
+func IOError(message string, cause error) *Error <span class="cov1" title="1">{
+        return &amp;Error{Type: "io_error", Message: message, Cause: cause}
+}</pre>
+		
+		<pre class="file" id="file5" style="display: none">package storage
+
+import (
+        "fmt"
+        "sort"
+        "sync"
+
+        "github.com/caiatech/govc/pkg/object"
+)
+
+// MemoryObjectStore implements ObjectStore in memory
+type MemoryObjectStore struct {
+        objects map[string]object.Object
+        mu      sync.RWMutex
+}
+
+// NewMemoryObjectStore creates a new in-memory object store
+func NewMemoryObjectStore() *MemoryObjectStore <span class="cov3" title="2">{
+        return &amp;MemoryObjectStore{
+                objects: make(map[string]object.Object),
+        }
+}</span>
+
+func (s *MemoryObjectStore) Get(hash string) (object.Object, error) <span class="cov3" title="2">{
+        s.mu.RLock()
+        defer s.mu.RUnlock()
+        
+        obj, exists := s.objects[hash]
+        if !exists </span><span class="cov1" title="1">{
+                return nil, NotFoundError(fmt.Sprintf("object %s not found", hash))
+        }</span>
+        
+        <span class="cov1" title="1">return obj, nil</span>
+}
+
+func (s *MemoryObjectStore) Put(obj object.Object) (string, error) <span class="cov10" title="14">{
+        if obj == nil </span><span class="cov1" title="1">{
+                return "", InvalidObjectError("cannot store nil object")
+        }</span>
+        
+        <span class="cov9" title="13">hash := obj.Hash()
+        if hash == "" </span><span class="cov1" title="1">{
+                return "", InvalidObjectError("object has empty hash")
+        }</span>
+        
+        <span class="cov9" title="12">s.mu.Lock()
+        defer s.mu.Unlock()
+        
+        s.objects[hash] = obj
+        return hash, nil</span>
+}
+
+func (s *MemoryObjectStore) Exists(hash string) bool <span class="cov3" title="2">{
+        s.mu.RLock()
+        defer s.mu.RUnlock()
+        
+        _, exists := s.objects[hash]
+        return exists
+}</span>
+
+func (s *MemoryObjectStore) List() ([]string, error) <span class="cov3" title="2">{
+        s.mu.RLock()
+        defer s.mu.RUnlock()
+        
+        hashes := make([]string, 0, len(s.objects))
+        for hash := range s.objects </span><span class="cov10" title="14">{
+                hashes = append(hashes, hash)
+        }</span>
+        
+        <span class="cov3" title="2">sort.Strings(hashes)
+        return hashes, nil</span>
+}
+
+func (s *MemoryObjectStore) Size() (int64, error) <span class="cov1" title="1">{
+        s.mu.RLock()
+        defer s.mu.RUnlock()
+        
+        // Rough size calculation - in a real implementation we'd track bytes
+        return int64(len(s.objects)), nil
+}</span>
+
+func (s *MemoryObjectStore) Close() error <span class="cov0" title="0">{
+        s.mu.Lock()
+        defer s.mu.Unlock()
+        
+        // Clear the objects map to help with garbage collection
+        s.objects = nil
+        return nil
+}</span>
+
+// MemoryRefStore implements RefStore in memory
+type MemoryRefStore struct {
+        refs map[string]string // ref name -&gt; commit hash
+        head string            // what HEAD points to
+        mu   sync.RWMutex
+}
+
+// NewMemoryRefStore creates a new in-memory reference store
+func NewMemoryRefStore() *MemoryRefStore <span class="cov3" title="2">{
+        return &amp;MemoryRefStore{
+                refs: make(map[string]string),
+                head: "refs/heads/main", // Default to main branch
+        }
+}</span>
+
+func (s *MemoryRefStore) GetRef(name string) (string, error) <span class="cov4" title="3">{
+        s.mu.RLock()
+        defer s.mu.RUnlock()
+        
+        hash, exists := s.refs[name]
+        if !exists </span><span class="cov3" title="2">{
+                return "", NotFoundError(fmt.Sprintf("reference %s not found", name))
+        }</span>
+        
+        <span class="cov1" title="1">return hash, nil</span>
+}
+
+func (s *MemoryRefStore) UpdateRef(name string, hash string) error <span class="cov6" title="5">{
+        if name == "" </span><span class="cov1" title="1">{
+                return InvalidObjectError("reference name cannot be empty")
+        }</span>
+        <span class="cov5" title="4">if hash == "" </span><span class="cov1" title="1">{
+                return InvalidObjectError("hash cannot be empty")
+        }</span>
+        
+        <span class="cov4" title="3">s.mu.Lock()
+        defer s.mu.Unlock()
+        
+        s.refs[name] = hash
+        return nil</span>
+}
+
+func (s *MemoryRefStore) DeleteRef(name string) error <span class="cov3" title="2">{
+        s.mu.Lock()
+        defer s.mu.Unlock()
+        
+        if _, exists := s.refs[name]; !exists </span><span class="cov1" title="1">{
+                return NotFoundError(fmt.Sprintf("reference %s not found", name))
+        }</span>
+        
+        <span class="cov1" title="1">delete(s.refs, name)
+        return nil</span>
+}
+
+func (s *MemoryRefStore) ListRefs() (map[string]string, error) <span class="cov1" title="1">{
+        s.mu.RLock()
+        defer s.mu.RUnlock()
+        
+        // Return a copy to prevent external modification
+        refs := make(map[string]string, len(s.refs))
+        for name, hash := range s.refs </span><span class="cov4" title="3">{
+                refs[name] = hash
+        }</span>
+        
+        <span class="cov1" title="1">return refs, nil</span>
+}
+
+func (s *MemoryRefStore) GetHEAD() (string, error) <span class="cov3" title="2">{
+        s.mu.RLock()
+        defer s.mu.RUnlock()
+        
+        return s.head, nil
+}</span>
+
+func (s *MemoryRefStore) SetHEAD(target string) error <span class="cov3" title="2">{
+        if target == "" </span><span class="cov1" title="1">{
+                return InvalidObjectError("HEAD target cannot be empty")
+        }</span>
+        
+        <span class="cov1" title="1">s.mu.Lock()
+        defer s.mu.Unlock()
+        
+        s.head = target
+        return nil</span>
+}
+
+func (s *MemoryRefStore) Close() error <span class="cov0" title="0">{
+        s.mu.Lock()
+        defer s.mu.Unlock()
+        
+        s.refs = nil
+        return nil
+}</span>
+
+// MemoryWorkingStorage implements WorkingStorage in memory
+type MemoryWorkingStorage struct {
+        files map[string][]byte
+        mu    sync.RWMutex
+}
+
+// NewMemoryWorkingStorage creates a new in-memory working storage
+func NewMemoryWorkingStorage() *MemoryWorkingStorage <span class="cov3" title="2">{
+        return &amp;MemoryWorkingStorage{
+                files: make(map[string][]byte),
+        }
+}</span>
+
+func (s *MemoryWorkingStorage) Read(path string) ([]byte, error) <span class="cov4" title="3">{
+        s.mu.RLock()
+        defer s.mu.RUnlock()
+        
+        data, exists := s.files[path]
+        if !exists </span><span class="cov3" title="2">{
+                return nil, NotFoundError(fmt.Sprintf("file %s not found", path))
+        }</span>
+        
+        // Return a copy to prevent external modification
+        <span class="cov1" title="1">result := make([]byte, len(data))
+        copy(result, data)
+        return result, nil</span>
+}
+
+func (s *MemoryWorkingStorage) Write(path string, data []byte) error <span class="cov6" title="5">{
+        if path == "" </span><span class="cov1" title="1">{
+                return InvalidObjectError("file path cannot be empty")
+        }</span>
+        
+        <span class="cov5" title="4">s.mu.Lock()
+        defer s.mu.Unlock()
+        
+        // Store a copy to prevent external modification
+        fileCopy := make([]byte, len(data))
+        copy(fileCopy, data)
+        s.files[path] = fileCopy
+        
+        return nil</span>
+}
+
+func (s *MemoryWorkingStorage) Delete(path string) error <span class="cov3" title="2">{
+        s.mu.Lock()
+        defer s.mu.Unlock()
+        
+        if _, exists := s.files[path]; !exists </span><span class="cov1" title="1">{
+                return NotFoundError(fmt.Sprintf("file %s not found", path))
+        }</span>
+        
+        <span class="cov1" title="1">delete(s.files, path)
+        return nil</span>
+}
+
+func (s *MemoryWorkingStorage) List() ([]string, error) <span class="cov4" title="3">{
+        s.mu.RLock()
+        defer s.mu.RUnlock()
+        
+        paths := make([]string, 0, len(s.files))
+        for path := range s.files </span><span class="cov5" title="4">{
+                paths = append(paths, path)
+        }</span>
+        
+        <span class="cov4" title="3">sort.Strings(paths)
+        return paths, nil</span>
+}
+
+func (s *MemoryWorkingStorage) Clear() error <span class="cov3" title="2">{
+        s.mu.Lock()
+        defer s.mu.Unlock()
+        
+        // Clear all files
+        for path := range s.files </span><span class="cov4" title="3">{
+                delete(s.files, path)
+        }</span>
+        
+        <span class="cov3" title="2">return nil</span>
+}
+
+func (s *MemoryWorkingStorage) Exists(path string) bool <span class="cov6" title="5">{
+        s.mu.RLock()
+        defer s.mu.RUnlock()
+        
+        _, exists := s.files[path]
+        return exists
+}</span>
+
+func (s *MemoryWorkingStorage) Close() error <span class="cov0" title="0">{
+        s.mu.Lock()
+        defer s.mu.Unlock()
+        
+        s.files = nil
+        return nil
+}</span>
+
+// MemoryStorageFactory creates memory-based storage instances
+type MemoryStorageFactory struct{}
+
+// NewMemoryStorageFactory creates a new memory storage factory
+func NewMemoryStorageFactory() *MemoryStorageFactory <span class="cov1" title="1">{
+        return &amp;MemoryStorageFactory{}
+}</span>
+
+func (f *MemoryStorageFactory) CreateObjectStore(config ObjectStoreConfig) (ObjectStore, error) <span class="cov3" title="2">{
+        if config.Type != "memory" &amp;&amp; config.Type != "" </span><span class="cov1" title="1">{
+                return nil, fmt.Errorf("unsupported object store type: %s", config.Type)
+        }</span>
+        <span class="cov1" title="1">return NewMemoryObjectStore(), nil</span>
+}
+
+func (f *MemoryStorageFactory) CreateRefStore(config RefStoreConfig) (RefStore, error) <span class="cov1" title="1">{
+        if config.Type != "memory" &amp;&amp; config.Type != "" </span><span class="cov0" title="0">{
+                return nil, fmt.Errorf("unsupported ref store type: %s", config.Type)
+        }</span>
+        <span class="cov1" title="1">return NewMemoryRefStore(), nil</span>
+}
+
+func (f *MemoryStorageFactory) CreateWorkingStorage(config WorkingStorageConfig) (WorkingStorage, error) <span class="cov1" title="1">{
+        if config.Type != "memory" &amp;&amp; config.Type != "" </span><span class="cov0" title="0">{
+                return nil, fmt.Errorf("unsupported working storage type: %s", config.Type)
+        }</span>
+        <span class="cov1" title="1">return NewMemoryWorkingStorage(), nil</span>
+}</pre>
+		
+		<pre class="file" id="file6" style="display: none">package storage
+
+import (
+        "github.com/caiatech/govc/pkg/refs"
+)
+
+// RefManagerAdapter adapts the existing RefManager to implement storage.RefStore interface
+// This provides backward compatibility while transitioning to the new architecture
+type RefManagerAdapter struct {
+        manager *refs.RefManager
+}
+
+// NewRefManagerAdapter creates a RefStore adapter for the existing RefManager
+func NewRefManagerAdapter(manager *refs.RefManager) *RefManagerAdapter <span class="cov0" title="0">{
+        return &amp;RefManagerAdapter{manager: manager}
+}</span>
+
+func (a *RefManagerAdapter) GetRef(name string) (string, error) <span class="cov0" title="0">{
+        // The RefManager uses its underlying store's GetRef
+        // We need to access the store directly
+        if refStore := a.getUnderlyingStore(); refStore != nil </span><span class="cov0" title="0">{
+                return refStore.GetRef(name)
+        }</span>
+        // Fallback to using RefManager methods for known ref types
+        <span class="cov0" title="0">if name == "refs/heads/main" || name == "main" </span><span class="cov0" title="0">{
+                return a.manager.GetBranch("main")
+        }</span>
+        // For other refs, we'll need to use reflection or modify RefManager
+        // For now, return an error for unsupported refs
+        <span class="cov0" title="0">return "", NotFoundError("ref not found: " + name)</span>
+}
+
+func (a *RefManagerAdapter) UpdateRef(name string, hash string) error <span class="cov0" title="0">{
+        // Use the RefManager's UpdateRef method
+        return a.manager.UpdateRef(name, hash, "")
+}</span>
+
+func (a *RefManagerAdapter) DeleteRef(name string) error <span class="cov0" title="0">{
+        // The RefManager uses its underlying store's DeleteRef
+        if refStore := a.getUnderlyingStore(); refStore != nil </span><span class="cov0" title="0">{
+                return refStore.DeleteRef(name)
+        }</span>
+        <span class="cov0" title="0">return NotFoundError("ref not found: " + name)</span>
+}
+
+func (a *RefManagerAdapter) ListRefs() (map[string]string, error) <span class="cov0" title="0">{
+        result := make(map[string]string)
+        
+        // List branches
+        branches, err := a.manager.ListBranches()
+        if err != nil </span><span class="cov0" title="0">{
+                return nil, err
+        }</span>
+        <span class="cov0" title="0">for _, branch := range branches </span><span class="cov0" title="0">{
+                result[branch.Name] = branch.Hash
+        }</span>
+        
+        // List tags
+        <span class="cov0" title="0">tags, err := a.manager.ListTags()
+        if err != nil </span><span class="cov0" title="0">{
+                return nil, err
+        }</span>
+        <span class="cov0" title="0">for _, tag := range tags </span><span class="cov0" title="0">{
+                result[tag.Name] = tag.Hash
+        }</span>
+        
+        <span class="cov0" title="0">return result, nil</span>
+}
+
+func (a *RefManagerAdapter) GetHEAD() (string, error) <span class="cov0" title="0">{
+        return a.manager.GetHEAD()
+}</span>
+
+func (a *RefManagerAdapter) SetHEAD(target string) error <span class="cov0" title="0">{
+        return a.manager.SetHEAD(target)
+}</span>
+
+func (a *RefManagerAdapter) Close() error <span class="cov0" title="0">{
+        // RefManager doesn't have a Close method, so nothing to do
+        return nil
+}</span>
+
+// Helper method to access the underlying RefStore
+func (a *RefManagerAdapter) getUnderlyingStore() refs.RefStore <span class="cov0" title="0">{
+        // This requires access to the manager's store field
+        // Since it's not exported, we'll need to add a getter method or use reflection
+        // For now, return nil and rely on the RefManager methods
+        return nil
+}</span>
+
+// NewRefStoreFromRefsStore creates a storage.RefStore from a refs.RefStore
+func NewRefStoreFromRefsStore(refStore refs.RefStore) RefStore <span class="cov0" title="0">{
+        manager := refs.NewRefManager(refStore)
+        return NewRefManagerAdapter(manager)
+}</span>
+
+// NewMemoryRefStoreFromRefs creates a memory-only RefStore using the refs package
+func NewMemoryRefStoreFromRefs() RefStore <span class="cov0" title="0">{
+        memoryStore := refs.NewMemoryRefStore()
+        manager := refs.NewRefManager(memoryStore)
+        return NewRefManagerAdapter(manager)
+}</span>
+
+// NewFileRefStore creates a file-backed RefStore using the refs package
+func NewFileRefStore(path string) RefStore <span class="cov0" title="0">{
+        fileStore := refs.NewFileRefStore(path)
+        manager := refs.NewRefManager(fileStore)
+        return NewRefManagerAdapter(manager)
+}</pre>
+		
+		<pre class="file" id="file7" style="display: none">package storage
+
+import (
+        "github.com/caiatech/govc/pkg/refs"
+)
+
+// RefsStoreAdapter adapts refs.RefStore to implement storage.RefStore interface
+// This provides a more direct bridge between the two interfaces
+type RefsStoreAdapter struct {
+        store refs.RefStore
+}
+
+// NewRefsStoreAdapter creates a storage.RefStore adapter for refs.RefStore
+func NewRefsStoreAdapter(store refs.RefStore) *RefsStoreAdapter <span class="cov1" title="1">{
+        return &amp;RefsStoreAdapter{store: store}
+}</span>
+
+func (a *RefsStoreAdapter) GetRef(name string) (string, error) <span class="cov7" title="3">{
+        return a.store.GetRef(name)
+}</span>
+
+func (a *RefsStoreAdapter) UpdateRef(name string, hash string) error <span class="cov10" title="5">{
+        if name == "" </span><span class="cov1" title="1">{
+                return InvalidObjectError("reference name cannot be empty")
+        }</span>
+        <span class="cov8" title="4">if hash == "" </span><span class="cov1" title="1">{
+                return InvalidObjectError("hash cannot be empty")
+        }</span>
+        <span class="cov7" title="3">return a.store.SetRef(name, hash)</span>
+}
+
+func (a *RefsStoreAdapter) DeleteRef(name string) error <span class="cov4" title="2">{
+        // Check if ref exists first
+        _, err := a.store.GetRef(name)
+        if err != nil </span><span class="cov1" title="1">{
+                return NotFoundError("reference " + name + " not found")
+        }</span>
+        <span class="cov1" title="1">return a.store.DeleteRef(name)</span>
+}
+
+func (a *RefsStoreAdapter) ListRefs() (map[string]string, error) <span class="cov1" title="1">{
+        // Get all refs by listing with empty prefix
+        refsList, err := a.store.ListRefs("")
+        if err != nil </span><span class="cov0" title="0">{
+                return nil, err
+        }</span>
+        
+        // Convert []refs.Ref to map[string]string
+        <span class="cov1" title="1">result := make(map[string]string)
+        for _, ref := range refsList </span><span class="cov7" title="3">{
+                result[ref.Name] = ref.Hash
+        }</span>
+        
+        <span class="cov1" title="1">return result, nil</span>
+}
+
+func (a *RefsStoreAdapter) GetHEAD() (string, error) <span class="cov4" title="2">{
+        // For MemoryRefStore, we need to emulate the storage interface behavior
+        if _, ok := a.store.(*refs.MemoryRefStore); ok </span><span class="cov4" title="2">{
+                // The refs store will resolve HEAD, but if the target doesn't exist, it will error
+                // Let's try to get the resolved HEAD and catch any errors
+                _, err := a.store.GetHEAD()
+                if err != nil </span><span class="cov1" title="1">{
+                        return "", err
+                }</span>
+                // If no error, return the symbolic reference
+                // TODO: This is a limitation - we need access to the head field
+                <span class="cov1" title="1">return "refs/heads/main", nil</span>
+        }
+        
+        // For other stores, return the resolved value
+        <span class="cov0" title="0">return a.store.GetHEAD()</span>
+}
+
+func (a *RefsStoreAdapter) SetHEAD(target string) error <span class="cov1" title="1">{
+        return a.store.SetHEAD(target)
+}</span>
+
+func (a *RefsStoreAdapter) Close() error <span class="cov0" title="0">{
+        // refs.RefStore doesn't have a Close method, so nothing to do
+        return nil
+}</span>
+
+// Convenience constructors using the refs package stores
+
+// NewMemoryRefStoreAdapter creates a memory-only RefStore using refs.MemoryRefStore
+func NewMemoryRefStoreAdapter() RefStore <span class="cov1" title="1">{
+        memoryStore := refs.NewMemoryRefStore()
+        return NewRefsStoreAdapter(memoryStore)
+}</span>
+
+// NewFileRefStoreAdapter creates a file-backed RefStore using refs.FileRefStore
+func NewFileRefStoreAdapter(path string) RefStore <span class="cov0" title="0">{
+        fileStore := refs.NewFileRefStore(path)
+        return NewRefsStoreAdapter(fileStore)
+}</pre>
+		
+		<pre class="file" id="file8" style="display: none">package storage
+
+import (
+        "fmt"
+        "io"
+        "os"
+        "path/filepath"
+        "sync"
+
+        "github.com/caiatech/govc/pkg/object"
+)
+
+type Backend interface {
+        ReadObject(hash string) ([]byte, error)
+        WriteObject(hash string, data []byte) error
+        HasObject(hash string) bool
+        ListObjects() ([]string, error)
+}
+
+// MemoryBackend stores all Git objects in memory.
+// This is the foundation of govc's memory-first approach - no disk I/O
+// means operations complete in microseconds instead of milliseconds.
+// Creating 1000 branches? That's just creating 1000 pointers in a map.
+type MemoryBackend struct {
+        objects map[string][]byte
+        mu      sync.RWMutex
+}
+
+func NewMemoryBackend() *MemoryBackend <span class="cov4" title="13">{
+        return &amp;MemoryBackend{
+                objects: make(map[string][]byte),
+        }
+}</span>
+
+func (m *MemoryBackend) ReadObject(hash string) ([]byte, error) <span class="cov5" title="21">{
+        m.mu.RLock()
+        defer m.mu.RUnlock()
+
+        data, exists := m.objects[hash]
+        if !exists </span><span class="cov3" title="4">{
+                return nil, fmt.Errorf("object not found: %s", hash)
+        }</span>
+        <span class="cov5" title="17">return data, nil</span>
+}
+
+func (m *MemoryBackend) WriteObject(hash string, data []byte) error <span class="cov10" title="359">{
+        m.mu.Lock()
+        defer m.mu.Unlock()
+
+        m.objects[hash] = data
+        return nil
+}</span>
+
+func (m *MemoryBackend) HasObject(hash string) bool <span class="cov9" title="235">{
+        m.mu.RLock()
+        defer m.mu.RUnlock()
+
+        _, exists := m.objects[hash]
+        return exists
+}</span>
+
+func (m *MemoryBackend) ListObjects() ([]string, error) <span class="cov3" title="5">{
+        m.mu.RLock()
+        defer m.mu.RUnlock()
+
+        hashes := make([]string, 0, len(m.objects))
+        for hash := range m.objects </span><span class="cov6" title="27">{
+                hashes = append(hashes, hash)
+        }</span>
+        <span class="cov3" title="5">return hashes, nil</span>
+}
+
+type FileBackend struct {
+        path string
+        mu   sync.RWMutex
+}
+
+func NewFileBackend(path string) *FileBackend <span class="cov2" title="2">{
+        return &amp;FileBackend{
+                path: path,
+        }
+}</span>
+
+func (f *FileBackend) objectPath(hash string) string <span class="cov8" title="105">{
+        if len(hash) &lt; 2 </span><span class="cov0" title="0">{
+                return ""
+        }</span>
+        <span class="cov8" title="105">dir := hash[:2]
+        file := hash[2:]
+        return filepath.Join(f.path, "objects", dir, file)</span>
+}
+
+func (f *FileBackend) ReadObject(hash string) ([]byte, error) <span class="cov2" title="2">{
+        f.mu.RLock()
+        defer f.mu.RUnlock()
+
+        path := f.objectPath(hash)
+        compressed, err := os.ReadFile(path)
+        if err != nil </span><span class="cov0" title="0">{
+                return nil, fmt.Errorf("object not found: %s", hash)
+        }</span>
+
+        <span class="cov2" title="2">return object.Decompress(compressed)</span>
+}
+
+func (f *FileBackend) WriteObject(hash string, data []byte) error <span class="cov8" title="102">{
+        f.mu.Lock()
+        defer f.mu.Unlock()
+
+        path := f.objectPath(hash)
+        dir := filepath.Dir(path)
+
+        if err := os.MkdirAll(dir, 0755); err != nil </span><span class="cov0" title="0">{
+                return fmt.Errorf("failed to create directory: %v", err)
+        }</span>
+
+        <span class="cov8" title="102">compressed, err := object.Compress(data)
+        if err != nil </span><span class="cov0" title="0">{
+                return fmt.Errorf("failed to compress object: %v", err)
+        }</span>
+
+        <span class="cov8" title="102">return os.WriteFile(path, compressed, 0644)</span>
+}
+
+func (f *FileBackend) HasObject(hash string) bool <span class="cov1" title="1">{
+        f.mu.RLock()
+        defer f.mu.RUnlock()
+
+        path := f.objectPath(hash)
+        _, err := os.Stat(path)
+        return err == nil
+}</span>
+
+func (f *FileBackend) ListObjects() ([]string, error) <span class="cov0" title="0">{
+        f.mu.RLock()
+        defer f.mu.RUnlock()
+
+        var hashes []string
+        objectsDir := filepath.Join(f.path, "objects")
+
+        dirs, err := os.ReadDir(objectsDir)
+        if err != nil </span><span class="cov0" title="0">{
+                if os.IsNotExist(err) </span><span class="cov0" title="0">{
+                        return hashes, nil
+                }</span>
+                <span class="cov0" title="0">return nil, err</span>
+        }
+
+        <span class="cov0" title="0">for _, dir := range dirs </span><span class="cov0" title="0">{
+                if !dir.IsDir() || len(dir.Name()) != 2 </span><span class="cov0" title="0">{
+                        continue</span>
+                }
+
+                <span class="cov0" title="0">subDir := filepath.Join(objectsDir, dir.Name())
+                files, err := os.ReadDir(subDir)
+                if err != nil </span><span class="cov0" title="0">{
+                        continue</span>
+                }
+
+                <span class="cov0" title="0">for _, file := range files </span><span class="cov0" title="0">{
+                        if !file.IsDir() </span><span class="cov0" title="0">{
+                                hash := dir.Name() + file.Name()
+                                hashes = append(hashes, hash)
+                        }</span>
+                }
+        }
+
+        <span class="cov0" title="0">return hashes, nil</span>
+}
+
+// Store provides a unified interface to Git objects.
+// The key innovation: cache isn't just for performance, it's the primary
+// storage layer. The backend is optional - you can run entirely in memory.
+// This enables use cases like testing infrastructure changes without
+// ever touching disk.
+type Store struct {
+        backend Backend
+        cache   *MemoryBackend // Memory-first: cache is primary, backend is optional
+}
+
+func NewStore(backend Backend) *Store <span class="cov3" title="6">{
+        return &amp;Store{
+                backend: backend,
+                cache:   NewMemoryBackend(),
+        }
+}</span>
+
+func (s *Store) StoreObject(obj object.Object) (string, error) <span class="cov9" title="221">{
+        data, err := obj.Serialize()
+        if err != nil </span><span class="cov0" title="0">{
+                return "", err
+        }</span>
+        <span class="cov9" title="221">hash := object.HashObject(data)
+
+        if s.cache.HasObject(hash) </span><span class="cov0" title="0">{
+                return hash, nil
+        }</span>
+
+        <span class="cov9" title="221">if err := s.cache.WriteObject(hash, data); err != nil </span><span class="cov0" title="0">{
+                return "", err
+        }</span>
+
+        <span class="cov9" title="221">if err := s.backend.WriteObject(hash, data); err != nil </span><span class="cov0" title="0">{
+                return "", err
+        }</span>
+
+        <span class="cov9" title="221">return hash, nil</span>
+}
+
+func (s *Store) GetObject(hash string) (object.Object, error) <span class="cov4" title="9">{
+        var data []byte
+        var err error
+
+        data, err = s.cache.ReadObject(hash)
+        if err != nil </span><span class="cov2" title="2">{
+                data, err = s.backend.ReadObject(hash)
+                if err != nil </span><span class="cov1" title="1">{
+                        return nil, err
+                }</span>
+                <span class="cov1" title="1">_ = s.cache.WriteObject(hash, data)</span>
+        }
+
+        <span class="cov4" title="8">return object.ParseObject(data)</span>
+}
+
+func (s *Store) HasObject(hash string) bool <span class="cov2" title="2">{
+        return s.cache.HasObject(hash) || s.backend.HasObject(hash)
+}</span>
+
+func (s *Store) ListObjects() ([]string, error) <span class="cov2" title="3">{
+        return s.backend.ListObjects()
+}</span>
+
+func (s *Store) StoreBlob(content []byte) (string, error) <span class="cov3" title="7">{
+        blob := object.NewBlob(content)
+        return s.StoreObject(blob)
+}</span>
+
+func (s *Store) GetBlob(hash string) (*object.Blob, error) <span class="cov1" title="1">{
+        obj, err := s.GetObject(hash)
+        if err != nil </span><span class="cov0" title="0">{
+                return nil, err
+        }</span>
+
+        <span class="cov1" title="1">blob, ok := obj.(*object.Blob)
+        if !ok </span><span class="cov0" title="0">{
+                return nil, fmt.Errorf("object %s is not a blob", hash)
+        }</span>
+
+        <span class="cov1" title="1">return blob, nil</span>
+}
+
+func (s *Store) StoreTree(tree *object.Tree) (string, error) <span class="cov1" title="1">{
+        return s.StoreObject(tree)
+}</span>
+
+func (s *Store) GetTree(hash string) (*object.Tree, error) <span class="cov2" title="2">{
+        obj, err := s.GetObject(hash)
+        if err != nil </span><span class="cov0" title="0">{
+                return nil, err
+        }</span>
+
+        <span class="cov2" title="2">tree, ok := obj.(*object.Tree)
+        if !ok </span><span class="cov1" title="1">{
+                return nil, fmt.Errorf("object %s is not a tree", hash)
+        }</span>
+
+        <span class="cov1" title="1">return tree, nil</span>
+}
+
+func (s *Store) StoreCommit(commit *object.Commit) (string, error) <span class="cov1" title="1">{
+        return s.StoreObject(commit)
+}</span>
+
+func (s *Store) GetCommit(hash string) (*object.Commit, error) <span class="cov1" title="1">{
+        obj, err := s.GetObject(hash)
+        if err != nil </span><span class="cov0" title="0">{
+                return nil, err
+        }</span>
+
+        <span class="cov1" title="1">commit, ok := obj.(*object.Commit)
+        if !ok </span><span class="cov0" title="0">{
+                return nil, fmt.Errorf("object %s is not a commit", hash)
+        }</span>
+
+        <span class="cov1" title="1">return commit, nil</span>
+}
+
+func (s *Store) StoreTag(tag *object.Tag) (string, error) <span class="cov0" title="0">{
+        return s.StoreObject(tag)
+}</span>
+
+func (s *Store) GetTag(hash string) (*object.Tag, error) <span class="cov0" title="0">{
+        obj, err := s.GetObject(hash)
+        if err != nil </span><span class="cov0" title="0">{
+                return nil, err
+        }</span>
+
+        <span class="cov0" title="0">tag, ok := obj.(*object.Tag)
+        if !ok </span><span class="cov0" title="0">{
+                return nil, fmt.Errorf("object %s is not a tag", hash)
+        }</span>
+
+        <span class="cov0" title="0">return tag, nil</span>
+}
+
+type PackFile struct {
+        Version    uint32
+        NumObjects uint32
+        Objects    []PackedObject
+}
+
+type PackedObject struct {
+        Type   object.Type
+        Size   uint64
+        Offset uint64
+        Data   []byte
+}
+
+func (s *Store) WritePack(w io.Writer, hashes []string) error <span class="cov0" title="0">{
+        pack := &amp;PackFile{
+                Version:    2,
+                NumObjects: uint32(len(hashes)),
+                Objects:    make([]PackedObject, 0, len(hashes)),
+        }
+
+        for _, hash := range hashes </span><span class="cov0" title="0">{
+                obj, err := s.GetObject(hash)
+                if err != nil </span><span class="cov0" title="0">{
+                        return err
+                }</span>
+
+                <span class="cov0" title="0">data, err := obj.Serialize()
+                if err != nil </span><span class="cov0" title="0">{
+                        return err
+                }</span>
+                <span class="cov0" title="0">packed := PackedObject{
+                        Type: obj.Type(),
+                        Size: uint64(obj.Size()),
+                        Data: data,
+                }
+                pack.Objects = append(pack.Objects, packed)</span>
+        }
+
+        <span class="cov0" title="0">return nil</span>
+}
+
+func (s *Store) ReadPack(r io.Reader) error <span class="cov0" title="0">{
+        return nil
+}</pre>
+		
+		<pre class="file" id="file9" style="display: none">package storage
+
+import (
+        "github.com/caiatech/govc/pkg/object"
+)
+
+// StoreAdapter adapts the existing Store to implement ObjectStore interface
+// This provides backward compatibility while transitioning to the new architecture
+type StoreAdapter struct {
+        store *Store
+}
+
+// NewStoreAdapter creates an ObjectStore adapter for the existing Store
+func NewStoreAdapter(store *Store) *StoreAdapter <span class="cov1" title="1">{
+        return &amp;StoreAdapter{store: store}
+}</span>
+
+func (a *StoreAdapter) Get(hash string) (object.Object, error) <span class="cov3" title="2">{
+        return a.store.GetObject(hash)
+}</span>
+
+func (a *StoreAdapter) Put(obj object.Object) (string, error) <span class="cov10" title="13">{
+        if obj == nil </span><span class="cov1" title="1">{
+                return "", InvalidObjectError("cannot store nil object")
+        }</span>
+        <span class="cov9" title="12">return a.store.StoreObject(obj)</span>
+}
+
+func (a *StoreAdapter) Exists(hash string) bool <span class="cov3" title="2">{
+        return a.store.HasObject(hash)
+}</span>
+
+func (a *StoreAdapter) List() ([]string, error) <span class="cov3" title="2">{
+        return a.store.ListObjects()
+}</span>
+
+func (a *StoreAdapter) Size() (int64, error) <span class="cov1" title="1">{
+        // Return number of objects in cache as a rough size estimate
+        hashes, err := a.store.cache.ListObjects()
+        if err != nil </span><span class="cov0" title="0">{
+                return 0, err
+        }</span>
+        <span class="cov1" title="1">return int64(len(hashes)), nil</span>
+}
+
+func (a *StoreAdapter) Close() error <span class="cov0" title="0">{
+        // Store doesn't have a Close method, so nothing to do
+        return nil
+}</span>
+
+// NewObjectStoreFromBackend creates an ObjectStore from a Backend
+func NewObjectStoreFromBackend(backend Backend) ObjectStore <span class="cov0" title="0">{
+        store := NewStore(backend)
+        return NewStoreAdapter(store)
+}</span>
+
+// NewMemoryObjectStoreFromStore creates a memory-only ObjectStore
+func NewMemoryObjectStoreFromStore() ObjectStore <span class="cov1" title="1">{
+        backend := NewMemoryBackend()
+        store := NewStore(backend)
+        return NewStoreAdapter(store)
+}</span>
+
+// NewFileObjectStore creates a file-backed ObjectStore
+func NewFileObjectStore(path string) ObjectStore <span class="cov0" title="0">{
+        backend := NewFileBackend(path)
+        store := NewStore(backend)
+        return NewStoreAdapter(store)
+}</pre>
+		
+		<pre class="file" id="file10" style="display: none">package workspace
+
+import (
+        "fmt"
+        "path/filepath"
+        "sync"
+
+        "github.com/caiatech/govc/pkg/object"
+        "github.com/caiatech/govc/pkg/storage"
+)
+
+// WorkingDirectory represents the working directory abstraction
+// It can be backed by either memory or filesystem storage
+type WorkingDirectory struct {
+        storage storage.WorkingStorage
+        mu      sync.RWMutex
+}
+
+// NewWorkingDirectory creates a new working directory with the given storage
+func NewWorkingDirectory(storage storage.WorkingStorage) *WorkingDirectory <span class="cov5" title="3">{
+        return &amp;WorkingDirectory{
+                storage: storage,
+        }
+}</span>
+
+// NewMemoryWorkingDirectory creates a memory-only working directory
+func NewMemoryWorkingDirectory() *WorkingDirectory <span class="cov5" title="3">{
+        return NewWorkingDirectory(storage.NewMemoryWorkingStorage())
+}</span>
+
+// ReadFile reads a file from the working directory
+func (wd *WorkingDirectory) ReadFile(path string) ([]byte, error) <span class="cov5" title="3">{
+        wd.mu.RLock()
+        defer wd.mu.RUnlock()
+        return wd.storage.Read(path)
+}</span>
+
+// WriteFile writes a file to the working directory
+func (wd *WorkingDirectory) WriteFile(path string, content []byte) error <span class="cov8" title="8">{
+        wd.mu.Lock()
+        defer wd.mu.Unlock()
+        return wd.storage.Write(path, content)
+}</span>
+
+// RemoveFile removes a file from the working directory
+func (wd *WorkingDirectory) RemoveFile(path string) error <span class="cov1" title="1">{
+        wd.mu.Lock()
+        defer wd.mu.Unlock()
+        return wd.storage.Delete(path)
+}</span>
+
+// ListFiles returns all files in the working directory
+func (wd *WorkingDirectory) ListFiles() ([]string, error) <span class="cov6" title="4">{
+        wd.mu.RLock()
+        defer wd.mu.RUnlock()
+        return wd.storage.List()
+}</span>
+
+// MatchFiles returns files matching the given pattern
+func (wd *WorkingDirectory) MatchFiles(pattern string) ([]string, error) <span class="cov3" title="2">{
+        files, err := wd.ListFiles()
+        if err != nil </span><span class="cov0" title="0">{
+                return nil, err
+        }</span>
+        
+        <span class="cov3" title="2">var matched []string
+        for _, file := range files </span><span class="cov3" title="2">{
+                if pattern == "." || pattern == "*" </span><span class="cov1" title="1">{
+                        matched = append(matched, file)
+                }</span> else<span class="cov1" title="1"> if match, _ := filepath.Match(pattern, file); match </span><span class="cov1" title="1">{
+                        matched = append(matched, file)
+                }</span>
+        }
+        
+        <span class="cov3" title="2">return matched, nil</span>
+}
+
+// Exists checks if a file exists in the working directory
+func (wd *WorkingDirectory) Exists(path string) bool <span class="cov7" title="5">{
+        wd.mu.RLock()
+        defer wd.mu.RUnlock()
+        return wd.storage.Exists(path)
+}</span>
+
+// Clear removes all files from the working directory
+func (wd *WorkingDirectory) Clear() error <span class="cov7" title="5">{
+        wd.mu.Lock()
+        defer wd.mu.Unlock()
+        return wd.storage.Clear()
+}</span>
+
+// Close releases any resources held by the working directory
+func (wd *WorkingDirectory) Close() error <span class="cov5" title="3">{
+        return wd.storage.Close()
+}</span>
+
+// Workspace coordinates between object storage, refs, and working directory
+// It provides branch isolation by managing separate working directories per branch
+type Workspace struct {
+        objectStore storage.ObjectStore
+        refStore    storage.RefStore
+        workingDirs map[string]*WorkingDirectory // branch name -&gt; working directory
+        mu          sync.RWMutex
+}
+
+// NewWorkspace creates a new workspace with the given storage components
+func NewWorkspace(objectStore storage.ObjectStore, refStore storage.RefStore) *Workspace <span class="cov3" title="2">{
+        return &amp;Workspace{
+                objectStore: objectStore,
+                refStore:    refStore,
+                workingDirs: make(map[string]*WorkingDirectory),
+        }
+}</span>
+
+// GetWorkingDirectory returns the working directory for the given branch
+// Creates a new one if it doesn't exist
+func (ws *Workspace) GetWorkingDirectory(branch string) *WorkingDirectory <span class="cov10" title="11">{
+        ws.mu.Lock()
+        defer ws.mu.Unlock()
+        
+        if wd, exists := ws.workingDirs[branch]; exists </span><span class="cov9" title="9">{
+                return wd
+        }</span>
+        
+        // Create new working directory for this branch
+        <span class="cov3" title="2">wd := NewMemoryWorkingDirectory()
+        ws.workingDirs[branch] = wd
+        return wd</span>
+}
+
+// CheckoutBranch switches to the specified branch and updates the working directory
+func (ws *Workspace) CheckoutBranch(branchName string) error <span class="cov6" title="4">{
+        // Get the commit hash for this branch
+        commitHash, err := ws.refStore.GetRef("refs/heads/" + branchName)
+        if err != nil </span><span class="cov1" title="1">{
+                return fmt.Errorf("branch not found: %s", branchName)
+        }</span>
+        
+        // Get the working directory for this branch
+        <span class="cov5" title="3">wd := ws.GetWorkingDirectory(branchName)
+        
+        // Load the tree from the commit
+        err = ws.populateWorkingDirectory(wd, commitHash)
+        if err != nil </span><span class="cov0" title="0">{
+                return fmt.Errorf("failed to populate working directory: %v", err)
+        }</span>
+        
+        // Update HEAD
+        <span class="cov5" title="3">return ws.refStore.SetHEAD("ref: refs/heads/" + branchName)</span>
+}
+
+// populateWorkingDirectory loads files from a commit into the working directory
+func (ws *Workspace) populateWorkingDirectory(wd *WorkingDirectory, commitHash string) error <span class="cov6" title="4">{
+        // Get the commit object
+        commitObj, err := ws.objectStore.Get(commitHash)
+        if err != nil </span><span class="cov0" title="0">{
+                return fmt.Errorf("failed to get commit %s: %v", commitHash, err)
+        }</span>
+        
+        <span class="cov6" title="4">commit, ok := commitObj.(*object.Commit)
+        if !ok </span><span class="cov0" title="0">{
+                return fmt.Errorf("object %s is not a commit", commitHash)
+        }</span>
+        
+        // Get the tree object
+        <span class="cov6" title="4">treeObj, err := ws.objectStore.Get(commit.TreeHash)
+        if err != nil </span><span class="cov0" title="0">{
+                return fmt.Errorf("failed to get tree %s: %v", commit.TreeHash, err)
+        }</span>
+        
+        <span class="cov6" title="4">tree, ok := treeObj.(*object.Tree)
+        if !ok </span><span class="cov0" title="0">{
+                return fmt.Errorf("object %s is not a tree", commit.TreeHash)
+        }</span>
+        
+        // Clear the working directory first
+        <span class="cov6" title="4">wd.Clear()
+        
+        // Load files from the tree
+        for _, entry := range tree.Entries </span><span class="cov6" title="4">{
+                blobObj, err := ws.objectStore.Get(entry.Hash)
+                if err != nil </span><span class="cov0" title="0">{
+                        return fmt.Errorf("failed to get blob %s: %v", entry.Hash, err)
+                }</span>
+                
+                <span class="cov6" title="4">blob, ok := blobObj.(*object.Blob)
+                if !ok </span><span class="cov0" title="0">{
+                        return fmt.Errorf("object %s is not a blob", entry.Hash)
+                }</span>
+                
+                <span class="cov6" title="4">err = wd.WriteFile(entry.Name, blob.Content)
+                if err != nil </span><span class="cov0" title="0">{
+                        return fmt.Errorf("failed to write file %s: %v", entry.Name, err)
+                }</span>
+        }
+        
+        <span class="cov6" title="4">return nil</span>
+}
+
+// GetCurrentBranch returns the name of the current branch
+func (ws *Workspace) GetCurrentBranch() (string, error) <span class="cov7" title="6">{
+        head, err := ws.refStore.GetHEAD()
+        if err != nil </span><span class="cov0" title="0">{
+                return "", err
+        }</span>
+        
+        
+        // Handle symbolic references with "ref: " prefix
+        <span class="cov7" title="6">if head == "ref: refs/heads/main" </span><span class="cov5" title="3">{
+                return "main", nil
+        }</span>
+        <span class="cov5" title="3">if len(head) &gt; 5 &amp;&amp; head[:5] == "ref: " </span><span class="cov3" title="2">{
+                ref := head[5:] // Remove "ref: " prefix
+                if len(ref) &gt; len("refs/heads/") &amp;&amp; ref[:len("refs/heads/")] == "refs/heads/" </span><span class="cov3" title="2">{
+                        return ref[len("refs/heads/"):], nil
+                }</span>
+        }
+        
+        // Handle direct symbolic references
+        <span class="cov1" title="1">if head == "refs/heads/main" </span><span class="cov0" title="0">{
+                return "main", nil
+        }</span>
+        <span class="cov1" title="1">if len(head) &gt; len("refs/heads/") &amp;&amp; head[:len("refs/heads/")] == "refs/heads/" </span><span class="cov0" title="0">{
+                return head[len("refs/heads/"):], nil
+        }</span>
+        
+        // Check if it's a hex hash (detached HEAD) - can be any length
+        // If it doesn't start with refs/ and isn't a simple branch name, assume it's a hash
+        <span class="cov1" title="1">if len(head) &gt;= 4 &amp;&amp; isHexString(head) </span><span class="cov1" title="1">{
+                return "", fmt.Errorf("HEAD is detached")
+        }</span>
+        
+        // For other cases, assume it's a branch name without the refs/heads/ prefix
+        <span class="cov0" title="0">return head, nil</span>
+}
+
+// GetCurrentWorkingDirectory returns the working directory for the current branch
+func (ws *Workspace) GetCurrentWorkingDirectory() (*WorkingDirectory, error) <span class="cov5" title="3">{
+        branch, err := ws.GetCurrentBranch()
+        if err != nil </span><span class="cov0" title="0">{
+                return nil, err
+        }</span>
+        
+        <span class="cov5" title="3">return ws.GetWorkingDirectory(branch), nil</span>
+}
+
+// CreateBranch creates a new branch from the current commit
+func (ws *Workspace) CreateBranch(branchName string, fromCommit string) error <span class="cov1" title="1">{
+        err := ws.refStore.UpdateRef("refs/heads/"+branchName, fromCommit)
+        if err != nil </span><span class="cov0" title="0">{
+                return err
+        }</span>
+        
+        // Create a working directory for the new branch
+        <span class="cov1" title="1">wd := ws.GetWorkingDirectory(branchName)
+        
+        // Populate it with the commit's content
+        return ws.populateWorkingDirectory(wd, fromCommit)</span>
+}
+
+// DeleteBranch removes a branch and its working directory
+func (ws *Workspace) DeleteBranch(branchName string) error <span class="cov3" title="2">{
+        err := ws.refStore.DeleteRef("refs/heads/" + branchName)
+        if err != nil </span><span class="cov1" title="1">{
+                return err
+        }</span>
+        
+        // Clean up the working directory
+        <span class="cov1" title="1">ws.mu.Lock()
+        defer ws.mu.Unlock()
+        
+        if wd, exists := ws.workingDirs[branchName]; exists </span><span class="cov1" title="1">{
+                wd.Close()
+                delete(ws.workingDirs, branchName)
+        }</span>
+        
+        <span class="cov1" title="1">return nil</span>
+}
+
+// Close releases all resources held by the workspace
+func (ws *Workspace) Close() error <span class="cov3" title="2">{
+        ws.mu.Lock()
+        defer ws.mu.Unlock()
+        
+        // Close all working directories
+        for _, wd := range ws.workingDirs </span><span class="cov1" title="1">{
+                wd.Close()
+        }</span>
+        <span class="cov3" title="2">ws.workingDirs = make(map[string]*WorkingDirectory)
+        
+        // Close storage components
+        ws.objectStore.Close()
+        ws.refStore.Close()
+        
+        return nil</span>
+}
+
+// isHexString checks if a string contains only hexadecimal characters
+func isHexString(s string) bool <span class="cov1" title="1">{
+        for _, c := range s </span><span class="cov7" title="6">{
+                if !((c &gt;= '0' &amp;&amp; c &lt;= '9') || (c &gt;= 'a' &amp;&amp; c &lt;= 'f') || (c &gt;= 'A' &amp;&amp; c &lt;= 'F')) </span><span class="cov0" title="0">{
+                        return false
+                }</span>
+        }
+        <span class="cov1" title="1">return len(s) &gt; 0</span>
+}</pre>
+		
+		</div>
+	</body>
+	<script>
+	(function() {
+		var files = document.getElementById('files');
+		var visible;
+		files.addEventListener('change', onChange, false);
+		function select(part) {
+			if (visible)
+				visible.style.display = 'none';
+			visible = document.getElementById(part);
+			if (!visible)
+				return;
+			files.value = part;
+			visible.style.display = 'block';
+			location.hash = part;
+		}
+		function onChange() {
+			select(files.value);
+			window.scrollTo(0, 0);
+		}
+		if (location.hash != "") {
+			select(location.hash.substr(1));
+		}
+		if (!visible) {
+			select("file0");
+		}
+	})();
+	</script>
+</html>

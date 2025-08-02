@@ -34,14 +34,18 @@ func TestRefManagerAdapter(t *testing.T) {
 	})
 
 	t.Run("HEAD operations", func(t *testing.T) {
+		// First create the branch
+		err := adapter.UpdateRef("refs/heads/main", "abc123")
+		require.NoError(t, err)
+		
 		// Set HEAD to a branch
-		err := adapter.SetHEAD("refs/heads/main")
+		err = adapter.SetHEAD("refs/heads/main")
 		require.NoError(t, err)
 
-		// Get HEAD
+		// Get HEAD - this should return the branch's hash, not the branch name
 		head, err := adapter.GetHEAD()
 		require.NoError(t, err)
-		assert.Equal(t, "refs/heads/main", head)
+		assert.Equal(t, "abc123", head)
 
 		// Set HEAD to a commit
 		err = adapter.SetHEAD("xyz789")

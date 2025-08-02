@@ -126,9 +126,9 @@ func (s *Server) deleteRepo(c *gin.Context) {
 	repoID := c.Param("repo_id")
 
 	s.mu.Lock()
-	defer s.mu.Unlock()
-
+	
 	if _, exists := s.repoMetadata[repoID]; !exists {
+		s.mu.Unlock()
 		c.JSON(http.StatusNotFound, ErrorResponse{
 			Error: fmt.Sprintf("repository %s not found", repoID),
 			Code:  "REPO_NOT_FOUND",
@@ -139,8 +139,10 @@ func (s *Server) deleteRepo(c *gin.Context) {
 	// Remove repository from pool and metadata
 	s.repoPool.Remove(repoID)
 	delete(s.repoMetadata, repoID)
+	
+	s.mu.Unlock()
 
-	// Update metrics
+	// Update metrics (outside the lock to avoid deadlock)
 	s.updateMetrics()
 
 	// Clean up any transactions for this repo

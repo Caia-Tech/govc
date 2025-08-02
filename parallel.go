@@ -300,19 +300,10 @@ func (r *Repository) TimeTravel(moment time.Time) *HistoricalSnapshot {
 		}
 	}
 	
-	// If no commits before the time, return the oldest commit
-	if len(commits) > 0 {
-		return &HistoricalSnapshot{
-			repo:   r,
-			commit: commits[len(commits)-1],
-			time:   moment,
-		}
-	}
-	
-	// Return empty snapshot for empty repository
+	// If no commits at or before the requested time, return an empty snapshot
 	return &HistoricalSnapshot{
 		repo:   r,
-		commit: nil,
+		commit: nil, // No commit yet
 		time:   moment,
 	}
 }

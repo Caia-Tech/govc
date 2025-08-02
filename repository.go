@@ -24,6 +24,13 @@ import (
 	"github.com/gorilla/mux"
 )
 
+// isCommitHash checks if a string looks like a commit hash (hexadecimal, 7-40 chars)
+func isCommitHash(ref string) bool {
+	// Match hexadecimal strings between 7 and 40 characters
+	matched, _ := regexp.MatchString("^[a-fA-F0-9]{7,40}$", ref)
+	return matched
+}
+
 // Repository is govc's core abstraction - a memory-first Git repository.
 // Unlike traditional Git, this repository can exist entirely in memory,
 // enabling instant operations and parallel realities. The path can be
@@ -300,6 +307,13 @@ func (r *Repository) Checkout(ref string) error {
 		if _, err := r.refManager.GetBranch(ref); err == nil {
 			branchName = ref
 			isBranch = true
+		} else {
+			// Branch doesn't exist, but check if it looks like a commit hash
+			// If it doesn't look like a commit hash, treat it as a new branch name
+			if !isCommitHash(ref) {
+				branchName = ref
+				isBranch = true
+			}
 		}
 	}
 	
@@ -1972,7 +1986,7 @@ func (r *Repository) Stash(message string, includeUntracked bool) (*Stash, error
 	}
 	
 	// Get modified and untracked files
-	if r.worktree != nil && r.worktree.path != ":memory:" {
+	if r.worktree != nil {
 		// Get all files in working directory
 		workFiles, err := r.worktree.MatchFiles("*")
 		if err == nil {
@@ -2075,26 +2089,31 @@ func (r *Repository) Stash(message string, includeUntracked bool) (*Stash, error
 	r.staging = NewStagingArea()
 	
 	// Reset modified files to HEAD state
-	for _, path := range status.Modified {
-		// Get file from HEAD commit
+	if headHash != "" {
 		commit, err := r.store.GetCommit(headHash)
 		if err == nil {
 			tree, err := r.store.GetTree(commit.TreeHash)
 			if err == nil {
-				for _, entry := range tree.Entries {
-					if entry.Name == path {
+				// Create map of tree entries for faster lookup
+				treeFiles := make(map[string]*object.TreeEntry)
+				for i := range tree.Entries {
+					treeFiles[tree.Entries[i].Name] = &tree.Entries[i]
+				}
+				
+				// Reset all modified files to their HEAD state
+				for _, path := range status.Modified {
+					if entry, exists := treeFiles[path]; exists {
 						blob, err := r.store.GetBlob(entry.Hash)
 						if err == nil {
 							r.worktree.WriteFile(path, blob.Content)
 						}
-						break
 					}
 				}
 			}
 		}
 	}
 	
-	// Remove untracked files if included
+	// Remove untracked files if they were included in the stash
 	if includeUntracked {
 		for _, path := range status.Untracked {
 			r.worktree.RemoveFile(path)

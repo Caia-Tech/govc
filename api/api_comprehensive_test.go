@@ -576,16 +576,20 @@ func TestTimeTravelFeatures(t *testing.T) {
 		{
 			files:   map[string]string{"v2.txt": "version 2"},
 			message: "Second version",
-			delay:   100 * time.Millisecond,
+			delay:   1000 * time.Millisecond,
 		},
 		{
 			files:   map[string]string{"v3.txt": "version 3"},
 			message: "Third version",
-			delay:   100 * time.Millisecond,
+			delay:   1000 * time.Millisecond,
 		},
 	}
 
-	timestamps := make([]int64, len(commits))
+	timestamps := make([]int64, len(commits)+1)
+	
+	// Capture initial timestamp before any commits
+	timestamps[0] = time.Now().Unix()
+	time.Sleep(1000 * time.Millisecond) // Ensure distinct timestamps
 
 	for i, commit := range commits {
 		time.Sleep(commit.delay)
@@ -609,9 +613,9 @@ func TestTimeTravelFeatures(t *testing.T) {
 		w := httptest.NewRecorder()
 		router.ServeHTTP(w, req)
 		
-		// Capture timestamp AFTER commit
-		time.Sleep(10 * time.Millisecond) // Small delay to ensure commit is registered
-		timestamps[i] = time.Now().Unix()
+		// Capture timestamp AFTER commit with longer delay for distinctness
+		time.Sleep(1000 * time.Millisecond) // Longer delay for distinct timestamps
+		timestamps[i+1] = time.Now().Unix()
 	}
 
 	t.Run("Time travel to past state", func(t *testing.T) {
@@ -664,7 +668,7 @@ func TestTimeTravelFeatures(t *testing.T) {
 			t.Errorf("Expected status %d, got %d", http.StatusNotFound, w.Code)
 		}
 
-		// Read v2.txt at time after it was created
+		// Read v2.txt at time after it was created (should be after commit 1)
 		req = httptest.NewRequest("GET", 
 			fmt.Sprintf("/api/v1/repos/%s/time-travel/%d/read/v2.txt", repoID, timestamps[2]), nil)
 		w = httptest.NewRecorder()

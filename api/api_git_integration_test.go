@@ -630,6 +630,7 @@ func TestFileOperations(t *testing.T) {
 
 	repoID := "file-ops-test"
 	createRepo(t, router, repoID)
+	createInitialCommit(t, router, repoID)
 
 	// Test file creation and reading
 	t.Run("Create and read files", func(t *testing.T) {

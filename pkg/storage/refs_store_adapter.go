@@ -30,11 +30,7 @@ func (a *RefsStoreAdapter) UpdateRef(name string, hash string) error {
 }
 
 func (a *RefsStoreAdapter) DeleteRef(name string) error {
-	// Check if ref exists first
-	_, err := a.store.GetRef(name)
-	if err != nil {
-		return NotFoundError("reference " + name + " not found")
-	}
+	// Idempotent operation - deleting non-existent ref is not an error
 	return a.store.DeleteRef(name)
 }
 

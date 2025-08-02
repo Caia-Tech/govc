@@ -187,7 +187,7 @@ func (s *Server) listTree(c *gin.Context) {
 				entries = append(entries, TreeEntry{
 					Name: dirName,
 					Path: dirFullPath,
-					Type: "dir",
+					Type: "directory",
 					Mode: "040755",
 				})
 			}

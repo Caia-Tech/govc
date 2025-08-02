@@ -1,6 +1,8 @@
 package storage
 
 import (
+	"strings"
+	
 	"github.com/caiatech/govc/pkg/refs"
 )
 
@@ -16,17 +18,20 @@ func NewRefManagerAdapter(manager *refs.RefManager) *RefManagerAdapter {
 }
 
 func (a *RefManagerAdapter) GetRef(name string) (string, error) {
-	// The RefManager uses its underlying store's GetRef
-	// We need to access the store directly
-	if refStore := a.getUnderlyingStore(); refStore != nil {
-		return refStore.GetRef(name)
+	// Use RefManager methods for known ref types
+	if strings.HasPrefix(name, "refs/heads/") {
+		branchName := strings.TrimPrefix(name, "refs/heads/")
+		return a.manager.GetBranch(branchName)
 	}
-	// Fallback to using RefManager methods for known ref types
-	if name == "refs/heads/main" || name == "main" {
-		return a.manager.GetBranch("main")
+	if strings.HasPrefix(name, "refs/tags/") {
+		tagName := strings.TrimPrefix(name, "refs/tags/")
+		return a.manager.GetTag(tagName)
 	}
-	// For other refs, we'll need to use reflection or modify RefManager
-	// For now, return an error for unsupported refs
+	// For HEAD or other special refs, try direct access
+	if name == "HEAD" {
+		return a.manager.GetHEAD()
+	}
+	// For other refs, we can't get them without access to the underlying store
 	return "", NotFoundError("ref not found: " + name)
 }
 
@@ -36,10 +41,16 @@ func (a *RefManagerAdapter) UpdateRef(name string, hash string) error {
 }
 
 func (a *RefManagerAdapter) DeleteRef(name string) error {
-	// The RefManager uses its underlying store's DeleteRef
-	if refStore := a.getUnderlyingStore(); refStore != nil {
-		return refStore.DeleteRef(name)
+	// Use RefManager methods for known ref types
+	if strings.HasPrefix(name, "refs/heads/") {
+		branchName := strings.TrimPrefix(name, "refs/heads/")
+		return a.manager.DeleteBranch(branchName)
 	}
+	if strings.HasPrefix(name, "refs/tags/") {
+		tagName := strings.TrimPrefix(name, "refs/tags/")
+		return a.manager.DeleteTag(tagName)
+	}
+	// For other refs, we can't delete them without access to the underlying store
 	return NotFoundError("ref not found: " + name)
 }
 

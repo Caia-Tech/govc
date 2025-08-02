@@ -134,10 +134,7 @@ func (s *MemoryRefStore) DeleteRef(name string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	
-	if _, exists := s.refs[name]; !exists {
-		return NotFoundError(fmt.Sprintf("reference %s not found", name))
-	}
-	
+	// Idempotent operation - deleting non-existent ref is not an error
 	delete(s.refs, name)
 	return nil
 }

@@ -1,0 +1,5 @@
+	github.com/caiatech/govc/pkg/api		coverage: 0.0% of statements
+ok  	github.com/caiatech/govc/pkg/object	1.193s	coverage: 54.4% of statements
+ok  	github.com/caiatech/govc/pkg/refs	1.360s	coverage: 60.5% of statements
+ok  	github.com/caiatech/govc/pkg/storage	1.546s	coverage: 53.2% of statements
+ok  	github.com/caiatech/govc/pkg/workspace	1.668s	coverage: 86.3% of statements
