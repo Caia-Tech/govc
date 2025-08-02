@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"path/filepath"
 	"sort"
+	"sync"
 
 	"github.com/caiatech/govc/pkg/object"
 )
@@ -29,6 +30,7 @@ func NewCleanWorkspace(repo *CleanRepository, working WorkingStorage) *CleanWork
 
 // CleanStagingArea represents the Git index/staging area
 type CleanStagingArea struct {
+	mu      sync.RWMutex
 	entries map[string]StagedEntry
 	removed map[string]bool // Track removed files
 }
@@ -57,6 +59,7 @@ func (w *CleanWorkspace) Add(path string) error {
 	}
 	
 	// Add to staging
+	w.staging.mu.Lock()
 	w.staging.entries[path] = StagedEntry{
 		Hash: hash,
 		Mode: "100644", // Regular file
@@ -64,6 +67,7 @@ func (w *CleanWorkspace) Add(path string) error {
 	
 	// Remove from removed list if it was there
 	delete(w.staging.removed, path)
+	w.staging.mu.Unlock()
 	
 	return nil
 }
@@ -71,10 +75,12 @@ func (w *CleanWorkspace) Add(path string) error {
 // Remove stages a file removal
 func (w *CleanWorkspace) Remove(path string) error {
 	// Mark as removed
+	w.staging.mu.Lock()
 	w.staging.removed[path] = true
 	
 	// Remove from staged entries
 	delete(w.staging.entries, path)
+	w.staging.mu.Unlock()
 	
 	// Remove from working directory
 	return w.working.Delete(path)
@@ -113,18 +119,23 @@ func (w *CleanWorkspace) Status() (*Status, error) {
 	}
 	
 	// Check staged files
+	w.staging.mu.RLock()
 	for path := range w.staging.entries {
 		status.Staged = append(status.Staged, path)
 	}
 	for path := range w.staging.removed {
 		status.Staged = append(status.Staged, path+" (deleted)")
 	}
+	w.staging.mu.RUnlock()
 	
 	// Check working directory files
 	workingFiles, _ := w.working.List()
 	for _, path := range workingFiles {
 		// Skip if already staged
-		if _, isStaged := w.staging.entries[path]; isStaged {
+		w.staging.mu.RLock()
+		_, isStaged := w.staging.entries[path]
+		w.staging.mu.RUnlock()
+		if isStaged {
 			continue
 		}
 		

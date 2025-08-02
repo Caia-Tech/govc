@@ -241,6 +241,55 @@ func (s *Server) RegisterRoutes(router *gin.Engine) {
 		repoRoutes.GET("/:repo_id/watch", s.watchEvents)
 	}
 
+	// V2 API routes - always register to support migration
+	v2 := router.Group("/api/v2")
+	if s.config.Auth.Enabled {
+		v2.Use(s.authMiddleware.OptionalAuth())
+	}
+	{
+		// Repository management
+		v2.POST("/repos", s.createRepoV2)
+		v2.GET("/repos", s.listReposV2)
+		v2.GET("/repos/:repo_id", s.getRepoV2)
+		v2.DELETE("/repos/:repo_id", s.deleteRepoV2)
+		
+		// File operations
+		v2.POST("/repos/:repo_id/files", s.addFileV2)
+		v2.GET("/repos/:repo_id/files", s.readFileV2)
+		v2.PUT("/repos/:repo_id/files", s.writeFileV2)
+		v2.DELETE("/repos/:repo_id/files", s.removeFileV2)
+		v2.POST("/repos/:repo_id/files/move", s.moveFileV2)
+		v2.GET("/repos/:repo_id/tree", s.listTreeV2)
+		
+		// Git operations
+		v2.POST("/repos/:repo_id/commits", s.commitV2)
+		v2.GET("/repos/:repo_id/commits", s.getLogV2)
+		v2.GET("/repos/:repo_id/status", s.getStatusV2)
+		
+		// Branch operations
+		v2.POST("/repos/:repo_id/branches", s.createBranchV2)
+		v2.POST("/repos/:repo_id/checkout", s.checkoutV2)
+		v2.POST("/repos/:repo_id/merge", s.mergeV2)
+		
+		// Tag operations
+		v2.POST("/repos/:repo_id/tags", s.createTagV2)
+		
+		// Stash operations
+		v2.POST("/repos/:repo_id/stashes", s.createStashV2)
+		v2.GET("/repos/:repo_id/stashes", s.listStashesV2)
+		v2.GET("/repos/:repo_id/stashes/:stash_id", s.getStashV2)
+		v2.POST("/repos/:repo_id/stashes/:stash_id/apply", s.applyStashV2)
+		v2.DELETE("/repos/:repo_id/stashes/:stash_id", s.dropStashV2)
+		
+		
+		// Hooks & Events
+		v2.POST("/repos/:repo_id/hooks", s.registerHookV2)
+		v2.GET("/repos/:repo_id/hooks", s.listHooksV2)
+		v2.GET("/repos/:repo_id/hooks/:hook_id", s.getHookV2)
+		v2.DELETE("/repos/:repo_id/hooks/:hook_id", s.deleteHookV2)
+		v2.POST("/repos/:repo_id/hooks/execute/:hook_type", s.executeHookV2)
+	}
+
 	// Health and monitoring endpoints
 	router.GET("/health", s.healthCheck)
 	router.GET("/health/live", s.liveness)

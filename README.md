@@ -27,10 +27,11 @@ govc is a complete Git implementation written in pure Go, featuring:
 
 - **🏎️ Memory-First Architecture** - Operations happen in memory with optional persistence
 - **🔐 Enterprise Security** - JWT/API key authentication with role-based access control  
+- **🛡️ Security Hardening** - Comprehensive input validation and protection middleware
 - **📊 Production Monitoring** - Prometheus metrics and structured logging
 - **🏊 Resource Management** - Connection pooling and efficient resource handling
 - **⚡ High Performance** - Optimized for speed with comprehensive benchmarking
-- **🔧 REST API** - Complete HTTP API for Git operations
+- **🔧 REST API** - Complete HTTP API for Git operations with Swagger documentation
 - **🧪 Parallel Testing** - Isolated branch realities for concurrent testing
 
 ## 📋 Table of Contents
@@ -144,6 +145,27 @@ rbac.CreateUser("dev1", "Developer", "dev@company.com", []string{"developer"})
 rbac.GrantRepositoryPermission("dev1", "critical-repo", auth.PermissionRepoRead)
 ```
 
+### 🛡️ Security Features
+
+**Input Validation**
+- Comprehensive validation for all inputs
+- Repository ID, branch name, and file path validation
+- Email and password strength validation
+- Protection against path traversal and injection attacks
+
+**Security Middleware**
+- Path length and query string limits
+- Header size validation
+- Brute force protection with lockout
+- Content-Type validation
+- XSS and CSRF protection
+
+**Secure Defaults**
+- All inputs sanitized by default
+- Strict validation rules enforced
+- Rate limiting on sensitive endpoints
+- Security headers automatically applied
+
 ### 📊 Comprehensive Monitoring
 
 **Prometheus Metrics**
@@ -157,6 +179,8 @@ rbac.GrantRepositoryPermission("dev1", "critical-repo", auth.PermissionRepoRead)
 - Configurable log levels (DEBUG, INFO, WARN, ERROR, FATAL)
 - Request/response logging with user context
 - Operation timing and error tracking
+- Performance logging middleware for all requests
+- Request ID tracking throughout the system
 
 **Health Checks**
 - Liveness probe: `/health/live`
@@ -229,6 +253,12 @@ rbac.GrantRepositoryPermission("dev1", "critical-repo", auth.PermissionRepoRead)
 ```
 
 ## 📚 API Documentation
+
+### Swagger UI
+
+Interactive API documentation is available at:
+- **Development:** http://localhost:8080/swagger/index.html
+- **Production:** https://your-domain/swagger/index.html
 
 ### Core Repository Operations
 
@@ -416,11 +446,21 @@ docker run -p 8080:8080 caiatech/govc:latest
 # Server configuration
 GOVC_PORT=8080
 GOVC_HOST=0.0.0.0
+GOVC_MAX_REQUEST_SIZE=10485760  # 10MB
+GOVC_REQUEST_TIMEOUT=30s
 
 # Authentication
 GOVC_JWT_SECRET=your-secret-key
 GOVC_JWT_ISSUER=govc-server
 GOVC_JWT_TTL=24h
+GOVC_AUTH_ENABLED=true
+
+# Security
+GOVC_RATE_LIMIT_PER_MINUTE=60
+GOVC_MAX_LOGIN_ATTEMPTS=5
+GOVC_LOGIN_LOCKOUT_DURATION=15m
+GOVC_MAX_PATH_LENGTH=4096
+GOVC_MAX_HEADER_SIZE=8192
 
 # Pool configuration  
 GOVC_POOL_MAX_REPOS=1000
@@ -430,6 +470,7 @@ GOVC_POOL_CLEANUP_INTERVAL=5m
 # Logging
 GOVC_LOG_LEVEL=INFO
 GOVC_LOG_FORMAT=json
+GOVC_LOG_COMPONENT=govc-server
 ```
 
 ### Configuration File
@@ -438,8 +479,12 @@ GOVC_LOG_FORMAT=json
 server:
   port: 8080
   host: "0.0.0.0"
+  max_request_size: 10485760  # 10MB
+  request_timeout: "30s"
+  max_repos: 100
   
 auth:
+  enabled: true
   jwt:
     secret: "your-secret-key"
     issuer: "govc-server" 
@@ -449,14 +494,31 @@ pool:
   max_repositories: 1000
   max_idle_time: "30m"
   cleanup_interval: "5m"
+  enable_metrics: true
   
 logging:
   level: "INFO"
   format: "json"
+  component: "govc-server"
   
 metrics:
   enabled: true
   path: "/metrics"
+  
+security:
+  rate_limit_per_minute: 60
+  max_login_attempts: 5
+  login_lockout_duration: "15m"
+  enable_path_sanitization: true
+  max_path_length: 4096
+  max_header_size: 8192
+  max_query_length: 2048
+  
+development:
+  debug: false
+  cors_enabled: true
+  allowed_origins: ["*"]
+  use_new_architecture: true
 ```
 
 ## 💡 Examples
@@ -590,8 +652,11 @@ go test ./...
 ### Architecture Documents
 
 - [Architecture Overview](docs/ARCHITECTURE.md)
+- [Security Architecture](docs/SECURITY.md)
+- [API Documentation](docs/API.md)
 - [Phase 1 Implementation](docs/PHASE1_PROGRESS.md)
 - [Development Roadmap](ROADMAP.md)
+- [Testing Guide](TESTING_GUIDE.md)
 
 ## 📄 License
 

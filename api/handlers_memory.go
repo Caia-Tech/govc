@@ -414,6 +414,13 @@ func (s *Server) timeTravel(c *gin.Context) {
 	}
 
 	commit := snapshot.LastCommit()
+	if commit == nil {
+		c.JSON(http.StatusNotFound, ErrorResponse{
+			Error: "no commits found at specified time",
+			Code:  "NO_COMMITS_AT_TIME",
+		})
+		return
+	}
 
 	c.JSON(http.StatusOK, gin.H{
 		"timestamp": targetTime.Unix(),

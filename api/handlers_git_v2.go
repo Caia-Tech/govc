@@ -48,7 +48,8 @@ func (s *Server) addFileV2(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, SuccessResponse{
+	c.JSON(http.StatusCreated, SuccessResponse{
+		Status:  "added",
 		Message: fmt.Sprintf("file '%s' added", req.Path),
 	})
 }
@@ -126,9 +127,26 @@ func (s *Server) getLogV2(c *gin.Context) {
 	// Get limit from query
 	limit := 20
 	if limitStr := c.Query("limit"); limitStr != "" {
-		if l, err := strconv.Atoi(limitStr); err == nil && l > 0 {
-			limit = l
+		l, err := strconv.Atoi(limitStr)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, ErrorResponse{
+				Error: fmt.Sprintf("invalid limit parameter: %s", limitStr),
+				Code:  "INVALID_LIMIT",
+			})
+			return
 		}
+		if l <= 0 {
+			c.JSON(http.StatusBadRequest, ErrorResponse{
+				Error: fmt.Sprintf("limit must be positive: %d", l),
+				Code:  "INVALID_LIMIT",
+			})
+			return
+		}
+		// Cap the limit to prevent excessive memory usage
+		if l > 10000 {
+			l = 10000
+		}
+		limit = l
 	}
 
 	components, err := s.getRepositoryComponents(repoID)
@@ -143,6 +161,15 @@ func (s *Server) getLogV2(c *gin.Context) {
 	// Get commits
 	commits, err := components.Operations.Log(limit)
 	if err != nil {
+		// Check if it's just an empty repository
+		if err.Error() == "object not found: " || err.Error() == "reference not found" {
+			// Empty repository, return empty list
+			c.JSON(http.StatusOK, LogResponse{
+				Commits: []CommitResponse{},
+				Total:   0,
+			})
+			return
+		}
 		c.JSON(http.StatusInternalServerError, ErrorResponse{
 			Error: fmt.Sprintf("failed to get log: %v", err),
 			Code:  "LOG_FAILED",

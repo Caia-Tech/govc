@@ -118,14 +118,40 @@ func (s *Server) getLog(c *gin.Context) {
 	// Parse query parameters
 	limit := 50
 	if l := c.Query("limit"); l != "" {
-		if parsed, err := strconv.Atoi(l); err == nil && parsed > 0 {
-			limit = parsed
+		parsed, err := strconv.Atoi(l)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, ErrorResponse{
+				Error: fmt.Sprintf("invalid limit parameter: %s", l),
+				Code:  "INVALID_LIMIT",
+			})
+			return
 		}
+		if parsed <= 0 {
+			c.JSON(http.StatusBadRequest, ErrorResponse{
+				Error: fmt.Sprintf("limit must be positive: %d", parsed),
+				Code:  "INVALID_LIMIT",
+			})
+			return
+		}
+		// Cap the limit to prevent excessive memory usage
+		if parsed > 10000 {
+			parsed = 10000
+		}
+		limit = parsed
 	}
 
 	// Get commits
 	commits, err := repo.Log(limit)
 	if err != nil {
+		// Check if it's just an empty repository
+		if err.Error() == "object not found: " || err.Error() == "reference not found" {
+			// Empty repository, return empty list
+			c.JSON(http.StatusOK, gin.H{
+				"commits": []CommitResponse{},
+				"count":   0,
+			})
+			return
+		}
 		c.JSON(http.StatusInternalServerError, ErrorResponse{
 			Error: fmt.Sprintf("failed to get log: %v", err),
 			Code:  "LOG_FAILED",

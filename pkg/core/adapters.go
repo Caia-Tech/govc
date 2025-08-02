@@ -2,6 +2,7 @@ package core
 
 import (
 	"fmt"
+	"sync"
 
 	"github.com/caiatech/govc/pkg/object"
 	"github.com/caiatech/govc/pkg/refs"
@@ -92,6 +93,7 @@ func (a *RefStoreAdapter) Close() error {
 
 // MemoryObjectStore is a simple in-memory implementation of ObjectStore
 type MemoryObjectStore struct {
+	mu      sync.RWMutex
 	objects map[string]object.Object
 }
 
@@ -102,6 +104,8 @@ func NewMemoryObjectStore() *MemoryObjectStore {
 }
 
 func (m *MemoryObjectStore) Get(hash string) (object.Object, error) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
 	obj, ok := m.objects[hash]
 	if !ok {
 		return nil, fmt.Errorf("object not found: %s", hash)
@@ -111,11 +115,15 @@ func (m *MemoryObjectStore) Get(hash string) (object.Object, error) {
 
 func (m *MemoryObjectStore) Put(obj object.Object) (string, error) {
 	hash := obj.Hash()
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	m.objects[hash] = obj
 	return hash, nil
 }
 
 func (m *MemoryObjectStore) Exists(hash string) bool {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
 	_, ok := m.objects[hash]
 	return ok
 }
@@ -194,6 +202,7 @@ func (m *MemoryRefStore) Close() error {
 
 // MemoryWorkingStorage is an in-memory implementation of WorkingStorage
 type MemoryWorkingStorage struct {
+	mu    sync.RWMutex
 	files map[string][]byte
 }
 
@@ -204,6 +213,8 @@ func NewMemoryWorkingStorage() *MemoryWorkingStorage {
 }
 
 func (m *MemoryWorkingStorage) Read(path string) ([]byte, error) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
 	content, ok := m.files[path]
 	if !ok {
 		return nil, fmt.Errorf("file not found: %s", path)
@@ -212,16 +223,22 @@ func (m *MemoryWorkingStorage) Read(path string) ([]byte, error) {
 }
 
 func (m *MemoryWorkingStorage) Write(path string, content []byte) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	m.files[path] = content
 	return nil
 }
 
 func (m *MemoryWorkingStorage) Delete(path string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	delete(m.files, path)
 	return nil
 }
 
 func (m *MemoryWorkingStorage) List() ([]string, error) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
 	paths := make([]string, 0, len(m.files))
 	for path := range m.files {
 		paths = append(paths, path)
@@ -230,11 +247,15 @@ func (m *MemoryWorkingStorage) List() ([]string, error) {
 }
 
 func (m *MemoryWorkingStorage) Clear() error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	m.files = make(map[string][]byte)
 	return nil
 }
 
 func (m *MemoryWorkingStorage) Exists(path string) bool {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
 	_, ok := m.files[path]
 	return ok
 }

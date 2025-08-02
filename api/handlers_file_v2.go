@@ -13,7 +13,15 @@ import (
 // readFileV2 reads a file from the repository using new architecture
 func (s *Server) readFileV2(c *gin.Context) {
 	repoID := c.Param("repo_id")
-	path := c.Param("path")
+	path := c.Query("path")
+	
+	if path == "" {
+		c.JSON(http.StatusBadRequest, ErrorResponse{
+			Error: "path parameter is required",
+			Code:  "MISSING_PATH",
+		})
+		return
+	}
 	
 	// Clean the path
 	path = strings.TrimPrefix(path, "/")

@@ -309,7 +309,8 @@ func createInitialCommit(t *testing.T, router *gin.Engine, repoID string) {
 	
 	router.ServeHTTP(w, req)
 	
-	if w.Code != http.StatusOK {
+	// V2 handlers return 201, V1 returns 200
+	if w.Code != http.StatusOK && w.Code != http.StatusCreated {
 		t.Fatalf("Failed to add file: status %d, body: %s", w.Code, w.Body.String())
 	}
 	
