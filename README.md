@@ -1,10 +1,25 @@
 # govc - Memory-First Git Infrastructure
 
+> **⚠️ ACTIVE DEVELOPMENT WARNING**: This project is under heavy development and is subject to significant changes. APIs, features, and behaviors may change without notice. See [DEVELOPMENT_STATUS.md](DEVELOPMENT_STATUS.md) for current status.
+
 **A complete Git implementation in Go with enterprise production infrastructure, designed for high-performance, memory-first operations and scalable Git server deployments.**
 
 [![Go](https://img.shields.io/badge/Go-1.20+-blue.svg)](https://golang.org)
 [![License](https://img.shields.io/badge/License-Apache%202.0-green.svg)](LICENSE)
 [![Tests](https://img.shields.io/badge/Tests-Passing-brightgreen.svg)](https://github.com/caiatech/govc)
+[![Status](https://img.shields.io/badge/Status-Alpha-orange.svg)](DEVELOPMENT_STATUS.md)
+[![Coverage](https://img.shields.io/badge/Coverage-52%25-yellow.svg)](TESTING_GUIDE.md)
+
+## 🚧 Development Notice
+
+**govc is currently in ALPHA stage**. We are actively developing and testing this system with multiple layers of verification:
+
+- **Continuous Testing**: Every feature undergoes unit, integration, and system testing
+- **Rapid Iteration**: We release updates frequently as we refine the architecture
+- **Community Feedback**: Your input shapes the direction of development
+- **Production Path**: We're building towards production readiness with careful consideration
+
+**Please read [DEVELOPMENT_STATUS.md](DEVELOPMENT_STATUS.md) before using govc in any capacity.**
 
 ## 🚀 What is govc?
 

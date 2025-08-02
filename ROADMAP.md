@@ -1,5 +1,7 @@
 # govc Development Roadmap
 
+> **⚠️ Living Roadmap**: This roadmap evolves with the project. As govc is under active development, priorities may shift based on community needs and technical discoveries. Last updated: August 2024.
+
 ## Progress Summary
 - **Phase 1**: COMPLETED ✅ (100%) 🎉
   - File Operations: 6/6 completed ✅ (100%)

@@ -1,6 +1,9 @@
 # Test Results Summary
 
-**Date**: August 1, 2025
+> **⚠️ Living Document**: This summary reflects ongoing test improvements. As govc is under active development, test results evolve with each commit. See [TESTING_GUIDE.md](TESTING_GUIDE.md) for current testing practices.
+
+**Last Updated**: August 2, 2024  
+**Test Framework**: Go 1.20+ with comprehensive multi-layer testing
 
 ## Overall Results
 - **Total Packages**: 12

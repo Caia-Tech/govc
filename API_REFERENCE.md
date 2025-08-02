@@ -1,5 +1,17 @@
 # govc API Reference
 
+> **⚠️ API STABILITY WARNING**: This API reference documents the current state of govc's interfaces. As govc is in active development, these APIs are subject to change. Always refer to the latest documentation and use semantic versioning to track changes.
+
+**Last Updated**: August 2024  
+**API Version**: 0.3.0-alpha  
+**Stability**: 🟡 Evolving (Breaking changes possible)
+
+## API Versioning
+
+- **Current**: v1 (unstable)
+- **Future**: v2 (planned for stable release)
+- **Deprecation Policy**: During alpha, APIs may change without deprecation notices
+
 ## Core Types
 
 ### Repository
@@ -8,13 +20,12 @@ The main interface for interacting with a govc repository.
 
 ```go
 type Repository interface {
-    // Initialization
-    Init() error
-    Clone(url string) error
+    // Note: Init() has been removed - repositories are initialized on creation
+    // Clone functionality is available through separate Clone() function
     
     // File operations
     ReadFile(path string) ([]byte, error)
-    WriteFile(path string, content []byte, mode os.FileMode) error
+    WriteFile(path string, content []byte) error  // mode parameter removed
     DeleteFile(path string) error
     MoveFile(oldPath, newPath string) error
     ListFiles(path string) ([]string, error)
