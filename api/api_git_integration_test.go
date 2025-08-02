@@ -744,6 +744,7 @@ func TestFileOperations(t *testing.T) {
 		if w.Code != 404 {
 			t.Error("Removed file should not exist")
 		}
+		
 	})
 
 	// Test directory listing

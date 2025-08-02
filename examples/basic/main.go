@@ -45,9 +45,9 @@ func basicExample() {
 		log.Fatal("Failed to create commit:", err)
 	}
 
-	fmt.Printf("Created commit: %s\n", commit.Hash)
+	fmt.Printf("Created commit: %s\n", commit.Hash())
 	fmt.Printf("Commit message: %s\n", commit.Message)
-	fmt.Printf("Author: %s\n", commit.Author)
+	fmt.Printf("Author: %s\n", commit.Author.Name)
 	fmt.Println()
 }
 
@@ -76,7 +76,7 @@ func branchExample() {
 	repo.Add("feature.go")
 	commit, _ := repo.Commit("Add new feature")
 
-	fmt.Printf("Created feature commit: %s\n", commit.Hash)
+	fmt.Printf("Created feature commit: %s\n", commit.Hash())
 
 	// List all branches
 	branches, err := repo.ListBranches()

@@ -459,8 +459,8 @@ func (r *Repository) createTreeFromStaging() (*object.Tree, error) {
 				if err == nil {
 					// Copy all entries from parent tree
 					for _, entry := range parentTree.Entries {
-						// Skip if this file is being updated in staging
-						if _, exists := r.staging.files[entry.Name]; !exists {
+						// Skip if this file is being updated in staging or removed
+						if _, exists := r.staging.files[entry.Name]; !exists && !r.staging.removed[entry.Name] {
 							tree.AddEntry(entry.Mode, entry.Name, entry.Hash)
 						}
 					}
@@ -624,13 +624,15 @@ func (r *Repository) getCurrentBranchName() string {
 }
 
 type StagingArea struct {
-	files map[string]string
-	mu    sync.RWMutex
+	files   map[string]string // Files staged for addition/modification
+	removed map[string]bool   // Files staged for removal
+	mu      sync.RWMutex
 }
 
 func NewStagingArea() *StagingArea {
 	return &StagingArea{
-		files: make(map[string]string),
+		files:   make(map[string]string),
+		removed: make(map[string]bool),
 	}
 }
 
@@ -644,12 +646,20 @@ func (s *StagingArea) Remove(path string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	delete(s.files, path)
+	s.removed[path] = true
 }
 
 func (s *StagingArea) Clear() {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.files = make(map[string]string)
+	s.removed = make(map[string]bool)
+}
+
+func (s *StagingArea) IsRemoved(path string) bool {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.removed[path]
 }
 
 func (s *StagingArea) GetFiles() map[string]string {
@@ -1342,12 +1352,23 @@ func (r *Repository) Export(w io.Writer, format string) error {
 	return nil
 }
 
-// ReadFile reads a file from the current HEAD
+// ReadFile reads a file from the working directory if it exists, otherwise from HEAD
 func (r *Repository) ReadFile(path string) ([]byte, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
-	// Get current HEAD
+	// First try to read from working directory
+	content, err := r.worktree.ReadFile(path)
+	if err == nil {
+		return content, nil
+	}
+
+	// Check if the file has been explicitly removed
+	if r.staging.IsRemoved(path) {
+		return nil, fmt.Errorf("file not found: %s", path)
+	}
+
+	// If not in working directory and not removed, try to read from HEAD
 	headHash, err := r.refManager.GetHEAD()
 	if err != nil {
 		return nil, fmt.Errorf("failed to get HEAD: %w", err)
@@ -1379,45 +1400,54 @@ func (r *Repository) ReadFile(path string) ([]byte, error) {
 	return nil, fmt.Errorf("file not found: %s", path)
 }
 
-// ListFiles lists all files in the current HEAD
+// ListFiles lists all files that are currently accessible (working directory + HEAD - removed files)
 func (r *Repository) ListFiles() ([]string, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
-	// Get current HEAD
+	// Start with files from working directory
+	files := make(map[string]bool)
+	worktreeFiles := r.worktree.ListFiles()
+	for _, file := range worktreeFiles {
+		files[file] = true
+	}
+
+	// Add files from HEAD that haven't been explicitly removed
 	headHash, err := r.refManager.GetHEAD()
-	if err != nil {
-		return nil, fmt.Errorf("failed to get HEAD: %w", err)
+	if err == nil {
+		commit, err := r.store.GetCommit(headHash)
+		if err == nil {
+			tree, err := r.store.GetTree(commit.TreeHash)
+			if err == nil {
+				for _, entry := range tree.Entries {
+					// Only add if not explicitly removed and not already in worktree
+					if !r.staging.IsRemoved(entry.Name) {
+						files[entry.Name] = true
+					}
+				}
+			}
+		}
 	}
 
-	// Get the commit
-	commit, err := r.store.GetCommit(headHash)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get commit: %w", err)
+	// Convert to slice
+	result := make([]string, 0, len(files))
+	for file := range files {
+		result = append(result, file)
 	}
 
-	// Get the tree
-	tree, err := r.store.GetTree(commit.TreeHash)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get tree: %w", err)
-	}
-
-	// Collect all file paths
-	files := make([]string, 0, len(tree.Entries))
-	for _, entry := range tree.Entries {
-		files = append(files, entry.Name)
-	}
-
-	return files, nil
+	return result, nil
 }
 
-// Remove removes a file from the staging area
+// Remove removes a file from the staging area and working directory
 func (r *Repository) Remove(path string) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
+	// Remove from staging
 	r.staging.Remove(path)
-	return nil
+	
+	// Also remove from working directory
+	return r.worktree.RemoveFile(path)
 }
 
 // WriteFile writes a file to the worktree
@@ -2322,11 +2352,9 @@ func (r *Repository) Revert(commitHash string) (*object.Commit, error) {
 					r.staging.Add(entry.Name, parentEntry.Hash)
 					
 					// Update working directory
-					if r.worktree.path != ":memory:" {
-						blob, err := r.store.GetBlob(parentEntry.Hash)
-						if err == nil {
-							r.worktree.WriteFile(entry.Name, blob.Content)
-						}
+					blob, err := r.store.GetBlob(parentEntry.Hash)
+					if err == nil {
+						r.worktree.WriteFile(entry.Name, blob.Content)
 					}
 				}
 				break
@@ -2335,9 +2363,7 @@ func (r *Repository) Revert(commitHash string) (*object.Commit, error) {
 		if !found {
 			// File was added in this commit - remove it
 			r.staging.Remove(entry.Name)
-			if r.worktree.path != ":memory:" {
-				r.worktree.RemoveFile(entry.Name)
-			}
+			r.worktree.RemoveFile(entry.Name)
 		}
 	}
 
@@ -2355,11 +2381,9 @@ func (r *Repository) Revert(commitHash string) (*object.Commit, error) {
 			r.staging.Add(parentEntry.Name, parentEntry.Hash)
 			
 			// Update working directory
-			if r.worktree.path != ":memory:" {
-				blob, err := r.store.GetBlob(parentEntry.Hash)
-				if err == nil {
-					r.worktree.WriteFile(parentEntry.Name, blob.Content)
-				}
+			blob, err := r.store.GetBlob(parentEntry.Hash)
+			if err == nil {
+				r.worktree.WriteFile(parentEntry.Name, blob.Content)
 			}
 		}
 	}
@@ -2483,21 +2507,21 @@ func (r *Repository) Reset(target string, mode string) error {
 		r.staging.Clear()
 
 		// Reset working directory to match the target commit
-		if r.worktree.path != ":memory:" {
-			commit, _ := r.store.GetCommit(targetHash)
-			if commit != nil {
-				tree, err := r.store.GetTree(commit.TreeHash)
-				if err == nil {
-					// Clear all files in working directory
-					// Note: In a real implementation, we'd need to be more careful
-					// about untracked files
-					
-					// Restore files from the target commit
-					for _, entry := range tree.Entries {
-						blob, err := r.store.GetBlob(entry.Hash)
-						if err == nil {
-							r.worktree.WriteFile(entry.Name, blob.Content)
-						}
+		commit, _ := r.store.GetCommit(targetHash)
+		if commit != nil {
+			tree, err := r.store.GetTree(commit.TreeHash)
+			if err == nil {
+				// Clear working directory first
+				currentFiles := r.worktree.ListFiles()
+				for _, file := range currentFiles {
+					r.worktree.RemoveFile(file)
+				}
+				
+				// Restore files from the target commit
+				for _, entry := range tree.Entries {
+					blob, err := r.store.GetBlob(entry.Hash)
+					if err == nil {
+						r.worktree.WriteFile(entry.Name, blob.Content)
 					}
 				}
 			}

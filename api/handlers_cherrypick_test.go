@@ -158,6 +158,17 @@ func TestCherryPickOperations(t *testing.T) {
 		w = httptest.NewRecorder()
 		router.ServeHTTP(w, req)
 
+		// Get the current commit hash before switching (this will be the feature2 commit)
+		req = httptest.NewRequest("GET", fmt.Sprintf("/api/v1/repos/%s/log?limit=1", repoID), nil)
+		w = httptest.NewRecorder()
+		router.ServeHTTP(w, req)
+		
+		var logResp map[string]interface{}
+		json.Unmarshal(w.Body.Bytes(), &logResp)
+		commits := logResp["commits"].([]interface{})
+		latestCommit := commits[0].(map[string]interface{})
+		feature2CommitHash := latestCommit["hash"].(string)
+
 		// Switch back to main
 		checkoutBody = bytes.NewBufferString(`{"branch": "main"}`)
 		req = httptest.NewRequest("POST", fmt.Sprintf("/api/v1/repos/%s/checkout", repoID), checkoutBody)
@@ -165,9 +176,9 @@ func TestCherryPickOperations(t *testing.T) {
 		w = httptest.NewRecorder()
 		router.ServeHTTP(w, req)
 
-		// Cherry-pick using HEAD~1 reference
+		// Cherry-pick using the specific feature2 commit hash
 		cherryPickReq := CherryPickRequest{
-			Commit: "HEAD~1",
+			Commit: feature2CommitHash,
 		}
 		body, _ = json.Marshal(cherryPickReq)
 		req = httptest.NewRequest("POST", fmt.Sprintf("/api/v1/repos/%s/cherry-pick", repoID), bytes.NewReader(body))
@@ -176,7 +187,7 @@ func TestCherryPickOperations(t *testing.T) {
 		router.ServeHTTP(w, req)
 
 		if w.Code != http.StatusCreated {
-			t.Errorf("Expected status %d, got %d", http.StatusCreated, w.Code)
+			t.Errorf("Expected status %d, got %d. Response: %s", http.StatusCreated, w.Code, w.Body.String())
 		}
 	})
 }
@@ -322,7 +333,7 @@ func TestRevertOperations(t *testing.T) {
 		router.ServeHTTP(w, req)
 
 		if w.Code != http.StatusCreated {
-			t.Errorf("Expected status %d, got %d", http.StatusCreated, w.Code)
+			t.Errorf("Expected status %d, got %d. Response: %s", http.StatusCreated, w.Code, w.Body.String())
 		}
 	})
 }
