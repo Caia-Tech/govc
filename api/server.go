@@ -9,7 +9,6 @@ import (
 	"github.com/caiatech/govc"
 	"github.com/caiatech/govc/auth"
 	"github.com/caiatech/govc/config"
-	"github.com/caiatech/govc/container"
 	"github.com/caiatech/govc/logging"
 	"github.com/caiatech/govc/metrics"
 	"github.com/caiatech/govc/pool"
@@ -19,6 +18,7 @@ import (
 type Server struct {
 	config            *config.Config
 	repoPool          *pool.RepositoryPool
+	repoFactory       *RepositoryFactory  // New: factory for clean architecture
 	transactions      map[string]*govc.TransactionalCommit
 	repoMetadata      map[string]*RepoMetadata
 	jwtAuth           *auth.JWTAuth
@@ -26,7 +26,6 @@ type Server struct {
 	apiKeyMgr         *auth.APIKeyManager
 	authMiddleware    *auth.AuthMiddleware
 	prometheusMetrics *metrics.PrometheusMetrics
-	containerManager  *container.Manager
 	logger            *logging.Logger
 	mu                sync.RWMutex
 }
@@ -80,6 +79,7 @@ func NewServer(cfg *config.Config) *Server {
 	return &Server{
 		config:            cfg,
 		repoPool:          repoPool,
+		repoFactory:       NewRepositoryFactory(),
 		transactions:      make(map[string]*govc.TransactionalCommit),
 		repoMetadata:      make(map[string]*RepoMetadata),
 		jwtAuth:           jwtAuth,
@@ -92,6 +92,9 @@ func NewServer(cfg *config.Config) *Server {
 }
 
 func (s *Server) RegisterRoutes(router *gin.Engine) {
+	// Check if we should use new architecture
+	useNewArchitecture := s.config.Development.UseNewArchitecture
+	
 	// Add global middleware
 	router.Use(SecurityHeadersMiddleware())
 	router.Use(RequestSizeMiddleware(s.config.Server.MaxRequestSize))
@@ -143,15 +146,30 @@ func (s *Server) RegisterRoutes(router *gin.Engine) {
 		repoRoutes.Use(s.authMiddleware.OptionalAuth()) // Allow both authenticated and unauthenticated access
 	}
 	{
-		repoRoutes.POST("", s.createRepo)
-		repoRoutes.GET("/:repo_id", s.getRepo)
-		repoRoutes.DELETE("/:repo_id", s.deleteRepo)
-		repoRoutes.GET("", s.listRepos)
+		// Choose handlers based on architecture
+		if useNewArchitecture {
+			repoRoutes.POST("", s.createRepoV2)
+			repoRoutes.GET("/:repo_id", s.getRepoV2)
+			repoRoutes.DELETE("/:repo_id", s.deleteRepoV2)
+			repoRoutes.GET("", s.listReposV2)
+		} else {
+			repoRoutes.POST("", s.createRepo)
+			repoRoutes.GET("/:repo_id", s.getRepo)
+			repoRoutes.DELETE("/:repo_id", s.deleteRepo)
+			repoRoutes.GET("", s.listRepos)
+		}
 		// Basic Git operations
-		repoRoutes.POST("/:repo_id/add", s.addFile)
-		repoRoutes.POST("/:repo_id/commit", s.commit)
-		repoRoutes.GET("/:repo_id/log", s.getLog)
-		repoRoutes.GET("/:repo_id/status", s.getStatus)
+		if useNewArchitecture {
+			repoRoutes.POST("/:repo_id/add", s.addFileV2)
+			repoRoutes.POST("/:repo_id/commit", s.commitV2)
+			repoRoutes.GET("/:repo_id/log", s.getLogV2)
+			repoRoutes.GET("/:repo_id/status", s.getStatusV2)
+		} else {
+			repoRoutes.POST("/:repo_id/add", s.addFile)
+			repoRoutes.POST("/:repo_id/commit", s.commit)
+			repoRoutes.GET("/:repo_id/log", s.getLog)
+			repoRoutes.GET("/:repo_id/status", s.getStatus)
+		}
 		repoRoutes.GET("/:repo_id/show/:commit", s.showCommit)
 		repoRoutes.GET("/:repo_id/diff/:from/:to", s.getDiff)
 		repoRoutes.GET("/:repo_id/diff", s.getDiff) // Query params version
@@ -242,8 +260,7 @@ func (s *Server) RegisterRoutes(router *gin.Engine) {
 	}
 
 
-	// Container system routes
-	s.setupContainerRoutes(v1)
+	// Container system removed - focusing on core VCS functionality
 
 	// Add Prometheus middleware for automatic metrics collection
 	router.Use(s.prometheusMetrics.GinMiddleware())
@@ -268,6 +285,33 @@ func (s *Server) getRepository(id string) (*govc.Repository, error) {
 	pooledRepo.UpdateAccess()
 
 	return pooledRepo.GetRepository(), nil
+}
+
+// getRepositoryComponents gets repository using new architecture
+func (s *Server) getRepositoryComponents(id string) (*RepositoryComponents, error) {
+	components, err := s.repoFactory.GetRepository(id)
+	if err != nil {
+		// Try to load from metadata
+		s.mu.RLock()
+		metadata, ok := s.repoMetadata[id]
+		s.mu.RUnlock()
+		
+		if !ok {
+			return nil, fmt.Errorf("repository not found: %s", id)
+		}
+		
+		// Open existing repository
+		if metadata.Path == ":memory:" {
+			return nil, fmt.Errorf("cannot reload memory repository: %s", id)
+		}
+		
+		components, err = s.repoFactory.OpenRepository(id, metadata.Path)
+		if err != nil {
+			return nil, err
+		}
+	}
+	
+	return components, nil
 }
 
 // updateMetrics updates the Prometheus metrics with current counts

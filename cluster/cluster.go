@@ -51,6 +51,35 @@ const (
 	ClusterStateRecovering  ClusterState = "recovering"
 )
 
+// clusterState represents the serializable cluster state
+type clusterState struct {
+	ID        string                    `json:"id"`
+	Name      string                    `json:"name"`
+	Config    ClusterConfig             `json:"config"`
+	State     ClusterState              `json:"state"`
+	CreatedAt time.Time                 `json:"created_at"`
+	UpdatedAt time.Time                 `json:"updated_at"`
+	Nodes     map[string]*nodeState     `json:"nodes"`
+	Shards    map[string]*shardState    `json:"shards"`
+}
+
+// nodeState represents the serializable node state
+type nodeState struct {
+	ID       string    `json:"id"`
+	Address  string    `json:"address"`
+	State    NodeState `json:"state"`
+	LastSeen time.Time `json:"last_seen"`
+}
+
+// shardState represents the serializable shard state  
+type shardState struct {
+	ID           string         `json:"id"`
+	KeyRange     ShardKeyRange  `json:"key_range"`
+	PrimaryNode  string         `json:"primary_node"`
+	ReplicaNodes []string       `json:"replica_nodes"`
+	State        ShardState     `json:"state"`
+}
+
 // Shard represents a data shard in the cluster
 type Shard struct {
 	ID           string             `json:"id"`
@@ -132,9 +161,11 @@ func NewCluster(id, name string, config ClusterConfig, dataDir string) (*Cluster
 		dataDir:   dataDir,
 	}
 
-	// Create data directory
-	if err := os.MkdirAll(dataDir, 0755); err != nil {
-		return nil, fmt.Errorf("failed to create cluster data directory: %w", err)
+	// Create data directory if specified
+	if dataDir != "" {
+		if err := os.MkdirAll(dataDir, 0755); err != nil {
+			return nil, fmt.Errorf("failed to create cluster data directory: %w", err)
+		}
 	}
 
 	// Load existing cluster state if available
@@ -444,6 +475,10 @@ func (c *Cluster) calculateKeyRange(key string) ShardKeyRange {
 
 // loadState loads the cluster state from disk
 func (c *Cluster) loadState() error {
+	if c.dataDir == "" {
+		return nil
+	}
+	
 	statePath := filepath.Join(c.dataDir, "cluster-state.json")
 	
 	data, err := os.ReadFile(statePath)
@@ -454,7 +489,24 @@ func (c *Cluster) loadState() error {
 		return err
 	}
 
-	return json.Unmarshal(data, c)
+	// Unmarshal into temporary state
+	var state clusterState
+	if err := json.Unmarshal(data, &state); err != nil {
+		return fmt.Errorf("failed to unmarshal cluster state: %w", err)
+	}
+	
+	// Restore cluster fields
+	c.ID = state.ID
+	c.Name = state.Name
+	c.Config = state.Config
+	c.State = state.State
+	c.CreatedAt = state.CreatedAt
+	c.UpdatedAt = state.UpdatedAt
+	
+	// Note: Nodes and shards need to be reconstructed when nodes join
+	// This just stores the metadata for reference
+	
+	return nil
 }
 
 // saveState saves the cluster state to disk
@@ -464,8 +516,62 @@ func (c *Cluster) saveState() error {
 		return nil
 	}
 	
-	// For now, just return nil to avoid marshaling issues
-	// TODO: Implement proper state serialization that excludes non-marshalable fields
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	
+	// Create a serializable version of the cluster state
+	state := &clusterState{
+		ID:        c.ID,
+		Name:      c.Name,
+		Config:    c.Config,
+		State:     c.State,
+		CreatedAt: c.CreatedAt,
+		UpdatedAt: c.UpdatedAt,
+		Nodes:     make(map[string]*nodeState),
+		Shards:    make(map[string]*shardState),
+	}
+	
+	// Convert nodes to serializable format
+	for id, node := range c.Nodes {
+		state.Nodes[id] = &nodeState{
+			ID:       node.ID,
+			Address:  node.Address,
+			State:    node.State,
+			LastSeen: node.LastSeen,
+		}
+	}
+	
+	// Convert shards to serializable format
+	for id, shard := range c.Shards {
+		state.Shards[id] = &shardState{
+			ID:           shard.ID,
+			KeyRange:     shard.KeyRange,
+			PrimaryNode:  shard.PrimaryNode,
+			ReplicaNodes: shard.ReplicaNodes,
+			State:        shard.State,
+		}
+	}
+	
+	// Create the state file path
+	statePath := filepath.Join(c.dataDir, "cluster-state.json")
+	
+	// Marshal to JSON
+	data, err := json.MarshalIndent(state, "", "  ")
+	if err != nil {
+		return fmt.Errorf("failed to marshal cluster state: %w", err)
+	}
+	
+	// Write atomically by writing to temp file first
+	tempPath := statePath + ".tmp"
+	if err := os.WriteFile(tempPath, data, 0644); err != nil {
+		return fmt.Errorf("failed to write cluster state: %w", err)
+	}
+	
+	// Rename to final location
+	if err := os.Rename(tempPath, statePath); err != nil {
+		return fmt.Errorf("failed to save cluster state: %w", err)
+	}
+	
 	return nil
 }
 

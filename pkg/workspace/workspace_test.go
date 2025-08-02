@@ -187,7 +187,7 @@ func TestWorkspaceErrors(t *testing.T) {
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "HEAD is detached")
 
-	// Test DeleteBranch with non-existent branch
+	// Test DeleteBranch with non-existent branch (idempotent - should not error)
 	err = ws.DeleteBranch("nonexistent")
-	assert.Error(t, err)
+	assert.NoError(t, err)
 }

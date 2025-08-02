@@ -80,10 +80,11 @@ type StorageConfig struct {
 
 // DevelopmentConfig contains development-specific settings
 type DevelopmentConfig struct {
-	Debug       bool `yaml:"debug"`
-	ProfilerEnabled bool `yaml:"profiler_enabled"`
-	CORSEnabled bool `yaml:"cors_enabled"`
-	AllowedOrigins []string `yaml:"allowed_origins"`
+	Debug              bool     `yaml:"debug"`
+	ProfilerEnabled    bool     `yaml:"profiler_enabled"`
+	CORSEnabled        bool     `yaml:"cors_enabled"`
+	AllowedOrigins     []string `yaml:"allowed_origins"`
+	UseNewArchitecture bool     `yaml:"use_new_architecture"`
 }
 
 // DefaultConfig returns a default configuration
@@ -132,10 +133,11 @@ func DefaultConfig() *Config {
 			CacheTTL:     1 * time.Hour,
 		},
 		Development: DevelopmentConfig{
-			Debug:           false,
-			ProfilerEnabled: false,
-			CORSEnabled:     false,
-			AllowedOrigins:  []string{"http://localhost:3000"},
+			Debug:              false,
+			ProfilerEnabled:    false,
+			CORSEnabled:        false,
+			AllowedOrigins:     []string{"http://localhost:3000"},
+			UseNewArchitecture: true, // Default to new architecture
 		},
 	}
 }
