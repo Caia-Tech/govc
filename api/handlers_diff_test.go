@@ -23,7 +23,7 @@ func TestDiffOperations(t *testing.T) {
 		"README.md": "# Test Project\\nThis is a test",
 		"main.go":   "package main\\n\\nfunc main() {}",
 	}
-	
+
 	for path, content := range files1 {
 		body := bytes.NewBufferString(fmt.Sprintf(`{"path": "%s", "content": "%s"}`, path, content))
 		req := httptest.NewRequest("POST", fmt.Sprintf("/api/v1/repos/%s/add", repoID), body)
@@ -37,16 +37,16 @@ func TestDiffOperations(t *testing.T) {
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
-	
+
 	var commit1 CommitResponse
 	json.Unmarshal(w.Body.Bytes(), &commit1)
 
 	// Second commit with changes
 	files2 := map[string]string{
-		"README.md": "# Test Project\\nThis is a test\\n\\nNew section added",
+		"README.md":  "# Test Project\\nThis is a test\\n\\nNew section added",
 		"config.yml": "version: 1.0",
 	}
-	
+
 	for path, content := range files2 {
 		body := bytes.NewBufferString(fmt.Sprintf(`{"path": "%s", "content": "%s"}`, path, content))
 		req := httptest.NewRequest("POST", fmt.Sprintf("/api/v1/repos/%s/add", repoID), body)
@@ -60,7 +60,7 @@ func TestDiffOperations(t *testing.T) {
 	req.Header.Set("Content-Type", "application/json")
 	w = httptest.NewRecorder()
 	router.ServeHTTP(w, req)
-	
+
 	var commit2 CommitResponse
 	json.Unmarshal(w.Body.Bytes(), &commit2)
 
@@ -101,9 +101,9 @@ func TestDiffOperations(t *testing.T) {
 
 	t.Run("Diff with different formats", func(t *testing.T) {
 		formats := []string{"unified", "raw", "name-only"}
-		
+
 		for _, format := range formats {
-			req := httptest.NewRequest("GET", fmt.Sprintf("/api/v1/repos/%s/diff?from=HEAD~1&to=HEAD&format=%s", 
+			req := httptest.NewRequest("GET", fmt.Sprintf("/api/v1/repos/%s/diff?from=HEAD~1&to=HEAD&format=%s",
 				repoID, format), nil)
 			w := httptest.NewRecorder()
 			router.ServeHTTP(w, req)
@@ -197,7 +197,7 @@ func TestDiffOperations(t *testing.T) {
 	})
 
 	t.Run("File-specific diff", func(t *testing.T) {
-		req := httptest.NewRequest("GET", fmt.Sprintf("/api/v1/repos/%s/diff/file/README.md?from=HEAD~1&to=HEAD", 
+		req := httptest.NewRequest("GET", fmt.Sprintf("/api/v1/repos/%s/diff/file/README.md?from=HEAD~1&to=HEAD",
 			repoID), nil)
 		w := httptest.NewRecorder()
 		router.ServeHTTP(w, req)
@@ -219,7 +219,7 @@ func TestDiffOperations(t *testing.T) {
 	})
 
 	t.Run("Diff for non-existent file", func(t *testing.T) {
-		req := httptest.NewRequest("GET", fmt.Sprintf("/api/v1/repos/%s/diff/file/missing.txt?from=HEAD~1&to=HEAD", 
+		req := httptest.NewRequest("GET", fmt.Sprintf("/api/v1/repos/%s/diff/file/missing.txt?from=HEAD~1&to=HEAD",
 			repoID), nil)
 		w := httptest.NewRecorder()
 		router.ServeHTTP(w, req)

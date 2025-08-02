@@ -19,10 +19,10 @@ func TestReadFileOperations(t *testing.T) {
 
 	// Add files
 	files := map[string]string{
-		"README.md":        "# Test Repository",
-		"src/main.go":      "package main\\n\\nfunc main() {}\\n",
-		"docs/guide.md":    "# User Guide", 
-		"config/app.yaml":  "version: 1.0\\nname: test",
+		"README.md":       "# Test Repository",
+		"src/main.go":     "package main\\n\\nfunc main() {}\\n",
+		"docs/guide.md":   "# User Guide",
+		"config/app.yaml": "version: 1.0\\nname: test",
 	}
 
 	for path, content := range files {
@@ -31,7 +31,7 @@ func TestReadFileOperations(t *testing.T) {
 		req.Header.Set("Content-Type", "application/json")
 		w := httptest.NewRecorder()
 		router.ServeHTTP(w, req)
-		
+
 		if w.Code != http.StatusOK {
 			t.Fatalf("Failed to add file %s: %d, Response: %s", path, w.Code, w.Body.String())
 		}
@@ -121,14 +121,14 @@ func TestTreeOperations(t *testing.T) {
 
 	// Create a file structure
 	files := map[string]string{
-		"README.md":           "Root readme",
-		"LICENSE":             "MIT License",
-		"src/main.go":         "package main",
-		"src/utils.go":        "package main",
-		"src/lib/helper.go":   "package lib",
-		"docs/guide.md":       "Guide",
-		"docs/api.md":         "API docs",
-		"test/unit_test.go":   "package test",
+		"README.md":         "Root readme",
+		"LICENSE":           "MIT License",
+		"src/main.go":       "package main",
+		"src/utils.go":      "package main",
+		"src/lib/helper.go": "package lib",
+		"docs/guide.md":     "Guide",
+		"docs/api.md":       "API docs",
+		"test/unit_test.go": "package test",
 	}
 
 	for path, content := range files {

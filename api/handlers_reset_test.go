@@ -68,7 +68,7 @@ func TestResetEndpoint(t *testing.T) {
 		t.Fatalf("Failed to parse commit response: %v", err)
 	}
 
-	// Fourth commit  
+	// Fourth commit
 	addReq = AddFileRequest{Path: "file3.txt", Content: "Third file"}
 	reqBody, _ = json.Marshal(addReq)
 	w = httptest.NewRecorder()
@@ -114,7 +114,7 @@ func TestResetEndpoint(t *testing.T) {
 		if err := json.Unmarshal(w.Body.Bytes(), &resetResp); err != nil {
 			t.Fatalf("Failed to parse response: %v", err)
 		}
-		
+
 		if resetResp.OldHead != commit3.Hash {
 			t.Errorf("Expected old head %s, got %s", commit3.Hash, resetResp.OldHead)
 		}
@@ -137,7 +137,7 @@ func TestResetEndpoint(t *testing.T) {
 		if err := json.Unmarshal(w.Body.Bytes(), &logResp); err != nil {
 			t.Fatalf("Failed to parse log response: %v", err)
 		}
-		
+
 		if len(logResp.Commits) < 2 {
 			t.Errorf("Expected at least 2 commits in log, got %d", len(logResp.Commits))
 		} else if logResp.Commits[0].Hash != commit2.Hash {
@@ -164,7 +164,7 @@ func TestResetEndpoint(t *testing.T) {
 		if err := json.Unmarshal(w.Body.Bytes(), &resetResp); err != nil {
 			t.Fatalf("Failed to parse response: %v", err)
 		}
-		
+
 		if resetResp.Mode != "mixed" {
 			t.Errorf("Expected default mode 'mixed', got '%s'", resetResp.Mode)
 		}
@@ -189,7 +189,7 @@ func TestResetEndpoint(t *testing.T) {
 		if err := json.Unmarshal(w.Body.Bytes(), &errResp); err != nil {
 			t.Fatalf("Failed to parse error response: %v", err)
 		}
-		
+
 		if errResp.Code != "RESET_FAILED" {
 			t.Errorf("Expected error code 'RESET_FAILED', got '%s'", errResp.Code)
 		}
@@ -214,7 +214,7 @@ func TestResetEndpoint(t *testing.T) {
 		if err := json.Unmarshal(w.Body.Bytes(), &errResp); err != nil {
 			t.Fatalf("Failed to parse error response: %v", err)
 		}
-		
+
 		if errResp.Code != "INVALID_REQUEST" {
 			t.Errorf("Expected error code 'INVALID_REQUEST', got '%s'", errResp.Code)
 		}
@@ -377,7 +377,7 @@ func TestRebaseEndpoint(t *testing.T) {
 		if err := json.Unmarshal(w.Body.Bytes(), &rebaseResp); err != nil {
 			t.Fatalf("Failed to parse response: %v", err)
 		}
-		
+
 		if rebaseResp.OldHead != featureCommit2.Hash {
 			t.Errorf("Expected old head %s, got %s", featureCommit2.Hash, rebaseResp.OldHead)
 		}
@@ -403,7 +403,7 @@ func TestRebaseEndpoint(t *testing.T) {
 		if err := json.Unmarshal(w.Body.Bytes(), &logResp); err != nil {
 			t.Fatalf("Failed to parse log response: %v", err)
 		}
-		
+
 		if len(logResp.Commits) != 4 {
 			t.Errorf("Expected 4 commits in log, got %d", len(logResp.Commits))
 		} else {
@@ -438,7 +438,7 @@ func TestRebaseEndpoint(t *testing.T) {
 		if err := json.Unmarshal(w.Body.Bytes(), &errResp); err != nil {
 			t.Fatalf("Failed to parse error response: %v", err)
 		}
-		
+
 		if errResp.Code != "REBASE_FAILED" {
 			t.Errorf("Expected error code 'REBASE_FAILED', got '%s'", errResp.Code)
 		}
@@ -462,7 +462,7 @@ func TestRebaseEndpoint(t *testing.T) {
 		if err := json.Unmarshal(w.Body.Bytes(), &errResp); err != nil {
 			t.Fatalf("Failed to parse error response: %v", err)
 		}
-		
+
 		if errResp.Code != "INVALID_REQUEST" {
 			t.Errorf("Expected error code 'INVALID_REQUEST', got '%s'", errResp.Code)
 		}
@@ -494,7 +494,7 @@ func TestRebaseNoOp(t *testing.T) {
 	if err := json.Unmarshal(w.Body.Bytes(), &rebaseResp); err != nil {
 		t.Fatalf("Failed to parse response: %v", err)
 	}
-	
+
 	if rebaseResp.RebasedCount != 0 {
 		t.Errorf("Expected 0 rebased commits for no-op, got %d", rebaseResp.RebasedCount)
 	}
@@ -566,7 +566,7 @@ func TestResetModes(t *testing.T) {
 		if err := json.Unmarshal(w.Body.Bytes(), &resetResp); err != nil {
 			t.Fatalf("Failed to parse response: %v", err)
 		}
-		
+
 		if resetResp.Mode != "hard" {
 			t.Errorf("Expected mode 'hard', got '%s'", resetResp.Mode)
 		}
@@ -583,7 +583,7 @@ func TestResetModes(t *testing.T) {
 		if err := json.Unmarshal(w.Body.Bytes(), &statusResp); err != nil {
 			t.Fatalf("Failed to parse status response: %v", err)
 		}
-		
+
 		if !statusResp.Clean {
 			t.Errorf("Expected clean status after hard reset, got clean=%v", statusResp.Clean)
 		}
@@ -608,7 +608,7 @@ func TestResetModes(t *testing.T) {
 		if err := json.Unmarshal(w.Body.Bytes(), &errResp); err != nil {
 			t.Fatalf("Failed to parse error response: %v", err)
 		}
-		
+
 		if errResp.Code != "RESET_FAILED" {
 			t.Errorf("Expected error code 'RESET_FAILED', got '%s'", errResp.Code)
 		}

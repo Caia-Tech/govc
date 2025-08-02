@@ -195,7 +195,7 @@ func TestFailoverAndRecoveryScenario(t *testing.T) {
 		repoID := fmt.Sprintf("repo%d", i)
 		repo := &govc.Repository{}
 		nodes[i%4].AddRepository(repoID, repo)
-		
+
 		err = cluster.DistributeRepository(repoID, repo)
 		assert.NoError(t, err)
 	}
@@ -267,17 +267,17 @@ func TestLoadBalancingScenario(t *testing.T) {
 	for i := 0; i < 30; i++ {
 		repoID := fmt.Sprintf("repo%d", i)
 		repo := &govc.Repository{}
-		
+
 		// Force to specific nodes
 		nodeID := fmt.Sprintf("node%d", (i%2)+1)
 		node := cluster.GetNodeByID(nodeID)
 		node.AddRepository(repoID, repo)
-		
+
 		// Create shard manually
 		shard := &Shard{
 			ID:           fmt.Sprintf("shard%d", i),
 			PrimaryNode:  nodeID,
-			ReplicaNodes: []string{fmt.Sprintf("node%d", ((i%2)+2))},
+			ReplicaNodes: []string{fmt.Sprintf("node%d", ((i % 2) + 2))},
 			State:        ShardStateActive,
 			Repositories: map[string]bool{repoID: true},
 		}
@@ -371,7 +371,7 @@ func TestConcurrentOperationsUnderLoad(t *testing.T) {
 	go func() {
 		defer wg.Done()
 		time.Sleep(200 * time.Millisecond)
-		
+
 		// Fail a node
 		failoverMgr.healthChecker.mu.Lock()
 		failoverMgr.healthChecker.nodeStatus["node3"] = &NodeHealth{
@@ -380,9 +380,9 @@ func TestConcurrentOperationsUnderLoad(t *testing.T) {
 			ConsecutiveFails: 10,
 		}
 		failoverMgr.healthChecker.mu.Unlock()
-		
+
 		time.Sleep(200 * time.Millisecond)
-		
+
 		// Recover the node
 		failoverMgr.healthChecker.mu.Lock()
 		failoverMgr.healthChecker.nodeStatus["node3"].Status = HealthStatusHealthy
@@ -405,10 +405,10 @@ func TestConcurrentOperationsUnderLoad(t *testing.T) {
 	// Verify system stability
 	health := cluster.GetClusterHealth()
 	assert.NotEqual(t, ClusterStateUnavailable, health.Status)
-	
+
 	metrics := shardingMgr.CalculateShardMetrics()
 	assert.Greater(t, metrics.TotalShards, 0)
-	
+
 	// Verify data integrity - all repositories should be accessible
 	repoCount := 0
 	for _, node := range cluster.GetNodes() {
@@ -475,7 +475,7 @@ func TestDisasterRecoveryScenario(t *testing.T) {
 
 	// Check cluster can still operate with remaining nodes
 	failoverMgr.checkFailoverConditions()
-	
+
 	health := failoverMgr.GetClusterHealth()
 	assert.Equal(t, 3, health["healthy_nodes"])
 	assert.Equal(t, 3, health["unhealthy_nodes"])
@@ -543,7 +543,7 @@ func TestNetworkPartitionScenario(t *testing.T) {
 
 	// Check that neither partition has quorum (3 out of 6 nodes each)
 	failoverMgr.checkFailoverConditions()
-	
+
 	// With split-brain prevention, cluster should degrade
 	health := failoverMgr.GetClusterHealth()
 	assert.Equal(t, 3, health["healthy_nodes"]) // Only sees its partition

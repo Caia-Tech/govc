@@ -30,7 +30,7 @@ func TestEndToEndWorkflows(t *testing.T) {
 
 		// Step 1: Create user and get auth token
 		t.Log("Step 1: User registration and authentication")
-		
+
 		// For this test, we'll use JWT directly since user registration might not be exposed
 		jwtAuth := auth.NewJWTAuth(cfg.Auth.JWT.Secret, cfg.Auth.JWT.Issuer, cfg.Auth.JWT.TTL)
 		token, err := jwtAuth.GenerateToken("dev-user", "dev123", "dev@example.com", []string{"repo:read", "repo:write", "repo:delete"})
@@ -286,7 +286,7 @@ func TestEndToEndWorkflows(t *testing.T) {
 
 		// Create different team members with different permissions
 		jwtAuth := auth.NewJWTAuth(cfg.Auth.JWT.Secret, cfg.Auth.JWT.Issuer, cfg.Auth.JWT.TTL)
-		
+
 		teamMembers := []struct {
 			username    string
 			email       string

@@ -85,7 +85,7 @@ func init() {
 	// Migration command setup
 	migrateCmd.AddCommand(migrateGitHubCmd)
 	migrateCmd.AddCommand(migrateGitLabCmd)
-	
+
 	// GitHub migration flags
 	migrateGitHubCmd.Flags().String("token", "", "GitHub API token")
 	migrateGitHubCmd.Flags().String("org", "", "GitHub organization name")
@@ -164,18 +164,18 @@ func runImportGit(cmd *cobra.Command, args []string) {
 					fmt.Printf("\r✗ Import failed with %d errors%30s\n", len(progress.Errors), "")
 					break
 				}
-				
+
 				percentage := 0.0
 				if progress.TotalObjects > 0 {
 					percentage = float64(progress.ImportedObjects) / float64(progress.TotalObjects) * 100
 				}
-				
-				fmt.Printf("\r%s: %.1f%% (%d/%d objects)", 
-					progress.CurrentPhase, 
-					percentage, 
-					progress.ImportedObjects, 
+
+				fmt.Printf("\r%s: %.1f%% (%d/%d objects)",
+					progress.CurrentPhase,
+					percentage,
+					progress.ImportedObjects,
 					progress.TotalObjects)
-				
+
 				time.Sleep(500 * time.Millisecond)
 			}
 		}()
@@ -184,7 +184,7 @@ func runImportGit(cmd *cobra.Command, args []string) {
 	// Perform import
 	if err := importer.Import(); err != nil {
 		fmt.Fprintf(os.Stderr, "\nError importing repository: %v\n", err)
-		
+
 		// Show any accumulated errors
 		progress := importer.GetProgress()
 		if len(progress.Errors) > 0 {
@@ -240,18 +240,18 @@ func runExportGit(cmd *cobra.Command, args []string) {
 					fmt.Printf("\r✗ Export failed with %d errors%30s\n", len(progress.Errors), "")
 					break
 				}
-				
+
 				percentage := 0.0
 				if progress.TotalCommits > 0 {
 					percentage = float64(progress.ExportedCommits) / float64(progress.TotalCommits) * 100
 				}
-				
-				fmt.Printf("\r%s: %.1f%% (%d/%d commits)", 
-					progress.CurrentPhase, 
-					percentage, 
-					progress.ExportedCommits, 
+
+				fmt.Printf("\r%s: %.1f%% (%d/%d commits)",
+					progress.CurrentPhase,
+					percentage,
+					progress.ExportedCommits,
 					progress.TotalCommits)
-				
+
 				time.Sleep(500 * time.Millisecond)
 			}
 		}()
@@ -334,19 +334,19 @@ func runMigrateGitHub(cmd *cobra.Command, args []string) {
 				fmt.Printf("\r⚠️  Migration completed with %d errors%20s\n", len(progress.Errors), "")
 				break
 			}
-			
+
 			if progress.TotalSteps > 0 {
 				percentage := float64(progress.CompletedSteps) / float64(progress.TotalSteps) * 100
-				fmt.Printf("\r%s: %.1f%% (%d/%d repos) - %s", 
-					progress.CurrentPhase, 
-					percentage, 
-					progress.CompletedSteps, 
+				fmt.Printf("\r%s: %.1f%% (%d/%d repos) - %s",
+					progress.CurrentPhase,
+					percentage,
+					progress.CompletedSteps,
 					progress.TotalSteps,
 					progress.CurrentRepo)
 			} else {
 				fmt.Printf("\r%s...", progress.CurrentPhase)
 			}
-			
+
 			time.Sleep(1 * time.Second)
 		}
 	}()
@@ -460,21 +460,21 @@ func runBackup(cmd *cobra.Command, args []string) {
 					fmt.Printf("\r✗ Backup failed with %d errors%30s\n", len(progress.Errors), "")
 					break
 				}
-				
+
 				var percentage float64
 				if progress.TotalSize > 0 {
 					percentage = float64(progress.ProcessedSize) / float64(progress.TotalSize) * 100
 				} else if progress.TotalFiles > 0 {
 					percentage = float64(progress.ProcessedFiles) / float64(progress.TotalFiles) * 100
 				}
-				
-				fmt.Printf("\r%s: %.1f%% (%d/%d files, %s)", 
-					progress.CurrentPhase, 
-					percentage, 
-					progress.ProcessedFiles, 
+
+				fmt.Printf("\r%s: %.1f%% (%d/%d files, %s)",
+					progress.CurrentPhase,
+					percentage,
+					progress.ProcessedFiles,
 					progress.TotalFiles,
 					formatSize(progress.ProcessedSize))
-				
+
 				time.Sleep(500 * time.Millisecond)
 			}
 		}()
@@ -552,18 +552,18 @@ func runRestore(cmd *cobra.Command, args []string) {
 					fmt.Printf("\r✗ Restore failed with %d errors%30s\n", len(progress.Errors), "")
 					break
 				}
-				
+
 				percentage := 0.0
 				if progress.TotalFiles > 0 {
 					percentage = float64(progress.ProcessedFiles) / float64(progress.TotalFiles) * 100
 				}
-				
-				fmt.Printf("\r%s: %.1f%% (%d/%d files)", 
-					progress.CurrentPhase, 
-					percentage, 
-					progress.ProcessedFiles, 
+
+				fmt.Printf("\r%s: %.1f%% (%d/%d files)",
+					progress.CurrentPhase,
+					percentage,
+					progress.ProcessedFiles,
 					progress.TotalFiles)
-				
+
 				time.Sleep(500 * time.Millisecond)
 			}
 		}()

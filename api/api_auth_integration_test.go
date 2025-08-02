@@ -20,7 +20,7 @@ func setupAuthTestServer() (*Server, *gin.Engine) {
 	cfg.Metrics.Enabled = true
 	cfg.Pool.MaxRepositories = 50
 	cfg.Development.Debug = true
-	
+
 	server := NewServer(cfg)
 	router := gin.New()
 	server.RegisterRoutes(router)
@@ -206,7 +206,7 @@ func TestAuthenticationFlow(t *testing.T) {
 
 		router.ServeHTTP(w, req)
 
-		// Since auth is enabled but we're using OptionalAuth for repos, 
+		// Since auth is enabled but we're using OptionalAuth for repos,
 		// this should still work but without user context
 		if w.Code != 200 {
 			t.Errorf("Expected repository listing to work without auth: %d", w.Code)
@@ -296,7 +296,7 @@ func TestRBACPermissions(t *testing.T) {
 		if w.Code != 201 {
 			t.Fatalf("User creation failed: %d - %s", w.Code, w.Body.String())
 		}
-		
+
 		// Extract the user ID from response
 		var userResp map[string]interface{}
 		json.Unmarshal(w.Body.Bytes(), &userResp)

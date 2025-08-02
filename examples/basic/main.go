@@ -108,11 +108,11 @@ func fileOperationsExample() {
 
 	// Create directory structure
 	files := map[string]string{
-		"src/main.go":      "package main\n\nfunc main() {\n\tprintln(\"Hello, govc!\")\n}\n",
-		"src/utils.go":     "package main\n\n// Utility functions\n",
+		"src/main.go":       "package main\n\nfunc main() {\n\tprintln(\"Hello, govc!\")\n}\n",
+		"src/utils.go":      "package main\n\n// Utility functions\n",
 		"test/main_test.go": "package main\n\nimport \"testing\"\n\nfunc TestMain(t *testing.T) {}\n",
-		"README.md":        "# My Project\n\nBuilt with govc\n",
-		".gitignore":       "*.tmp\n*.commits\n",
+		"README.md":         "# My Project\n\nBuilt with govc\n",
+		".gitignore":        "*.tmp\n*.commits\n",
 	}
 
 	// Write multiple files

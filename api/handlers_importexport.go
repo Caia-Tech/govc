@@ -105,15 +105,15 @@ type RestoreResponse struct {
 
 // ProgressResponse represents progress information
 type ProgressResponse struct {
-	JobID          string        `json:"job_id"`
-	Status         string        `json:"status"`
-	CurrentPhase   string        `json:"current_phase"`
-	Progress       float64       `json:"progress"`
-	EstimatedTime  time.Duration `json:"estimated_time,omitempty"`
-	StartedAt      time.Time     `json:"started_at"`
-	CompletedAt    *time.Time    `json:"completed_at,omitempty"`
-	Errors         []string      `json:"errors,omitempty"`
-	Details        interface{}   `json:"details,omitempty"`
+	JobID         string        `json:"job_id"`
+	Status        string        `json:"status"`
+	CurrentPhase  string        `json:"current_phase"`
+	Progress      float64       `json:"progress"`
+	EstimatedTime time.Duration `json:"estimated_time,omitempty"`
+	StartedAt     time.Time     `json:"started_at"`
+	CompletedAt   *time.Time    `json:"completed_at,omitempty"`
+	Errors        []string      `json:"errors,omitempty"`
+	Details       interface{}   `json:"details,omitempty"`
 }
 
 // Job tracking for long-running operations
@@ -175,7 +175,7 @@ func (s *Server) ImportGitHandler(c *gin.Context) {
 	// Create job
 	jobID := generateJobID()
 	ctx, cancel := context.WithCancel(context.Background())
-	
+
 	job := &Job{
 		ID:        jobID,
 		Type:      "import",
@@ -247,7 +247,7 @@ func (s *Server) ExportGitHandler(c *gin.Context) {
 	// Create job
 	jobID := generateJobID()
 	ctx, cancel := context.WithCancel(context.Background())
-	
+
 	job := &Job{
 		ID:        jobID,
 		Type:      "export",
@@ -300,7 +300,7 @@ func (s *Server) MigrateHandler(c *gin.Context) {
 	// Create job
 	jobID := generateJobID()
 	ctx, cancel := context.WithCancel(context.Background())
-	
+
 	job := &Job{
 		ID:        jobID,
 		Type:      "migrate",
@@ -370,7 +370,7 @@ func (s *Server) BackupHandler(c *gin.Context) {
 	// Create job
 	jobID := generateJobID()
 	ctx, cancel := context.WithCancel(context.Background())
-	
+
 	job := &Job{
 		ID:        jobID,
 		Type:      "backup",
@@ -437,7 +437,7 @@ func (s *Server) RestoreHandler(c *gin.Context) {
 	// Create job
 	jobID := generateJobID()
 	ctx, cancel := context.WithCancel(context.Background())
-	
+
 	job := &Job{
 		ID:        jobID,
 		Type:      "restore",
@@ -471,7 +471,7 @@ func (s *Server) RestoreHandler(c *gin.Context) {
 			job.Error = err
 		} else {
 			job.Status = "completed"
-			
+
 			// If not dry run, load restored repository
 			if !req.DryRun {
 				// Register restored repository
@@ -501,7 +501,7 @@ func (s *Server) RestoreHandler(c *gin.Context) {
 // ProgressHandler returns job progress
 func (s *Server) ProgressHandler(c *gin.Context) {
 	jobID := c.Param("job_id")
-	
+
 	job, exists := jobs[jobID]
 	if !exists {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Job not found"})
@@ -548,7 +548,7 @@ func (s *Server) ProgressHandler(c *gin.Context) {
 // CancelJobHandler cancels a running job
 func (s *Server) CancelJobHandler(c *gin.Context) {
 	jobID := c.Param("job_id")
-	
+
 	job, exists := jobs[jobID]
 	if !exists {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Job not found"})
@@ -561,8 +561,8 @@ func (s *Server) CancelJobHandler(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"job_id": jobID,
-		"status": job.Status,
+		"job_id":  jobID,
+		"status":  job.Status,
 		"message": "Job cancellation requested",
 	})
 }
@@ -570,28 +570,28 @@ func (s *Server) CancelJobHandler(c *gin.Context) {
 // ListJobsHandler lists all jobs
 func (s *Server) ListJobsHandler(c *gin.Context) {
 	var jobList []ProgressResponse
-	
+
 	for _, job := range jobs {
 		progress := ProgressResponse{
 			JobID:     job.ID,
 			Status:    job.Status,
 			StartedAt: job.StartedAt,
 		}
-		
+
 		if job.Status == "completed" || job.Status == "failed" {
 			now := time.Now()
 			progress.CompletedAt = &now
 		}
-		
+
 		if job.Error != nil {
 			progress.Errors = []string{job.Error.Error()}
 		}
-		
+
 		jobList = append(jobList, progress)
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"jobs": jobList,
+		"jobs":  jobList,
 		"total": len(jobList),
 	})
 }
@@ -610,8 +610,8 @@ func (s *Server) ListBackupsHandler(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"backups": backups,
-		"total": len(backups),
+		"backups":    backups,
+		"total":      len(backups),
 		"backup_dir": backupDir,
 	})
 }
@@ -628,21 +628,21 @@ func generateJobID() string {
 func (s *Server) SetupImportExportRoutes() {
 	// Import/Export routes
 	v1 := s.router.Group("/api/v1")
-	
+
 	// Import
 	v1.POST("/import/git", s.ImportGitHandler)
-	
-	// Export  
+
+	// Export
 	v1.POST("/export/git", s.ExportGitHandler)
-	
+
 	// Migration
 	v1.POST("/migrate", s.MigrateHandler)
-	
+
 	// Backup/Restore
 	v1.POST("/backup", s.BackupHandler)
 	v1.POST("/restore", s.RestoreHandler)
 	v1.GET("/backups", s.ListBackupsHandler)
-	
+
 	// Job management
 	v1.GET("/jobs", s.ListJobsHandler)
 	v1.GET("/jobs/:job_id/progress", s.ProgressHandler)

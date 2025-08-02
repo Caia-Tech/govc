@@ -26,10 +26,10 @@ type GitImporter struct {
 
 // ImportProgress tracks import progress
 type ImportProgress struct {
-	TotalObjects   int
+	TotalObjects    int
 	ImportedObjects int
-	CurrentPhase   string
-	Errors         []error
+	CurrentPhase    string
+	Errors          []error
 }
 
 // TreeEntry represents a Git tree entry
@@ -72,7 +72,7 @@ func NewGitImporter(govcRepo *govc.Repository, gitRepoPath string) *GitImporter 
 		gitPath: gitRepoPath,
 		progress: ImportProgress{
 			CurrentPhase: "Initializing",
-			Errors:      []error{},
+			Errors:       []error{},
 		},
 	}
 }
@@ -143,7 +143,7 @@ func (gi *GitImporter) verifyGitRepo() error {
 func (gi *GitImporter) importRefs() error {
 	// Store refs for later processing (after commits are imported)
 	refsData := make(map[string]string)
-	
+
 	// Import branches
 	branchesPath := gi.getGitPath("refs/heads")
 	if err := filepath.Walk(branchesPath, func(path string, info os.FileInfo, err error) error {
@@ -153,7 +153,7 @@ func (gi *GitImporter) importRefs() error {
 
 		relPath, _ := filepath.Rel(branchesPath, path)
 		branchName := filepath.ToSlash(relPath)
-		
+
 		hash, err := gi.readRef(path)
 		if err != nil {
 			return fmt.Errorf("failed to read branch %s: %w", branchName, err)
@@ -174,7 +174,7 @@ func (gi *GitImporter) importRefs() error {
 
 		relPath, _ := filepath.Rel(tagsPath, path)
 		tagName := filepath.ToSlash(relPath)
-		
+
 		hash, err := gi.readRef(path)
 		if err != nil {
 			return fmt.Errorf("failed to read tag %s: %w", tagName, err)
@@ -192,18 +192,18 @@ func (gi *GitImporter) importRefs() error {
 	if err := os.MkdirAll(filepath.Dir(refsPath), 0755); err != nil {
 		return fmt.Errorf("failed to create refs storage dir: %w", err)
 	}
-	
+
 	refsJSON, err := json.Marshal(refsData)
 	if err != nil {
 		return fmt.Errorf("failed to marshal refs data: %w", err)
 	}
-	
+
 	return os.WriteFile(refsPath, refsJSON, 0644)
 }
 
 func (gi *GitImporter) importObjects() error {
 	objectsPath := gi.getGitPath("objects")
-	
+
 	// First pass: count objects
 	totalObjects := 0
 	err := filepath.Walk(objectsPath, func(path string, info os.FileInfo, err error) error {
@@ -235,12 +235,12 @@ func (gi *GitImporter) importObjects() error {
 		if len(parts) != 2 {
 			return nil
 		}
-		
+
 		objectHash := parts[0] + parts[1]
 		if err := gi.importObject(objectHash); err != nil {
 			gi.progress.Errors = append(gi.progress.Errors, err)
 		}
-		
+
 		gi.progress.ImportedObjects++
 		return nil
 	})
@@ -253,7 +253,7 @@ func (gi *GitImporter) importObjects() error {
 
 func (gi *GitImporter) importObject(hash string) error {
 	objectPath := gi.getGitPath("objects", hash[:2], hash[2:])
-	
+
 	// Read and decompress object
 	data, err := os.ReadFile(objectPath)
 	if err != nil {
@@ -321,11 +321,11 @@ func (gi *GitImporter) importBlob(hash string, content []byte) error {
 	if err := os.MkdirAll(filepath.Dir(tempPath), 0755); err != nil {
 		return fmt.Errorf("failed to create blob storage dir: %w", err)
 	}
-	
+
 	if err := os.WriteFile(tempPath, content, 0644); err != nil {
 		return fmt.Errorf("failed to store blob %s: %w", hash, err)
 	}
-	
+
 	return nil
 }
 
@@ -333,69 +333,69 @@ func (gi *GitImporter) importTree(hash string, content []byte) error {
 	// Parse Git tree object format
 	var entries []TreeEntry
 	offset := 0
-	
+
 	for offset < len(content) {
 		// Find null terminator for mode and name
 		nullIndex := bytes.IndexByte(content[offset:], 0)
 		if nullIndex == -1 {
 			return fmt.Errorf("invalid tree format in %s", hash)
 		}
-		
+
 		// Parse mode and name
 		modeAndName := string(content[offset : offset+nullIndex])
 		parts := strings.SplitN(modeAndName, " ", 2)
 		if len(parts) != 2 {
 			return fmt.Errorf("invalid tree entry format in %s", hash)
 		}
-		
+
 		mode := parts[0]
 		name := parts[1]
-		
+
 		// Read 20-byte SHA-1 hash
 		offset += nullIndex + 1
 		if offset+20 > len(content) {
 			return fmt.Errorf("truncated tree entry in %s", hash)
 		}
-		
+
 		sha := hex.EncodeToString(content[offset : offset+20])
 		offset += 20
-		
+
 		entries = append(entries, TreeEntry{
 			Mode: mode,
 			Name: name,
 			Hash: sha,
 		})
 	}
-	
+
 	// Store tree structure for later use
 	treeData := TreeData{
 		Hash:    hash,
 		Entries: entries,
 	}
-	
+
 	// Use working directory since GetPath() is not available
 	wd, _ := os.Getwd()
 	treePath := filepath.Join(wd, ".govc", "import_temp", "trees", hash+".json")
 	if err := os.MkdirAll(filepath.Dir(treePath), 0755); err != nil {
 		return fmt.Errorf("failed to create tree storage dir: %w", err)
 	}
-	
+
 	treeJSON, err := json.Marshal(treeData)
 	if err != nil {
 		return fmt.Errorf("failed to marshal tree data: %w", err)
 	}
-	
+
 	if err := os.WriteFile(treePath, treeJSON, 0644); err != nil {
 		return fmt.Errorf("failed to store tree %s: %w", hash, err)
 	}
-	
+
 	return nil
 }
 
 func (gi *GitImporter) importCommit(hash string, content []byte) error {
 	// Parse commit object
 	lines := strings.Split(string(content), "\n")
-	
+
 	var tree string
 	var parents []string
 	var author, committer govc.Author
@@ -439,30 +439,30 @@ func (gi *GitImporter) importCommit(hash string, content []byte) error {
 		Committer: committer,
 		Message:   strings.TrimSpace(message.String()),
 	}
-	
+
 	// Use working directory since GetPath() is not available
 	wd, _ := os.Getwd()
 	commitPath := filepath.Join(wd, ".govc", "import_temp", "commits", hash+".json")
 	if err := os.MkdirAll(filepath.Dir(commitPath), 0755); err != nil {
 		return fmt.Errorf("failed to create commit storage dir: %w", err)
 	}
-	
+
 	commitJSON, err := json.Marshal(commitData)
 	if err != nil {
 		return fmt.Errorf("failed to marshal commit data: %w", err)
 	}
-	
+
 	if err := os.WriteFile(commitPath, commitJSON, 0644); err != nil {
 		return fmt.Errorf("failed to store commit %s: %w", hash, err)
 	}
-	
+
 	return nil
 }
 
 func (gi *GitImporter) importTag(hash string, content []byte) error {
 	// Parse annotated tag object
 	lines := strings.Split(string(content), "\n")
-	
+
 	var object, tagType, tag string
 	var tagger govc.Author
 	var message strings.Builder
@@ -505,23 +505,23 @@ func (gi *GitImporter) importTag(hash string, content []byte) error {
 		Tagger:  tagger,
 		Message: strings.TrimSpace(message.String()),
 	}
-	
+
 	// Use working directory since GetPath() is not available
 	wd, _ := os.Getwd()
 	tagPath := filepath.Join(wd, ".govc", "import_temp", "tags", hash+".json")
 	if err := os.MkdirAll(filepath.Dir(tagPath), 0755); err != nil {
 		return fmt.Errorf("failed to create tag storage dir: %w", err)
 	}
-	
+
 	tagJSON, err := json.Marshal(tagData)
 	if err != nil {
 		return fmt.Errorf("failed to marshal tag data: %w", err)
 	}
-	
+
 	if err := os.WriteFile(tagPath, tagJSON, 0644); err != nil {
 		return fmt.Errorf("failed to store tag %s: %w", hash, err)
 	}
-	
+
 	return nil
 }
 
@@ -535,14 +535,14 @@ func (gi *GitImporter) parseAuthor(authorLine string) govc.Author {
 	// Find email boundaries
 	emailStart := strings.Index(authorLine, "<")
 	emailEnd := strings.Index(authorLine, ">")
-	
+
 	if emailStart == -1 || emailEnd == -1 {
 		return govc.Author{}
 	}
 
 	name := strings.TrimSpace(authorLine[:emailStart])
 	email := authorLine[emailStart+1 : emailEnd]
-	
+
 	// Parse timestamp
 	timestampStr := strings.TrimSpace(authorLine[emailEnd+1:])
 	parts = strings.Split(timestampStr, " ")
@@ -571,7 +571,7 @@ func (gi *GitImporter) importHEAD() error {
 	}
 
 	headContent := strings.TrimSpace(string(content))
-	
+
 	// Handle symbolic ref
 	if strings.HasPrefix(headContent, "ref: ") {
 		ref := strings.TrimPrefix(headContent, "ref: ")
@@ -584,7 +584,7 @@ func (gi *GitImporter) importHEAD() error {
 
 	// Handle detached HEAD (direct commit hash)
 	// This would need to be handled appropriately
-	
+
 	return nil
 }
 
@@ -618,13 +618,13 @@ func (gi *GitImporter) reconstructCommits() error {
 	// Use working directory since GetPath() is not available
 	wd, _ := os.Getwd()
 	commitsDir := filepath.Join(wd, ".govc", "import_temp", "commits")
-	
+
 	// Read all commit files
 	commitFiles, err := filepath.Glob(filepath.Join(commitsDir, "*.json"))
 	if err != nil {
 		return fmt.Errorf("failed to find commit files: %w", err)
 	}
-	
+
 	// Parse and sort commits by dependency order (parents before children)
 	commits := make(map[string]CommitData)
 	for _, file := range commitFiles {
@@ -632,57 +632,57 @@ func (gi *GitImporter) reconstructCommits() error {
 		if err != nil {
 			continue
 		}
-		
+
 		var commit CommitData
 		if err := json.Unmarshal(data, &commit); err != nil {
 			continue
 		}
-		
+
 		commits[commit.Hash] = commit
 	}
-	
+
 	// Process commits in topological order
 	processed := make(map[string]bool)
 	var processCommit func(hash string) error
-	
+
 	processCommit = func(hash string) error {
 		if processed[hash] {
 			return nil
 		}
-		
+
 		commit, exists := commits[hash]
 		if !exists {
 			return nil // Skip missing commits
 		}
-		
+
 		// Process parents first
 		for _, parent := range commit.Parents {
 			if err := processCommit(parent); err != nil {
 				return err
 			}
 		}
-		
+
 		// Reconstruct working tree from Git tree object
 		if err := gi.reconstructTree(commit.Tree, ""); err != nil {
 			return fmt.Errorf("failed to reconstruct tree for commit %s: %w", hash, err)
 		}
-		
+
 		// Create commit in govc
 		if err := gi.createGovcCommit(commit); err != nil {
 			return fmt.Errorf("failed to create govc commit %s: %w", hash, err)
 		}
-		
+
 		processed[hash] = true
 		return nil
 	}
-	
+
 	// Process all commits
 	for hash := range commits {
 		if err := processCommit(hash); err != nil {
 			return err
 		}
 	}
-	
+
 	return nil
 }
 
@@ -691,20 +691,20 @@ func (gi *GitImporter) reconstructTree(treeHash, basePath string) error {
 	// Use working directory since GetPath() is not available
 	wd, _ := os.Getwd()
 	treePath := filepath.Join(wd, ".govc", "import_temp", "trees", treeHash+".json")
-	
+
 	data, err := os.ReadFile(treePath)
 	if err != nil {
 		return fmt.Errorf("failed to read tree %s: %w", treeHash, err)
 	}
-	
+
 	var tree TreeData
 	if err := json.Unmarshal(data, &tree); err != nil {
 		return fmt.Errorf("failed to parse tree %s: %w", treeHash, err)
 	}
-	
+
 	for _, entry := range tree.Entries {
 		entryPath := filepath.Join(basePath, entry.Name)
-		
+
 		switch entry.Mode {
 		case "040000": // Directory
 			// Recursively process subdirectory
@@ -719,18 +719,18 @@ func (gi *GitImporter) reconstructTree(treeHash, basePath string) error {
 			if err != nil {
 				return fmt.Errorf("failed to read blob %s: %w", entry.Hash, err)
 			}
-			
+
 			// Create file in working directory
 			fullPath := filepath.Join(wd, entryPath)
 			if err := os.MkdirAll(filepath.Dir(fullPath), 0755); err != nil {
 				return fmt.Errorf("failed to create directory for %s: %w", entryPath, err)
 			}
-			
+
 			perm := os.FileMode(0644)
 			if entry.Mode == "100755" {
 				perm = 0755
 			}
-			
+
 			if err := os.WriteFile(fullPath, content, perm); err != nil {
 				return fmt.Errorf("failed to write file %s: %w", entryPath, err)
 			}
@@ -742,18 +742,18 @@ func (gi *GitImporter) reconstructTree(treeHash, basePath string) error {
 			if err != nil {
 				return fmt.Errorf("failed to read symlink target %s: %w", entry.Hash, err)
 			}
-			
+
 			fullPath := filepath.Join(wd, entryPath)
 			if err := os.MkdirAll(filepath.Dir(fullPath), 0755); err != nil {
 				return fmt.Errorf("failed to create directory for symlink %s: %w", entryPath, err)
 			}
-			
+
 			if err := os.Symlink(string(target), fullPath); err != nil {
 				return fmt.Errorf("failed to create symlink %s: %w", entryPath, err)
 			}
 		}
 	}
-	
+
 	return nil
 }
 
@@ -763,18 +763,18 @@ func (gi *GitImporter) createGovcCommit(commit CommitData) error {
 	if err := gi.repo.Add("."); err != nil {
 		return fmt.Errorf("failed to stage files: %w", err)
 	}
-	
+
 	// Create commit with original author and timestamp
 	commitObj, err := gi.repo.Commit(commit.Message)
 	if err != nil {
 		return fmt.Errorf("failed to commit: %w", err)
 	}
 	commitID := commitObj.Hash()
-	
+
 	// Store mapping from Git hash to govc commit ID for reference resolution
 	wd, _ := os.Getwd()
 	mappingPath := filepath.Join(wd, ".govc", "import_temp", "commit_mapping.json")
-	
+
 	var mapping map[string]string
 	if data, err := os.ReadFile(mappingPath); err == nil {
 		json.Unmarshal(data, &mapping)
@@ -782,12 +782,12 @@ func (gi *GitImporter) createGovcCommit(commit CommitData) error {
 	if mapping == nil {
 		mapping = make(map[string]string)
 	}
-	
+
 	mapping[commit.Hash] = commitID
-	
+
 	mappingData, _ := json.Marshal(mapping)
 	os.WriteFile(mappingPath, mappingData, 0644)
-	
+
 	return nil
 }
 
@@ -800,24 +800,24 @@ func (gi *GitImporter) reconstructRefs() error {
 	if err != nil {
 		return fmt.Errorf("failed to read refs data: %w", err)
 	}
-	
+
 	var refs map[string]string
 	if err := json.Unmarshal(data, &refs); err != nil {
 		return fmt.Errorf("failed to parse refs data: %w", err)
 	}
-	
+
 	// Read commit mapping
 	mappingPath := filepath.Join(wd, ".govc", "import_temp", "commit_mapping.json")
 	mappingData, err := os.ReadFile(mappingPath)
 	if err != nil {
 		return fmt.Errorf("failed to read commit mapping: %w", err)
 	}
-	
+
 	var mapping map[string]string
 	if err := json.Unmarshal(mappingData, &mapping); err != nil {
 		return fmt.Errorf("failed to parse commit mapping: %w", err)
 	}
-	
+
 	// Create branches
 	for ref, gitHash := range refs {
 		if strings.HasPrefix(ref, "refs/heads/") {
@@ -826,7 +826,7 @@ func (gi *GitImporter) reconstructRefs() error {
 			if !exists {
 				continue // Skip if commit not mapped
 			}
-			
+
 			// Create branch pointing to the govc commit (simplified)
 			// For now, we'll skip branch creation as the API is different
 			_ = branchName
@@ -840,7 +840,7 @@ func (gi *GitImporter) reconstructRefs() error {
 			if !exists {
 				continue // Skip if commit not mapped
 			}
-			
+
 			// Create tag pointing to the govc commit (simplified)
 			_ = govcCommitID // Avoid unused variable error
 			if err := gi.repo.CreateTag(tagName, "Imported from Git"); err != nil {
@@ -848,7 +848,7 @@ func (gi *GitImporter) reconstructRefs() error {
 			}
 		}
 	}
-	
+
 	return nil
 }
 

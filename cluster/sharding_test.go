@@ -37,13 +37,13 @@ func TestConsistentHashRing(t *testing.T) {
 		node := ring.GetNode(key)
 		nodeDistribution[node]++
 	}
-	
+
 	// Should have some distribution across nodes
 	assert.Greater(t, len(nodeDistribution), 1)
 
 	// Remove a node
 	ring.RemoveNode("node2")
-	
+
 	// Keys should still map to remaining nodes
 	node1AfterRemoval := ring.GetNode("key1")
 	assert.NotEmpty(t, node1AfterRemoval)
@@ -62,7 +62,7 @@ func TestConsistentHashRingDistribution(t *testing.T) {
 	// Generate many keys and check distribution
 	numKeys := 10000
 	distribution := make(map[string]int)
-	
+
 	for i := 0; i < numKeys; i++ {
 		key := fmt.Sprintf("key-%d", i)
 		node := ring.GetNode(key)
@@ -79,7 +79,7 @@ func TestConsistentHashRingDistribution(t *testing.T) {
 
 	for node, count := range distribution {
 		deviation := float64(count) / expectedPerNode
-		assert.InDelta(t, 1.0, deviation, tolerance, 
+		assert.InDelta(t, 1.0, deviation, tolerance,
 			"Node %s has %d keys, expected ~%.0f", node, count, expectedPerNode)
 	}
 }
@@ -97,7 +97,7 @@ func TestConsistentHashRingReplication(t *testing.T) {
 	// Test getting multiple nodes
 	nodes := ring.GetNodes("test-key", 3)
 	assert.Len(t, nodes, 3)
-	
+
 	// All nodes should be unique
 	seen := make(map[string]bool)
 	for _, node := range nodes {
@@ -217,7 +217,7 @@ func TestShardMetrics(t *testing.T) {
 
 	// Calculate metrics
 	metrics := sm.CalculateShardMetrics()
-	
+
 	assert.Greater(t, metrics.TotalShards, 0)
 	assert.NotEmpty(t, metrics.ShardsPerNode)
 	assert.NotEmpty(t, metrics.RepositoriesPerShard)
@@ -244,7 +244,7 @@ func TestShardMigrationSharding(t *testing.T) {
 
 	// Create and distribute repository
 	sm.DistributeRepository("repo1", &govc.Repository{})
-	
+
 	// Get shard
 	shard := sm.GetShardForRepository("repo1")
 	originalPrimary := shard.PrimaryNode
@@ -254,7 +254,7 @@ func TestShardMigrationSharding(t *testing.T) {
 	if originalPrimary == "node3" {
 		targetNode = "node2"
 	}
-	
+
 	err = sm.MigrateShard(shard.ID, originalPrimary, targetNode)
 	assert.NoError(t, err)
 
@@ -303,7 +303,7 @@ func TestRebalancer(t *testing.T) {
 
 	// Verify tasks move shards from overloaded to underloaded nodes
 	for _, task := range tasks {
-		assert.Equal(t, "node1", task.SourceNode) // All from overloaded node
+		assert.Equal(t, "node1", task.SourceNode)    // All from overloaded node
 		assert.NotEqual(t, "node1", task.TargetNode) // To other nodes
 	}
 }
@@ -397,20 +397,20 @@ func TestMigrationQueue(t *testing.T) {
 
 	// Create migration tasks
 	task1 := MigrationTask{
-		ID:          "migration-1",
-		ShardID:     "shard-1",
-		SourceNode:  "node1",
-		TargetNode:  "node2",
-		State:       MigrationStatePending,
+		ID:           "migration-1",
+		ShardID:      "shard-1",
+		SourceNode:   "node1",
+		TargetNode:   "node2",
+		State:        MigrationStatePending,
 		Repositories: []string{"repo1", "repo2"},
 	}
 
 	task2 := MigrationTask{
-		ID:          "migration-2",
-		ShardID:     "shard-2",
-		SourceNode:  "node2",
-		TargetNode:  "node3",
-		State:       MigrationStatePending,
+		ID:           "migration-2",
+		ShardID:      "shard-2",
+		SourceNode:   "node2",
+		TargetNode:   "node3",
+		State:        MigrationStatePending,
 		Repositories: []string{"repo3"},
 	}
 

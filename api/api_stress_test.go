@@ -22,9 +22,9 @@ func TestStressConcurrentRepositories(t *testing.T) {
 	server, router := setupBenchmarkServer()
 
 	const (
-		numRepos       = 100
-		numOpsPerRepo  = 50
-		numGoroutines  = 20
+		numRepos      = 100
+		numOpsPerRepo = 50
+		numGoroutines = 20
 	)
 
 	// Create repositories
@@ -99,7 +99,7 @@ func TestStressConcurrentRepositories(t *testing.T) {
 						content := fmt.Sprintf("Content from worker %d, op %d", workerID, j)
 						body := bytes.NewBufferString(fmt.Sprintf(
 							`{"path": "%s", "content": "%s"}`, path, content))
-						req := httptest.NewRequest("POST", 
+						req := httptest.NewRequest("POST",
 							fmt.Sprintf("/api/v1/repos/%s/add", repoID), body)
 						req.Header.Set("Content-Type", "application/json")
 						w := httptest.NewRecorder()
@@ -111,7 +111,7 @@ func TestStressConcurrentRepositories(t *testing.T) {
 						}
 
 					case 1: // Get status
-						req := httptest.NewRequest("GET", 
+						req := httptest.NewRequest("GET",
 							fmt.Sprintf("/api/v1/repos/%s/status", repoID), nil)
 						w := httptest.NewRecorder()
 						router.ServeHTTP(w, req)
@@ -121,7 +121,7 @@ func TestStressConcurrentRepositories(t *testing.T) {
 						}
 
 					case 2: // List branches
-						req := httptest.NewRequest("GET", 
+						req := httptest.NewRequest("GET",
 							fmt.Sprintf("/api/v1/repos/%s/branches", repoID), nil)
 						w := httptest.NewRecorder()
 						router.ServeHTTP(w, req)
@@ -133,7 +133,7 @@ func TestStressConcurrentRepositories(t *testing.T) {
 					case 3: // Create branch
 						branchName := fmt.Sprintf("branch-%d-%d", workerID, j)
 						body := bytes.NewBufferString(fmt.Sprintf(`{"name": "%s"}`, branchName))
-						req := httptest.NewRequest("POST", 
+						req := httptest.NewRequest("POST",
 							fmt.Sprintf("/api/v1/repos/%s/branches", repoID), body)
 						req.Header.Set("Content-Type", "application/json")
 						w := httptest.NewRecorder()
@@ -147,7 +147,7 @@ func TestStressConcurrentRepositories(t *testing.T) {
 					case 4: // Commit
 						body := bytes.NewBufferString(fmt.Sprintf(
 							`{"message": "Stress test commit %d-%d"}`, workerID, j))
-						req := httptest.NewRequest("POST", 
+						req := httptest.NewRequest("POST",
 							fmt.Sprintf("/api/v1/repos/%s/commit", repoID), body)
 						req.Header.Set("Content-Type", "application/json")
 						w := httptest.NewRecorder()
@@ -205,10 +205,10 @@ func TestStressTransactions(t *testing.T) {
 	_, router := setupBenchmarkServer()
 
 	const (
-		numRepos        = 10
-		txPerRepo       = 100
-		filesPerTx      = 10
-		numGoroutines   = 50
+		numRepos      = 10
+		txPerRepo     = 100
+		filesPerTx    = 10
+		numGoroutines = 50
 	)
 
 	// Create repositories
@@ -242,7 +242,7 @@ func TestStressTransactions(t *testing.T) {
 					repoID := fmt.Sprintf("tx-stress-%d", repoIdx)
 
 					// Begin transaction
-					req := httptest.NewRequest("POST", 
+					req := httptest.NewRequest("POST",
 						fmt.Sprintf("/api/v1/repos/%s/transaction", repoID), nil)
 					w := httptest.NewRecorder()
 					router.ServeHTTP(w, req)
@@ -262,7 +262,7 @@ func TestStressTransactions(t *testing.T) {
 						body := bytes.NewBufferString(fmt.Sprintf(
 							`{"path": "tx%d/file%d.txt", "content": "Transaction %d, File %d"}`,
 							txIdx, f, txIdx, f))
-						req := httptest.NewRequest("POST", 
+						req := httptest.NewRequest("POST",
 							fmt.Sprintf("/api/v1/repos/%s/transaction/%s/add", repoID, txResp.ID), body)
 						req.Header.Set("Content-Type", "application/json")
 						w := httptest.NewRecorder()
@@ -280,7 +280,7 @@ func TestStressTransactions(t *testing.T) {
 						// Commit
 						body := bytes.NewBufferString(fmt.Sprintf(
 							`{"message": "Transaction %d commit"}`, txIdx))
-						req := httptest.NewRequest("POST", 
+						req := httptest.NewRequest("POST",
 							fmt.Sprintf("/api/v1/repos/%s/transaction/%s/commit", repoID, txResp.ID), body)
 						req.Header.Set("Content-Type", "application/json")
 						w := httptest.NewRecorder()
@@ -293,7 +293,7 @@ func TestStressTransactions(t *testing.T) {
 						}
 					} else {
 						// Rollback
-						req := httptest.NewRequest("POST", 
+						req := httptest.NewRequest("POST",
 							fmt.Sprintf("/api/v1/repos/%s/transaction/%s/rollback", repoID, txResp.ID), nil)
 						w := httptest.NewRecorder()
 						router.ServeHTTP(w, req)
@@ -320,7 +320,7 @@ func TestStressMemoryLeaks(t *testing.T) {
 	server, router := setupBenchmarkServer()
 
 	const (
-		iterations = 1000
+		iterations   = 1000
 		reposPerIter = 5
 	)
 
@@ -346,7 +346,7 @@ func TestStressMemoryLeaks(t *testing.T) {
 				for k := 0; k < 5; k++ {
 					body := bytes.NewBufferString(fmt.Sprintf(
 						`{"path": "file%d.txt", "content": "content %d"}`, k, k))
-					req := httptest.NewRequest("POST", 
+					req := httptest.NewRequest("POST",
 						fmt.Sprintf("/api/v1/repos/%s/add", repoID), body)
 					req.Header.Set("Content-Type", "application/json")
 					w := httptest.NewRecorder()
@@ -355,7 +355,7 @@ func TestStressMemoryLeaks(t *testing.T) {
 
 				// Commit
 				body := bytes.NewBufferString(`{"message": "Test commit"}`)
-				req := httptest.NewRequest("POST", 
+				req := httptest.NewRequest("POST",
 					fmt.Sprintf("/api/v1/repos/%s/commit", repoID), body)
 				req.Header.Set("Content-Type", "application/json")
 				w := httptest.NewRecorder()
@@ -364,7 +364,7 @@ func TestStressMemoryLeaks(t *testing.T) {
 
 			// Delete repositories
 			for _, repoID := range repoIDs {
-				req := httptest.NewRequest("DELETE", 
+				req := httptest.NewRequest("DELETE",
 					fmt.Sprintf("/api/v1/repos/%s", repoID), nil)
 				w := httptest.NewRecorder()
 				router.ServeHTTP(w, req)
@@ -410,8 +410,8 @@ func TestStressParallelRealities(t *testing.T) {
 	_, router := setupBenchmarkServer()
 
 	const (
-		numRepos = 20
-		realitiesPerRepo = 10
+		numRepos          = 20
+		realitiesPerRepo  = 10
 		changesPerReality = 5
 	)
 
@@ -443,7 +443,7 @@ func TestStressParallelRealities(t *testing.T) {
 
 				branchesJSON, _ := json.Marshal(branches)
 				body := bytes.NewBufferString(fmt.Sprintf(`{"branches": %s}`, branchesJSON))
-				req := httptest.NewRequest("POST", 
+				req := httptest.NewRequest("POST",
 					fmt.Sprintf("/api/v1/repos/%s/parallel-realities", repoID), body)
 				req.Header.Set("Content-Type", "application/json")
 				w := httptest.NewRecorder()
@@ -467,7 +467,7 @@ func TestStressParallelRealities(t *testing.T) {
 
 					changesJSON, _ := json.Marshal(changes)
 					body := bytes.NewBufferString(fmt.Sprintf(`{"changes": %s}`, changesJSON))
-					req := httptest.NewRequest("POST", 
+					req := httptest.NewRequest("POST",
 						fmt.Sprintf("/api/v1/repos/%s/parallel-realities/%s/apply", repoID, branch), body)
 					req.Header.Set("Content-Type", "application/json")
 					w := httptest.NewRecorder()
@@ -484,7 +484,7 @@ func TestStressParallelRealities(t *testing.T) {
 
 		wg.Wait()
 
-		t.Logf("Created %d realities, applied changes to %d, errors: %d", 
+		t.Logf("Created %d realities, applied changes to %d, errors: %d",
 			created, applied, errors)
 	})
 }
@@ -606,7 +606,7 @@ func TestStressLongRunning(t *testing.T) {
 	server, router := setupBenchmarkServer()
 
 	const (
-		duration = 60 * time.Second
+		duration   = 60 * time.Second
 		numWorkers = 10
 	)
 
@@ -646,7 +646,7 @@ func TestStressLongRunning(t *testing.T) {
 					case 0: // Add file
 						body := bytes.NewBufferString(fmt.Sprintf(
 							`{"path": "file_%d_%d.txt", "content": "content"}`, workerID, ops))
-						req := httptest.NewRequest("POST", 
+						req := httptest.NewRequest("POST",
 							fmt.Sprintf("/api/v1/repos/%s/add", repoID), body)
 						req.Header.Set("Content-Type", "application/json")
 						w := httptest.NewRecorder()
@@ -660,7 +660,7 @@ func TestStressLongRunning(t *testing.T) {
 					case 1: // Commit
 						body := bytes.NewBufferString(fmt.Sprintf(
 							`{"message": "Commit %d"}`, ops))
-						req := httptest.NewRequest("POST", 
+						req := httptest.NewRequest("POST",
 							fmt.Sprintf("/api/v1/repos/%s/commit", repoID), body)
 						req.Header.Set("Content-Type", "application/json")
 						w := httptest.NewRecorder()
@@ -672,7 +672,7 @@ func TestStressLongRunning(t *testing.T) {
 						}
 
 					case 2: // Get status
-						req := httptest.NewRequest("GET", 
+						req := httptest.NewRequest("GET",
 							fmt.Sprintf("/api/v1/repos/%s/status", repoID), nil)
 						w := httptest.NewRecorder()
 						router.ServeHTTP(w, req)
@@ -682,7 +682,7 @@ func TestStressLongRunning(t *testing.T) {
 						}
 
 					case 3: // Get log
-						req := httptest.NewRequest("GET", 
+						req := httptest.NewRequest("GET",
 							fmt.Sprintf("/api/v1/repos/%s/log", repoID), nil)
 						w := httptest.NewRecorder()
 						router.ServeHTTP(w, req)
@@ -741,7 +741,7 @@ func TestStressLongRunning(t *testing.T) {
 		t.Logf("  Errors: %d (%.2f%%)", finalErrors, float64(finalErrors)/float64(finalOps)*100)
 
 		if float64(finalErrors)/float64(finalOps) > 0.01 {
-			t.Errorf("Error rate too high during sustained load: %.2f%%", 
+			t.Errorf("Error rate too high during sustained load: %.2f%%",
 				float64(finalErrors)/float64(finalOps)*100)
 		}
 	})

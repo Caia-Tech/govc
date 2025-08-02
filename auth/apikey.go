@@ -13,16 +13,16 @@ import (
 
 // APIKey represents an API key for authentication
 type APIKey struct {
-	ID          string            `json:"id"`
-	Name        string            `json:"name"`
-	HashedKey   string            `json:"-"` // Never expose the actual key
-	UserID      string            `json:"user_id"`
-	Permissions []Permission      `json:"permissions"`
+	ID          string                  `json:"id"`
+	Name        string                  `json:"name"`
+	HashedKey   string                  `json:"-"` // Never expose the actual key
+	UserID      string                  `json:"user_id"`
+	Permissions []Permission            `json:"permissions"`
 	RepoPerms   map[string][]Permission `json:"repo_permissions"`
-	Active      bool              `json:"active"`
-	LastUsed    *time.Time        `json:"last_used,omitempty"`
-	CreatedAt   time.Time         `json:"created_at"`
-	ExpiresAt   *time.Time        `json:"expires_at,omitempty"`
+	Active      bool                    `json:"active"`
+	LastUsed    *time.Time              `json:"last_used,omitempty"`
+	CreatedAt   time.Time               `json:"created_at"`
+	ExpiresAt   *time.Time              `json:"expires_at,omitempty"`
 }
 
 // APIKeyManager manages API keys
@@ -58,7 +58,7 @@ func (m *APIKeyManager) GenerateAPIKey(userID, name string, permissions []Permis
 
 	// Create the key string with a prefix for identification
 	keyString := "govc_" + base64.URLEncoding.EncodeToString(keyBytes)
-	
+
 	// Hash the key for storage
 	hash := sha256.Sum256([]byte(keyString))
 	hashedKey := hex.EncodeToString(hash[:])
@@ -126,7 +126,7 @@ func (m *APIKeyManager) ValidateAPIKey(keyString string) (*APIKey, error) {
 	apiKeyCopy := *apiKey
 	apiKeyCopy.Permissions = make([]Permission, len(apiKey.Permissions))
 	copy(apiKeyCopy.Permissions, apiKey.Permissions)
-	
+
 	if apiKey.RepoPerms != nil {
 		apiKeyCopy.RepoPerms = make(map[string][]Permission)
 		for repo, perms := range apiKey.RepoPerms {
@@ -149,7 +149,7 @@ func (m *APIKeyManager) GetAPIKey(keyID string) (*APIKey, error) {
 			apiKeyCopy := *apiKey
 			apiKeyCopy.Permissions = make([]Permission, len(apiKey.Permissions))
 			copy(apiKeyCopy.Permissions, apiKey.Permissions)
-			
+
 			if apiKey.RepoPerms != nil {
 				apiKeyCopy.RepoPerms = make(map[string][]Permission)
 				for repo, perms := range apiKey.RepoPerms {
@@ -157,7 +157,7 @@ func (m *APIKeyManager) GetAPIKey(keyID string) (*APIKey, error) {
 					copy(apiKeyCopy.RepoPerms[repo], perms)
 				}
 			}
-			
+
 			return &apiKeyCopy, nil
 		}
 	}
@@ -177,7 +177,7 @@ func (m *APIKeyManager) ListAPIKeys(userID string) ([]*APIKey, error) {
 			apiKeyCopy := *apiKey
 			apiKeyCopy.Permissions = make([]Permission, len(apiKey.Permissions))
 			copy(apiKeyCopy.Permissions, apiKey.Permissions)
-			
+
 			if apiKey.RepoPerms != nil {
 				apiKeyCopy.RepoPerms = make(map[string][]Permission)
 				for repo, perms := range apiKey.RepoPerms {
@@ -185,7 +185,7 @@ func (m *APIKeyManager) ListAPIKeys(userID string) ([]*APIKey, error) {
 					copy(apiKeyCopy.RepoPerms[repo], perms)
 				}
 			}
-			
+
 			userKeys = append(userKeys, &apiKeyCopy)
 		}
 	}
@@ -231,8 +231,8 @@ func (m *APIKeyManager) HasPermission(apiKey *APIKey, permission Permission) boo
 			return true
 		}
 		// Check for admin permissions
-		if perm == PermissionSystemAdmin || 
-		   (strings.HasPrefix(string(permission), "repo:") && perm == PermissionRepoAdmin) {
+		if perm == PermissionSystemAdmin ||
+			(strings.HasPrefix(string(permission), "repo:") && perm == PermissionRepoAdmin) {
 			return true
 		}
 	}
@@ -310,7 +310,7 @@ func (m *APIKeyManager) GetKeyStats() map[string]int {
 	now := time.Now()
 	for _, apiKey := range m.keys {
 		stats["total"]++
-		
+
 		if apiKey.ExpiresAt != nil && now.After(*apiKey.ExpiresAt) {
 			stats["expired"]++
 		} else if apiKey.Active {

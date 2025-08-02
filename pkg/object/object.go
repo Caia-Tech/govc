@@ -364,7 +364,7 @@ func parseAuthor(authorStr string) (Author, error) {
 
 	name := strings.TrimSpace(authorStr[:emailStart])
 	email := authorStr[emailStart+1 : emailEnd]
-	
+
 	timestampParts := strings.Fields(authorStr[emailEnd+1:])
 	if len(timestampParts) < 2 {
 		return Author{}, fmt.Errorf("invalid timestamp format")

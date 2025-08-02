@@ -149,7 +149,7 @@ This project demonstrates govc features.`,
 	// The repository provides low-level file access
 	allFiles, _ := repo.ListFiles()
 	fmt.Printf("Repository contains %d files\n", len(allFiles))
-	
+
 	// You can read and search files manually
 	for _, file := range allFiles {
 		content, _ := repo.ReadFile(file)
@@ -165,7 +165,7 @@ func hooksExample() {
 
 	// Note: Hook functionality would need to be implemented
 	// This is a demonstration of what it could look like
-	
+
 	fmt.Println("Hook functionality not yet implemented in core govc")
 	fmt.Println("Could support pre-commit, post-commit, pre-push hooks")
 	fmt.Println()
@@ -179,14 +179,14 @@ func performanceExample() {
 
 	// Measure performance of bulk operations
 	start := time.Now()
-	
+
 	// Create many files
 	for i := 0; i < 100; i++ {
 		filename := fmt.Sprintf("file_%04d.txt", i)
 		content := fmt.Sprintf("This is file number %d", i)
 		repo.WriteFile(filename, []byte(content))
 	}
-	
+
 	writeTime := time.Since(start)
 	fmt.Printf("Time to write 100 files: %v\n", writeTime)
 
@@ -202,7 +202,7 @@ func performanceExample() {
 	commitTime := time.Since(start)
 	fmt.Printf("Time to commit: %v\n", commitTime)
 
-	// Read performance 
+	// Read performance
 	start = time.Now()
 	for i := 0; i < 100; i++ {
 		filename := fmt.Sprintf("file_%04d.txt", i)

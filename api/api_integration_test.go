@@ -153,7 +153,7 @@ func TestCompleteWorkflow(t *testing.T) {
 	t.Run("Verify branch states", func(t *testing.T) {
 		// Get log for each branch
 		branches := []string{"main", "feature/new-config", "test/performance"}
-		
+
 		for _, branch := range branches {
 			// Checkout branch
 			body := bytes.NewBufferString(fmt.Sprintf(`{"branch": "%s"}`, branch))
@@ -270,7 +270,7 @@ func TestTransactionalWorkflow(t *testing.T) {
 			}
 			jsonData, _ := json.Marshal(requestData)
 			body := bytes.NewBuffer(jsonData)
-			req := httptest.NewRequest("POST", 
+			req := httptest.NewRequest("POST",
 				fmt.Sprintf("/api/v1/repos/%s/transaction/%s/add", repoID, mainTxID), body)
 			req.Header.Set("Content-Type", "application/json")
 			w := httptest.NewRecorder()
@@ -285,7 +285,7 @@ func TestTransactionalWorkflow(t *testing.T) {
 
 	// Step 3: Validate transaction
 	t.Run("Validate transaction", func(t *testing.T) {
-		req := httptest.NewRequest("POST", 
+		req := httptest.NewRequest("POST",
 			fmt.Sprintf("/api/v1/repos/%s/transaction/%s/validate", repoID, mainTxID), nil)
 		w := httptest.NewRecorder()
 		router.ServeHTTP(w, req)
@@ -296,7 +296,7 @@ func TestTransactionalWorkflow(t *testing.T) {
 
 		var validResp map[string]interface{}
 		json.Unmarshal(w.Body.Bytes(), &validResp)
-		
+
 		// Check if the response has a "status" field set to "valid"
 		if status, ok := validResp["status"].(string); !ok || status != "valid" {
 			t.Errorf("Transaction validation failed: %v", validResp)
@@ -314,7 +314,7 @@ func TestTransactionalWorkflow(t *testing.T) {
 
 		// Try to add to second transaction
 		body := bytes.NewBufferString(`{"path": "concurrent.txt", "content": "concurrent"}`)
-		req = httptest.NewRequest("POST", 
+		req = httptest.NewRequest("POST",
 			fmt.Sprintf("/api/v1/repos/%s/transaction/%s/add", repoID, txResp2.ID), body)
 		req.Header.Set("Content-Type", "application/json")
 		w = httptest.NewRecorder()
@@ -329,7 +329,7 @@ func TestTransactionalWorkflow(t *testing.T) {
 	// Step 5: Commit main transaction
 	t.Run("Commit transaction", func(t *testing.T) {
 		body := bytes.NewBufferString(`{"message": "Add complete project structure via transaction"}`)
-		req := httptest.NewRequest("POST", 
+		req := httptest.NewRequest("POST",
 			fmt.Sprintf("/api/v1/repos/%s/transaction/%s/commit", repoID, mainTxID), body)
 		req.Header.Set("Content-Type", "application/json")
 		w := httptest.NewRecorder()
@@ -462,7 +462,7 @@ func TestParallelRealityWorkflow(t *testing.T) {
 		for _, cfg := range configs {
 			changesJSON, _ := json.Marshal(cfg.changes)
 			body := bytes.NewBufferString(fmt.Sprintf(`{"changes": %s}`, changesJSON))
-			req := httptest.NewRequest("POST", 
+			req := httptest.NewRequest("POST",
 				fmt.Sprintf("/api/v1/repos/%s/parallel-realities/%s/apply", repoID, cfg.reality), body)
 			req.Header.Set("Content-Type", "application/json")
 			w := httptest.NewRecorder()
@@ -478,9 +478,9 @@ func TestParallelRealityWorkflow(t *testing.T) {
 	// Step 4: Benchmark each reality
 	t.Run("Benchmark realities", func(t *testing.T) {
 		realities := []string{"config-aggressive", "config-balanced", "config-conservative"}
-		
+
 		for _, reality := range realities {
-			req := httptest.NewRequest("GET", 
+			req := httptest.NewRequest("GET",
 				fmt.Sprintf("/api/v1/repos/%s/parallel-realities/%s/benchmark", repoID, reality), nil)
 			w := httptest.NewRecorder()
 
@@ -545,9 +545,9 @@ func TestConcurrentOperations(t *testing.T) {
 
 				// Each goroutine adds a different file
 				body := bytes.NewBufferString(fmt.Sprintf(
-					`{"path": "concurrent/file%d.txt", "content": "Content from goroutine %d"}`, 
+					`{"path": "concurrent/file%d.txt", "content": "Content from goroutine %d"}`,
 					index, index))
-				req := httptest.NewRequest("POST", 
+				req := httptest.NewRequest("POST",
 					fmt.Sprintf("/api/v1/repos/%s/add", repoID), body)
 				req.Header.Set("Content-Type", "application/json")
 				w := httptest.NewRecorder()
@@ -599,7 +599,7 @@ func TestConcurrentOperations(t *testing.T) {
 				defer wg.Done()
 
 				body := bytes.NewBufferString(fmt.Sprintf(`{"name": "concurrent-branch-%d"}`, index))
-				req := httptest.NewRequest("POST", 
+				req := httptest.NewRequest("POST",
 					fmt.Sprintf("/api/v1/repos/%s/branches", repoID), body)
 				req.Header.Set("Content-Type", "application/json")
 				w := httptest.NewRecorder()
@@ -622,7 +622,7 @@ func TestConcurrentOperations(t *testing.T) {
 
 				body := bytes.NewBufferString(fmt.Sprintf(
 					`{"branch": "concurrent-branch-%d"}`, index))
-				req := httptest.NewRequest("POST", 
+				req := httptest.NewRequest("POST",
 					fmt.Sprintf("/api/v1/repos/%s/checkout", repoID), body)
 				req.Header.Set("Content-Type", "application/json")
 				w := httptest.NewRecorder()
@@ -689,7 +689,7 @@ func TestErrorRecovery(t *testing.T) {
 		for i := 0; i < 3; i++ {
 			body := bytes.NewBufferString(fmt.Sprintf(
 				`{"path": "rollback%d.txt", "content": "to be rolled back"}`, i))
-			req := httptest.NewRequest("POST", 
+			req := httptest.NewRequest("POST",
 				fmt.Sprintf("/api/v1/repos/%s/transaction/%s/add", repoID, txResp.ID), body)
 			req.Header.Set("Content-Type", "application/json")
 			w := httptest.NewRecorder()
@@ -697,7 +697,7 @@ func TestErrorRecovery(t *testing.T) {
 		}
 
 		// Rollback transaction
-		req = httptest.NewRequest("POST", 
+		req = httptest.NewRequest("POST",
 			fmt.Sprintf("/api/v1/repos/%s/transaction/%s/rollback", repoID, txResp.ID), nil)
 		w = httptest.NewRecorder()
 		router.ServeHTTP(w, req)
@@ -707,7 +707,7 @@ func TestErrorRecovery(t *testing.T) {
 		}
 
 		// Verify transaction is gone
-		req = httptest.NewRequest("POST", 
+		req = httptest.NewRequest("POST",
 			fmt.Sprintf("/api/v1/repos/%s/transaction/%s/validate", repoID, txResp.ID), nil)
 		w = httptest.NewRecorder()
 		router.ServeHTTP(w, req)

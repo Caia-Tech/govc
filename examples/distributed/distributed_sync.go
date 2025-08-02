@@ -15,23 +15,23 @@ import (
 
 // DistributedNode represents a govc node in a distributed system
 type DistributedNode struct {
-	ID         string
-	Region     string
-	repo       *govc.Repository
-	peers      map[string]*DistributedNode
-	realities  map[string]*govc.ParallelReality
-	syncChan   chan SyncMessage
-	mu         sync.RWMutex
+	ID        string
+	Region    string
+	repo      *govc.Repository
+	peers     map[string]*DistributedNode
+	realities map[string]*govc.ParallelReality
+	syncChan  chan SyncMessage
+	mu        sync.RWMutex
 }
 
 // SyncMessage represents a reality sync between nodes
 type SyncMessage struct {
-	FromNode   string
-	ToNode     string
-	Reality    string
-	Operation  string
-	Data       map[string][]byte
-	Timestamp  time.Time
+	FromNode  string
+	ToNode    string
+	Reality   string
+	Operation string
+	Data      map[string][]byte
+	Timestamp time.Time
 }
 
 func main() {
@@ -41,7 +41,7 @@ func main() {
 
 	// Create nodes in different regions
 	nodeUS := NewDistributedNode("node-us-east", "us-east-1")
-	nodeEU := NewDistributedNode("node-eu-west", "eu-west-1") 
+	nodeEU := NewDistributedNode("node-eu-west", "eu-west-1")
 	nodeAP := NewDistributedNode("node-ap-south", "ap-southeast-1")
 
 	// Connect nodes as peers
@@ -109,7 +109,7 @@ func (n *DistributedNode) processSync(msg SyncMessage) {
 		// Create the same reality locally
 		reality := n.repo.ParallelReality(msg.Reality)
 		n.realities[msg.Reality] = reality
-		fmt.Printf("   %s: Created reality '%s' (synced from %s)\n", 
+		fmt.Printf("   %s: Created reality '%s' (synced from %s)\n",
 			n.ID, msg.Reality, msg.FromNode)
 
 	case "APPLY_CHANGES":
@@ -322,16 +322,16 @@ type RealityRouter struct {
 
 // GlobalStateManager maintains consistent state across all nodes
 type GlobalStateManager struct {
-	nodes  []*DistributedNode
-	state  map[string]interface{}
-	mu     sync.RWMutex
+	nodes []*DistributedNode
+	state map[string]interface{}
+	mu    sync.RWMutex
 }
 
 // Example of advanced distributed pattern
 func (gsm *GlobalStateManager) ProposeChange(change Change) error {
 	// Create test realities on subset of nodes
 	testNodes := gsm.selectTestNodes(3)
-	
+
 	results := make(chan TestResult, len(testNodes))
 	for _, node := range testNodes {
 		go func(n *DistributedNode) {

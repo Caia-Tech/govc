@@ -16,7 +16,7 @@ import (
 func main() {
 	// Create a memory-first repository for our infrastructure
 	repo := govc.NewRepository()
-	
+
 	// Initialize with base configuration
 	tx := repo.Transaction()
 	tx.Add("terraform/main.tf", []byte(`
@@ -45,10 +45,10 @@ alerts:
 
 	// Simulate infrastructure changes that trigger events
 	simulateInfrastructureChanges(repo)
-	
+
 	// Keep the event stream running
 	time.Sleep(5 * time.Second)
-	
+
 	fmt.Println("\nEvent stream demonstration complete!")
 }
 
@@ -58,10 +58,10 @@ func setupEventHandlers(repo *govc.Repository) {
 		if containsTerraformChanges(event) {
 			fmt.Printf("\n🔷 Terraform change detected in commit %s\n", event.Hash[:7])
 			fmt.Printf("   Running terraform plan...\n")
-			
+
 			// In real implementation, would run actual terraform
 			time.Sleep(100 * time.Millisecond)
-			
+
 			if isAutoApproved(event) {
 				fmt.Printf("   Auto-applying changes (author: %s)\n", event.Author)
 			} else {
@@ -74,10 +74,10 @@ func setupEventHandlers(repo *govc.Repository) {
 	repo.Watch(func(event govc.CommitEvent) {
 		if containsK8sChanges(event) {
 			fmt.Printf("\n☸️  Kubernetes change detected in commit %s\n", event.Hash[:7])
-			
+
 			// Create a test reality to validate changes
 			testReality := repo.ParallelReality("k8s-validation")
-			
+
 			fmt.Printf("   Validating in parallel reality: %s\n", testReality.Name())
 			fmt.Printf("   ✓ Syntax valid\n")
 			fmt.Printf("   ✓ Resource limits OK\n")
@@ -98,15 +98,15 @@ func setupEventHandlers(repo *govc.Repository) {
 	repo.Watch(func(event govc.CommitEvent) {
 		if strings.Contains(event.Message, "EMERGENCY") {
 			fmt.Printf("\n🚨 EMERGENCY ROLLBACK triggered by %s!\n", event.Author)
-			
+
 			// Get the previous good state
 			commits, _ := repo.Log(2)
 			if len(commits) >= 2 {
 				previousCommit := commits[1]
-				fmt.Printf("   Rolling back to %s: %s\n", 
-					previousCommit.Hash()[:7], 
+				fmt.Printf("   Rolling back to %s: %s\n",
+					previousCommit.Hash()[:7],
 					previousCommit.Message)
-				
+
 				// In govc, rollback is just a branch switch - instant!
 				repo.Checkout(previousCommit.Hash())
 				fmt.Printf("   ✓ Rollback complete in microseconds\n")
@@ -123,7 +123,7 @@ func setupEventHandlers(repo *govc.Repository) {
 			event.Author,
 			event.Message,
 		)
-		
+
 		// In production, this would go to audit log
 		fmt.Printf("\n📝 Audit: %s\n", logEntry)
 	})
@@ -131,10 +131,10 @@ func setupEventHandlers(repo *govc.Repository) {
 
 func simulateInfrastructureChanges(repo *govc.Repository) {
 	time.Sleep(1 * time.Second)
-	
+
 	// Change 1: Scale up Terraform instances
 	fmt.Println("\n--- Simulating infrastructure changes ---")
-	
+
 	scaleTx := repo.Transaction()
 	scaleTx.Add("terraform/main.tf", []byte(`
 resource "aws_instance" "web" {
@@ -143,9 +143,9 @@ resource "aws_instance" "web" {
 }`))
 	scaleTx.Validate()
 	scaleTx.Commit("Scale web instances for Black Friday")
-	
+
 	time.Sleep(1 * time.Second)
-	
+
 	// Change 2: Update Kubernetes deployment
 	k8sTx := repo.Transaction()
 	k8sTx.Add("k8s/deployment.yaml", []byte(`
@@ -165,9 +165,9 @@ spec:
             cpu: "500m"`))
 	k8sTx.Validate()
 	k8sTx.Commit("Increase K8s replicas and set resource limits")
-	
+
 	time.Sleep(1 * time.Second)
-	
+
 	// Change 3: Update monitoring alerts
 	alertTx := repo.Transaction()
 	alertTx.Add("monitoring/alerts.yaml", []byte(`
@@ -180,9 +180,9 @@ alerts:
     threshold: 500`))
 	alertTx.Validate()
 	alertTx.Commit("Adjust alert thresholds for scaled infrastructure")
-	
+
 	time.Sleep(1 * time.Second)
-	
+
 	// Change 4: Emergency rollback
 	emergencyTx := repo.Transaction()
 	emergencyTx.Add("terraform/main.tf", []byte(`
@@ -197,24 +197,24 @@ resource "aws_instance" "web" {
 // Helper functions to detect change types
 func containsTerraformChanges(event govc.CommitEvent) bool {
 	// In real implementation, would check event.Changes
-	return strings.Contains(event.Message, "Scale") || 
-	       strings.Contains(event.Message, "Terraform")
+	return strings.Contains(event.Message, "Scale") ||
+		strings.Contains(event.Message, "Terraform")
 }
 
 func containsK8sChanges(event govc.CommitEvent) bool {
-	return strings.Contains(event.Message, "K8s") || 
-	       strings.Contains(event.Message, "replicas")
+	return strings.Contains(event.Message, "K8s") ||
+		strings.Contains(event.Message, "replicas")
 }
 
 func containsMonitoringChanges(event govc.CommitEvent) bool {
-	return strings.Contains(event.Message, "alert") || 
-	       strings.Contains(event.Message, "monitoring")
+	return strings.Contains(event.Message, "alert") ||
+		strings.Contains(event.Message, "monitoring")
 }
 
 func isAutoApproved(event govc.CommitEvent) bool {
 	// Example: auto-approve for certain authors or small changes
-	return event.Author == "automation" || 
-	       strings.Contains(event.Message, "Auto-approved")
+	return event.Author == "automation" ||
+		strings.Contains(event.Message, "Auto-approved")
 }
 
 // ReactiveInfrastructure demonstrates a more complex reactive pattern

@@ -124,7 +124,7 @@ func ExampleRepository_TimeTravel() {
 	fmt.Println("Configuration at stable point:")
 	fmt.Println("version: 1.0")
 	fmt.Println("stable: true")
-	
+
 	// Output:
 	// Configuration at stable point:
 	// version: 1.0
@@ -265,7 +265,7 @@ func Example_disasterRecovery() {
 
 	// Create backup points
 	backups := []string{"backup-1", "backup-2", "backup-3"}
-	
+
 	for i, backup := range backups {
 		tx := repo.Transaction()
 		tx.Add("system-state.json", []byte(fmt.Sprintf(`{"version": %d, "healthy": true}`, i+1)))

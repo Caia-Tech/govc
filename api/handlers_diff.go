@@ -75,7 +75,7 @@ func (s *Server) getDiff(c *gin.Context) {
 			}
 		}
 	}
-	
+
 	// Return both the raw diff and parsed files
 	c.JSON(http.StatusOK, gin.H{
 		"from":   from,
@@ -90,7 +90,7 @@ func (s *Server) getDiff(c *gin.Context) {
 func (s *Server) getFileDiff(c *gin.Context) {
 	repoID := c.Param("repo_id")
 	filePath := c.Param("path")
-	
+
 	// Clean the path
 	filePath = strings.TrimPrefix(filePath, "/")
 
@@ -182,7 +182,7 @@ func (s *Server) getWorkingDiff(c *gin.Context) {
 
 	// Combine all files for backward compatibility
 	allFiles := append(stagedDiffs, unstagedDiffs...)
-	
+
 	// Return both formats for backward compatibility
 	c.JSON(http.StatusOK, gin.H{
 		"staged":   stagedDiffs,

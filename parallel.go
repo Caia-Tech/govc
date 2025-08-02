@@ -16,12 +16,12 @@ import (
 // without affecting other realities. This is the key to govc's memory-first
 // approach - branches aren't just pointers, they're isolated worlds.
 type ParallelReality struct {
-	name       string
-	repo       *Repository
-	isolated   bool
-	ephemeral  bool // Never persists to disk
-	startTime  time.Time
-	mu         sync.RWMutex
+	name      string
+	repo      *Repository
+	isolated  bool
+	ephemeral bool // Never persists to disk
+	startTime time.Time
+	mu        sync.RWMutex
 }
 
 // Name returns the name of this reality.
@@ -36,7 +36,9 @@ func NewRepository() *Repository {
 	refManager := NewMemoryRefManager()
 	// Initialize with main branch
 	refManager.SetHEADToBranch("main")
-	
+	// Create the main branch ref pointing to nil (no commits yet)
+	refManager.CreateBranch("main", "")
+
 	return &Repository{
 		path:       ":memory:",
 		store:      createMemoryStore(),
@@ -141,13 +143,13 @@ func (pr *ParallelReality) Benchmark() *BenchmarkResult {
 // TransactionalCommit represents a commit that can be validated before persisting.
 // This is only possible because we operate in memory first.
 type TransactionalCommit struct {
-	repo     *Repository
-	staging  *StagingArea
-	message  string
-	author   object.Author
-	changes  map[string][]byte
+	repo      *Repository
+	staging   *StagingArea
+	message   string
+	author    object.Author
+	changes   map[string][]byte
 	validated bool
-	mu       sync.Mutex
+	mu        sync.Mutex
 }
 
 // Transaction creates a new transactional commit.
@@ -170,7 +172,7 @@ func (r *Repository) Transaction() *TransactionalCommit {
 func (tc *TransactionalCommit) Add(path string, content []byte) {
 	tc.mu.Lock()
 	defer tc.mu.Unlock()
-	
+
 	tc.changes[path] = content
 	hash, _ := tc.repo.store.StoreBlob(content)
 	tc.staging.Add(path, hash)
@@ -181,7 +183,7 @@ func (tc *TransactionalCommit) Add(path string, content []byte) {
 func (tc *TransactionalCommit) Validate() error {
 	tc.mu.Lock()
 	defer tc.mu.Unlock()
-	
+
 	// Memory-first benefit: We can validate the entire state
 	// before any permanent changes are made
 	for path, content := range tc.changes {
@@ -199,16 +201,16 @@ func (tc *TransactionalCommit) Validate() error {
 func (tc *TransactionalCommit) Commit(message string) (*object.Commit, error) {
 	tc.mu.Lock()
 	defer tc.mu.Unlock()
-	
+
 	if !tc.validated {
 		return nil, fmt.Errorf("transaction not validated")
 	}
 
 	tc.message = message
-	
+
 	// Update the author time to the current time when committing
 	tc.author.Time = time.Now()
-	
+
 	// Swap staging areas atomically
 	oldStaging := tc.repo.staging
 	tc.repo.staging = tc.staging
@@ -222,7 +224,7 @@ func (tc *TransactionalCommit) Commit(message string) (*object.Commit, error) {
 func (tc *TransactionalCommit) Rollback() {
 	tc.mu.Lock()
 	defer tc.mu.Unlock()
-	
+
 	tc.changes = make(map[string][]byte)
 	tc.staging = NewStagingArea()
 	tc.validated = false
@@ -248,19 +250,19 @@ func (r *Repository) Watch(handler func(CommitEvent)) {
 		lastHash := ""
 		for {
 			time.Sleep(100 * time.Millisecond)
-			
+
 			currentHash, err := r.refManager.GetHEAD()
 			if err != nil || currentHash == lastHash {
 				continue
 			}
-			
+
 			commit, err := r.store.GetCommit(currentHash)
 			if err != nil {
 				continue
 			}
-			
+
 			branch, _ := r.CurrentBranch()
-			
+
 			event := CommitEvent{
 				Hash:      currentHash,
 				Author:    commit.Author.Name,
@@ -268,7 +270,7 @@ func (r *Repository) Watch(handler func(CommitEvent)) {
 				Timestamp: commit.Author.Time,
 				Branch:    branch,
 			}
-			
+
 			handler(event)
 			lastHash = currentHash
 		}
@@ -279,7 +281,7 @@ func (r *Repository) Watch(handler func(CommitEvent)) {
 // Memory-first makes this operation instant.
 func (r *Repository) TimeTravel(moment time.Time) *HistoricalSnapshot {
 	commits, _ := r.Log(0) // Get all commits (newest first)
-	
+
 	// Find the most recent commit at or before the requested time
 	// We need to check from newest to oldest and find the last one that's not after the moment
 	var bestCommit *object.Commit
@@ -291,7 +293,7 @@ func (r *Repository) TimeTravel(moment time.Time) *HistoricalSnapshot {
 			break
 		}
 	}
-	
+
 	if bestCommit != nil {
 		return &HistoricalSnapshot{
 			repo:   r,
@@ -299,7 +301,7 @@ func (r *Repository) TimeTravel(moment time.Time) *HistoricalSnapshot {
 			time:   moment,
 		}
 	}
-	
+
 	// If no commits at or before the requested time, return an empty snapshot
 	return &HistoricalSnapshot{
 		repo:   r,
@@ -320,19 +322,18 @@ func (hs *HistoricalSnapshot) Read(path string) ([]byte, error) {
 	if hs.commit == nil {
 		return nil, fmt.Errorf("no commit at this point in time")
 	}
-	
+
 	tree, err := hs.repo.store.GetTree(hs.commit.TreeHash)
 	if err != nil {
 		return nil, err
 	}
-	
-	
+
 	// Try to find the file in the tree
 	hash, err := hs.findFileInTree(tree, path)
 	if err != nil {
 		return nil, fmt.Errorf("file not found in snapshot: %s", path)
 	}
-	
+
 	blob, err := hs.repo.store.GetBlob(hash)
 	if err != nil {
 		return nil, err
@@ -348,7 +349,7 @@ func (hs *HistoricalSnapshot) findFileInTree(tree *object.Tree, path string) (st
 			return entry.Hash, nil
 		}
 	}
-	
+
 	// Try subdirectories
 	parts := strings.SplitN(path, "/", 2)
 	if len(parts) == 2 {
@@ -363,7 +364,7 @@ func (hs *HistoricalSnapshot) findFileInTree(tree *object.Tree, path string) (st
 			}
 		}
 	}
-	
+
 	return "", fmt.Errorf("not found")
 }
 

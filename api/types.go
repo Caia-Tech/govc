@@ -4,14 +4,16 @@ import "time"
 
 // Request types
 
+// CreateRepoRequest represents a repository creation request
 type CreateRepoRequest struct {
-	ID         string `json:"id" binding:"required"`
-	MemoryOnly bool   `json:"memory_only"`
+	ID         string `json:"id" binding:"required" example:"my-repo" doc:"Unique repository identifier"`
+	MemoryOnly bool   `json:"memory_only" example:"false" doc:"Whether to create repository in memory only"`
 }
 
+// AddFileRequest represents a file addition request
 type AddFileRequest struct {
-	Path    string `json:"path" binding:"required"`
-	Content string `json:"content" binding:"required"`
+	Path    string `json:"path" binding:"required" example:"README.md" doc:"File path relative to repository root"`
+	Content string `json:"content" binding:"required" example:"# My Project" doc:"File content as string"`
 }
 
 type WriteFileRequest struct {
@@ -19,24 +21,28 @@ type WriteFileRequest struct {
 	Content string `json:"content" binding:"required"`
 }
 
+// CommitRequest represents a commit creation request
 type CommitRequest struct {
-	Message string `json:"message" binding:"required"`
-	Author  string `json:"author"`
-	Email   string `json:"email"`
+	Message string `json:"message" binding:"required" example:"Initial commit" doc:"Commit message"`
+	Author  string `json:"author" example:"John Doe" doc:"Commit author name"`
+	Email   string `json:"email" example:"john@example.com" doc:"Commit author email"`
 }
 
+// CreateBranchRequest represents a branch creation request
 type CreateBranchRequest struct {
-	Name string `json:"name" binding:"required"`
-	From string `json:"from"`
+	Name string `json:"name" binding:"required" example:"feature/new-feature" doc:"New branch name"`
+	From string `json:"from" example:"main" doc:"Source branch to create from (current branch if empty)"`
 }
 
+// CheckoutRequest represents a branch checkout request
 type CheckoutRequest struct {
-	Branch string `json:"branch" binding:"required"`
+	Branch string `json:"branch" binding:"required" example:"main" doc:"Branch name to checkout"`
 }
 
+// MergeRequest represents a branch merge request
 type MergeRequest struct {
-	From string `json:"from" binding:"required"`
-	To   string `json:"to" binding:"required"`
+	From string `json:"from" binding:"required" example:"feature/new-feature" doc:"Source branch to merge from"`
+	To   string `json:"to" binding:"required" example:"main" doc:"Target branch to merge into"`
 }
 
 type ParallelRealitiesRequest struct {
@@ -54,26 +60,29 @@ type TransactionCommitRequest struct {
 
 // Response types
 
+// RepoResponse represents repository information
 type RepoResponse struct {
-	ID           string    `json:"id"`
-	Path         string    `json:"path"`
-	CurrentBranch string   `json:"current_branch,omitempty"`
-	CreatedAt    time.Time `json:"created_at"`
+	ID            string    `json:"id" example:"my-repo" doc:"Repository identifier"`
+	Path          string    `json:"path" example:"/repos/my-repo" doc:"Repository storage path"`
+	CurrentBranch string    `json:"current_branch,omitempty" example:"main" doc:"Current active branch"`
+	CreatedAt     time.Time `json:"created_at" example:"2023-01-01T00:00:00Z" doc:"Repository creation timestamp"`
 }
 
+// CommitResponse represents commit information
 type CommitResponse struct {
-	Hash      string    `json:"hash"`
-	Message   string    `json:"message"`
-	Author    string    `json:"author"`
-	Email     string    `json:"email"`
-	Timestamp time.Time `json:"timestamp"`
-	Parent    string    `json:"parent,omitempty"`
+	Hash      string    `json:"hash" example:"abc123def456" doc:"Commit hash"`
+	Message   string    `json:"message" example:"Initial commit" doc:"Commit message"`
+	Author    string    `json:"author" example:"John Doe" doc:"Commit author name"`
+	Email     string    `json:"email" example:"john@example.com" doc:"Commit author email"`
+	Timestamp time.Time `json:"timestamp" example:"2023-01-01T00:00:00Z" doc:"Commit timestamp"`
+	Parent    string    `json:"parent,omitempty" example:"def456abc123" doc:"Parent commit hash"`
 }
 
+// BranchResponse represents branch information
 type BranchResponse struct {
-	Name      string `json:"name"`
-	Commit    string `json:"commit"`
-	IsCurrent bool   `json:"is_current"`
+	Name      string `json:"name" example:"main" doc:"Branch name"`
+	Commit    string `json:"commit" example:"abc123def456" doc:"Latest commit hash on this branch"`
+	IsCurrent bool   `json:"is_current" example:"true" doc:"Whether this is the current active branch"`
 }
 
 type FileResponse struct {
@@ -82,12 +91,13 @@ type FileResponse struct {
 	Size    int    `json:"size"`
 }
 
+// StatusResponse represents repository status
 type StatusResponse struct {
-	Branch    string   `json:"branch"`
-	Staged    []string `json:"staged"`
-	Modified  []string `json:"modified"`
-	Untracked []string `json:"untracked"`
-	Clean     bool     `json:"clean"`
+	Branch    string   `json:"branch" example:"main" doc:"Current branch name"`
+	Staged    []string `json:"staged" example:"[\"file1.txt\"]" doc:"Files staged for commit"`
+	Modified  []string `json:"modified" example:"[\"file2.txt\"]" doc:"Modified files not yet staged"`
+	Untracked []string `json:"untracked" example:"[\"file3.txt\"]" doc:"Untracked files"`
+	Clean     bool     `json:"clean" example:"false" doc:"Whether working directory is clean"`
 }
 
 type TransactionResponse struct {
@@ -103,16 +113,18 @@ type RealityResponse struct {
 	CreatedAt time.Time `json:"created_at"`
 }
 
+// ErrorResponse represents an API error response
 type ErrorResponse struct {
-	Error   string      `json:"error"`
-	Code    string      `json:"code,omitempty"`
-	Details interface{} `json:"details,omitempty"`
+	Error   string      `json:"error" example:"Repository not found" doc:"Human-readable error message"`
+	Code    string      `json:"code,omitempty" example:"REPO_NOT_FOUND" doc:"Machine-readable error code"`
+	Details interface{} `json:"details,omitempty" doc:"Additional error details"`
 }
 
+// SuccessResponse represents a successful API response
 type SuccessResponse struct {
-	Status  string      `json:"status"`
-	Message string      `json:"message,omitempty"`
-	Data    interface{} `json:"data,omitempty"`
+	Status  string      `json:"status" example:"success" doc:"Operation status"`
+	Message string      `json:"message,omitempty" example:"Repository deleted successfully" doc:"Success message"`
+	Data    interface{} `json:"data,omitempty" doc:"Additional response data"`
 }
 
 // Additional response types for tests
@@ -135,18 +147,18 @@ type ReadFileRequest struct {
 }
 
 type TreeEntry struct {
-	Name    string    `json:"name"`
-	Path    string    `json:"path"`
-	Type    string    `json:"type"` // "file" or "dir"
-	Size    int64     `json:"size"`
-	Mode    string    `json:"mode"`
+	Name     string    `json:"name"`
+	Path     string    `json:"path"`
+	Type     string    `json:"type"` // "file" or "dir"
+	Size     int64     `json:"size"`
+	Mode     string    `json:"mode"`
 	Modified time.Time `json:"modified,omitempty"`
 }
 
 type TreeResponse struct {
-	Path      string      `json:"path"`
-	Entries   []TreeEntry `json:"entries"`
-	Total     int         `json:"total"`
+	Path    string      `json:"path"`
+	Entries []TreeEntry `json:"entries"`
+	Total   int         `json:"total"`
 }
 
 type MoveFileRequest struct {
@@ -225,8 +237,8 @@ type BlameResponse struct {
 // Stash operation types
 
 type StashRequest struct {
-	Message       string `json:"message,omitempty"`
-	IncludeUntracked bool `json:"include_untracked,omitempty"`
+	Message          string `json:"message,omitempty"`
+	IncludeUntracked bool   `json:"include_untracked,omitempty"`
 }
 
 type StashResponse struct {
@@ -310,54 +322,54 @@ type ResetResponse struct {
 type SearchCommitsRequest struct {
 	Query  string `json:"query" form:"query" binding:"required"`
 	Author string `json:"author,omitempty" form:"author"`
-	Since  string `json:"since,omitempty" form:"since"`   // RFC3339 format
-	Until  string `json:"until,omitempty" form:"until"`   // RFC3339 format
+	Since  string `json:"since,omitempty" form:"since"` // RFC3339 format
+	Until  string `json:"until,omitempty" form:"until"` // RFC3339 format
 	Limit  int    `json:"limit,omitempty" form:"limit"`
 	Offset int    `json:"offset,omitempty" form:"offset"`
 }
 
 type SearchCommitsResponse struct {
-	Query     string            `json:"query"`
-	Results   []CommitResponse  `json:"results"`
-	Total     int               `json:"total"`
-	Limit     int               `json:"limit"`
-	Offset    int               `json:"offset"`
-	Matches   []SearchMatch     `json:"matches"`
+	Query   string           `json:"query"`
+	Results []CommitResponse `json:"results"`
+	Total   int              `json:"total"`
+	Limit   int              `json:"limit"`
+	Offset  int              `json:"offset"`
+	Matches []SearchMatch    `json:"matches"`
 }
 
 type SearchMatch struct {
-	Field     string `json:"field"`     // "message", "author", "email"
-	Line      int    `json:"line"`      // for content matches
-	Column    int    `json:"column"`    // for content matches
-	Preview   string `json:"preview"`   // highlighted preview
+	Field   string `json:"field"`   // "message", "author", "email"
+	Line    int    `json:"line"`    // for content matches
+	Column  int    `json:"column"`  // for content matches
+	Preview string `json:"preview"` // highlighted preview
 }
 
 type SearchContentRequest struct {
-	Query    string `json:"query" form:"query" binding:"required"`
-	Path     string `json:"path,omitempty" form:"path"`      // path pattern
-	Ref      string `json:"ref,omitempty" form:"ref"`        // commit/branch to search
-	CaseSensitive bool `json:"case_sensitive,omitempty" form:"case_sensitive"`
-	Regex    bool   `json:"regex,omitempty" form:"regex"`
-	Limit    int    `json:"limit,omitempty" form:"limit"`
-	Offset   int    `json:"offset,omitempty" form:"offset"`
+	Query         string `json:"query" form:"query" binding:"required"`
+	Path          string `json:"path,omitempty" form:"path"` // path pattern
+	Ref           string `json:"ref,omitempty" form:"ref"`   // commit/branch to search
+	CaseSensitive bool   `json:"case_sensitive,omitempty" form:"case_sensitive"`
+	Regex         bool   `json:"regex,omitempty" form:"regex"`
+	Limit         int    `json:"limit,omitempty" form:"limit"`
+	Offset        int    `json:"offset,omitempty" form:"offset"`
 }
 
 type SearchContentResponse struct {
-	Query     string          `json:"query"`
-	Results   []ContentMatch  `json:"results"`
-	Total     int             `json:"total"`
-	Limit     int             `json:"limit"`
-	Offset    int             `json:"offset"`
+	Query   string         `json:"query"`
+	Results []ContentMatch `json:"results"`
+	Total   int            `json:"total"`
+	Limit   int            `json:"limit"`
+	Offset  int            `json:"offset"`
 }
 
 type ContentMatch struct {
-	Path      string        `json:"path"`
-	Ref       string        `json:"ref"`
-	Line      int           `json:"line"`
-	Column    int           `json:"column"`
-	Content   string        `json:"content"`
-	Preview   string        `json:"preview"`
-	Matches   []MatchRange  `json:"matches"`
+	Path    string       `json:"path"`
+	Ref     string       `json:"ref"`
+	Line    int          `json:"line"`
+	Column  int          `json:"column"`
+	Content string       `json:"content"`
+	Preview string       `json:"preview"`
+	Matches []MatchRange `json:"matches"`
 }
 
 type MatchRange struct {
@@ -366,64 +378,64 @@ type MatchRange struct {
 }
 
 type SearchFilesRequest struct {
-	Query    string `json:"query" form:"query" binding:"required"`
-	Ref      string `json:"ref,omitempty" form:"ref"`        // commit/branch to search
-	CaseSensitive bool `json:"case_sensitive,omitempty" form:"case_sensitive"`
-	Regex    bool   `json:"regex,omitempty" form:"regex"`
-	Limit    int    `json:"limit,omitempty" form:"limit"`
-	Offset   int    `json:"offset,omitempty" form:"offset"`
+	Query         string `json:"query" form:"query" binding:"required"`
+	Ref           string `json:"ref,omitempty" form:"ref"` // commit/branch to search
+	CaseSensitive bool   `json:"case_sensitive,omitempty" form:"case_sensitive"`
+	Regex         bool   `json:"regex,omitempty" form:"regex"`
+	Limit         int    `json:"limit,omitempty" form:"limit"`
+	Offset        int    `json:"offset,omitempty" form:"offset"`
 }
 
 type SearchFilesResponse struct {
-	Query     string        `json:"query"`
-	Results   []FileMatch   `json:"results"`
-	Total     int           `json:"total"`
-	Limit     int           `json:"limit"`
-	Offset    int           `json:"offset"`
+	Query   string      `json:"query"`
+	Results []FileMatch `json:"results"`
+	Total   int         `json:"total"`
+	Limit   int         `json:"limit"`
+	Offset  int         `json:"offset"`
 }
 
 type FileMatch struct {
-	Path    string        `json:"path"`
-	Ref     string        `json:"ref"`
-	Size    int64         `json:"size"`
-	Mode    string        `json:"mode"`
-	Matches []MatchRange  `json:"matches"`
+	Path    string       `json:"path"`
+	Ref     string       `json:"ref"`
+	Size    int64        `json:"size"`
+	Mode    string       `json:"mode"`
+	Matches []MatchRange `json:"matches"`
 }
 
 type GrepRequest struct {
-	Pattern   string `json:"pattern" binding:"required"`
-	Path      string `json:"path,omitempty"`                   // path pattern
-	Ref       string `json:"ref,omitempty"`                    // commit/branch to search
-	CaseSensitive bool `json:"case_sensitive,omitempty"`
-	Regex     bool   `json:"regex,omitempty"`
-	InvertMatch bool `json:"invert_match,omitempty"`           // -v flag
-	WordRegexp  bool `json:"word_regexp,omitempty"`            // -w flag
-	LineRegexp  bool `json:"line_regexp,omitempty"`            // -x flag
-	ContextBefore int `json:"context_before,omitempty"`        // -B flag
-	ContextAfter  int `json:"context_after,omitempty"`         // -A flag
-	Context       int `json:"context,omitempty"`               // -C flag
-	MaxCount      int `json:"max_count,omitempty"`             // -m flag
-	Limit         int `json:"limit,omitempty"`
-	Offset        int `json:"offset,omitempty"`
+	Pattern       string `json:"pattern" binding:"required"`
+	Path          string `json:"path,omitempty"` // path pattern
+	Ref           string `json:"ref,omitempty"`  // commit/branch to search
+	CaseSensitive bool   `json:"case_sensitive,omitempty"`
+	Regex         bool   `json:"regex,omitempty"`
+	InvertMatch   bool   `json:"invert_match,omitempty"`   // -v flag
+	WordRegexp    bool   `json:"word_regexp,omitempty"`    // -w flag
+	LineRegexp    bool   `json:"line_regexp,omitempty"`    // -x flag
+	ContextBefore int    `json:"context_before,omitempty"` // -B flag
+	ContextAfter  int    `json:"context_after,omitempty"`  // -A flag
+	Context       int    `json:"context,omitempty"`        // -C flag
+	MaxCount      int    `json:"max_count,omitempty"`      // -m flag
+	Limit         int    `json:"limit,omitempty"`
+	Offset        int    `json:"offset,omitempty"`
 }
 
 type GrepResponse struct {
-	Pattern   string        `json:"pattern"`
-	Results   []GrepMatch   `json:"results"`
-	Total     int           `json:"total"`
-	Limit     int           `json:"limit"`
-	Offset    int           `json:"offset"`
+	Pattern string      `json:"pattern"`
+	Results []GrepMatch `json:"results"`
+	Total   int         `json:"total"`
+	Limit   int         `json:"limit"`
+	Offset  int         `json:"offset"`
 }
 
 type GrepMatch struct {
-	Path      string        `json:"path"`
-	Ref       string        `json:"ref"`
-	Line      int           `json:"line"`
-	Column    int           `json:"column"`
-	Content   string        `json:"content"`
-	Before    []string      `json:"before,omitempty"`    // context lines before
-	After     []string      `json:"after,omitempty"`     // context lines after
-	Matches   []MatchRange  `json:"matches"`
+	Path    string       `json:"path"`
+	Ref     string       `json:"ref"`
+	Line    int          `json:"line"`
+	Column  int          `json:"column"`
+	Content string       `json:"content"`
+	Before  []string     `json:"before,omitempty"` // context lines before
+	After   []string     `json:"after,omitempty"`  // context lines after
+	Matches []MatchRange `json:"matches"`
 }
 
 // Hooks & Events operation types
@@ -431,16 +443,16 @@ type GrepMatch struct {
 type WebhookEvent string
 
 const (
-	EventPush        WebhookEvent = "push"
-	EventCommit      WebhookEvent = "commit"
-	EventBranch      WebhookEvent = "branch"
-	EventTag         WebhookEvent = "tag"
-	EventMerge       WebhookEvent = "merge"
-	EventStash       WebhookEvent = "stash"
-	EventReset       WebhookEvent = "reset"
-	EventRebase      WebhookEvent = "rebase"
-	EventCherryPick  WebhookEvent = "cherry-pick"
-	EventRevert      WebhookEvent = "revert"
+	EventPush       WebhookEvent = "push"
+	EventCommit     WebhookEvent = "commit"
+	EventBranch     WebhookEvent = "branch"
+	EventTag        WebhookEvent = "tag"
+	EventMerge      WebhookEvent = "merge"
+	EventStash      WebhookEvent = "stash"
+	EventReset      WebhookEvent = "reset"
+	EventRebase     WebhookEvent = "rebase"
+	EventCherryPick WebhookEvent = "cherry-pick"
+	EventRevert     WebhookEvent = "revert"
 )
 
 type HookRequest struct {
@@ -453,15 +465,15 @@ type HookRequest struct {
 }
 
 type HookResponse struct {
-	ID          string         `json:"id"`
-	URL         string         `json:"url"`
-	Events      []WebhookEvent `json:"events"`
-	ContentType string         `json:"content_type"`
-	Active      bool           `json:"active"`
-	InsecureSSL bool           `json:"insecure_ssl"`
-	CreatedAt   time.Time      `json:"created_at"`
-	UpdatedAt   time.Time      `json:"updated_at"`
-	LastResponse *HookDelivery `json:"last_response,omitempty"`
+	ID           string         `json:"id"`
+	URL          string         `json:"url"`
+	Events       []WebhookEvent `json:"events"`
+	ContentType  string         `json:"content_type"`
+	Active       bool           `json:"active"`
+	InsecureSSL  bool           `json:"insecure_ssl"`
+	CreatedAt    time.Time      `json:"created_at"`
+	UpdatedAt    time.Time      `json:"updated_at"`
+	LastResponse *HookDelivery  `json:"last_response,omitempty"`
 }
 
 type HookListResponse struct {
@@ -470,25 +482,25 @@ type HookListResponse struct {
 }
 
 type HookDelivery struct {
-	ID          string    `json:"id"`
-	URL         string    `json:"url"`
-	Event       WebhookEvent `json:"event"`
-	StatusCode  int       `json:"status_code"`
-	Duration    int64     `json:"duration_ms"`
-	Request     string    `json:"request"`
-	Response    string    `json:"response"`
-	Delivered   bool      `json:"delivered"`
-	CreatedAt   time.Time `json:"created_at"`
+	ID         string       `json:"id"`
+	URL        string       `json:"url"`
+	Event      WebhookEvent `json:"event"`
+	StatusCode int          `json:"status_code"`
+	Duration   int64        `json:"duration_ms"`
+	Request    string       `json:"request"`
+	Response   string       `json:"response"`
+	Delivered  bool         `json:"delivered"`
+	CreatedAt  time.Time    `json:"created_at"`
 }
 
 // Event payload structures
 
 type EventPayload struct {
-	Event      WebhookEvent    `json:"event"`
-	Repository string          `json:"repository"`
-	Timestamp  time.Time       `json:"timestamp"`
-	Actor      EventActor      `json:"actor"`
-	Data       interface{}     `json:"data"`
+	Event      WebhookEvent `json:"event"`
+	Repository string       `json:"repository"`
+	Timestamp  time.Time    `json:"timestamp"`
+	Actor      EventActor   `json:"actor"`
+	Data       interface{}  `json:"data"`
 }
 
 type EventActor struct {
@@ -497,23 +509,23 @@ type EventActor struct {
 }
 
 type PushEventData struct {
-	Ref       string          `json:"ref"`
-	Before    string          `json:"before"`
-	After     string          `json:"after"`
-	Commits   []CommitSummary `json:"commits"`
-	Head      CommitSummary   `json:"head_commit"`
-	Size      int             `json:"size"`
-	Distinct  int             `json:"distinct_size"`
+	Ref      string          `json:"ref"`
+	Before   string          `json:"before"`
+	After    string          `json:"after"`
+	Commits  []CommitSummary `json:"commits"`
+	Head     CommitSummary   `json:"head_commit"`
+	Size     int             `json:"size"`
+	Distinct int             `json:"distinct_size"`
 }
 
 type CommitSummary struct {
-	Hash      string    `json:"id"`
-	Message   string    `json:"message"`
+	Hash      string     `json:"id"`
+	Message   string     `json:"message"`
 	Author    EventActor `json:"author"`
-	Timestamp time.Time `json:"timestamp"`
-	Added     []string  `json:"added"`
-	Removed   []string  `json:"removed"`
-	Modified  []string  `json:"modified"`
+	Timestamp time.Time  `json:"timestamp"`
+	Added     []string   `json:"added"`
+	Removed   []string   `json:"removed"`
+	Modified  []string   `json:"modified"`
 }
 
 type BranchEventData struct {
@@ -568,10 +580,10 @@ type HookExecutionRequest struct {
 }
 
 type HookExecutionResponse struct {
-	Success    bool              `json:"success"`
-	ExitCode   int               `json:"exit_code"`
-	Output     string            `json:"output"`
-	Error      string            `json:"error,omitempty"`
-	Duration   int64             `json:"duration_ms"`
+	Success     bool              `json:"success"`
+	ExitCode    int               `json:"exit_code"`
+	Output      string            `json:"output"`
+	Error       string            `json:"error,omitempty"`
+	Duration    int64             `json:"duration_ms"`
 	Environment map[string]string `json:"environment"`
 }

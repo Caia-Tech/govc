@@ -10,13 +10,13 @@ import (
 
 // AuthenticatedUser represents an authenticated user context
 type AuthenticatedUser struct {
-	ID          string            `json:"id"`
-	Username    string            `json:"username"`
-	Email       string            `json:"email"`
-	Permissions []Permission      `json:"permissions"`
+	ID          string                  `json:"id"`
+	Username    string                  `json:"username"`
+	Email       string                  `json:"email"`
+	Permissions []Permission            `json:"permissions"`
 	RepoPerms   map[string][]Permission `json:"repo_permissions"`
-	AuthMethod  string            `json:"auth_method"` // "jwt" or "apikey"
-	TokenInfo   interface{}       `json:"token_info,omitempty"`
+	AuthMethod  string                  `json:"auth_method"` // "jwt" or "apikey"
+	TokenInfo   interface{}             `json:"token_info,omitempty"`
 }
 
 // AuthMiddleware provides authentication middleware
@@ -80,7 +80,7 @@ func (m *AuthMiddleware) RequirePermission(permission Permission) gin.HandlerFun
 		if !m.hasPermission(authUser, permission) {
 			c.JSON(http.StatusForbidden, gin.H{
 				"error": "Insufficient permissions",
-				"code":  "FORBIDDEN", 
+				"code":  "FORBIDDEN",
 			})
 			c.Abort()
 			return
@@ -215,7 +215,7 @@ func (m *AuthMiddleware) authenticateAPIKey(keyString string) (*AuthenticatedUse
 
 	// Combine user permissions with API key permissions
 	userPermissions, _ := m.rbac.GetUserPermissions(apiKey.UserID)
-	
+
 	// API key permissions are a subset of user permissions
 	effectivePermissions := m.intersectPermissions(userPermissions, apiKey.Permissions)
 
@@ -237,8 +237,8 @@ func (m *AuthMiddleware) hasPermission(user *AuthenticatedUser, permission Permi
 			return true
 		}
 		// Check for admin permissions
-		if perm == PermissionSystemAdmin || 
-		   (strings.HasPrefix(string(permission), "repo:") && perm == PermissionRepoAdmin) {
+		if perm == PermissionSystemAdmin ||
+			(strings.HasPrefix(string(permission), "repo:") && perm == PermissionRepoAdmin) {
 			return true
 		}
 	}

@@ -30,7 +30,7 @@ func BenchmarkCoreOperations(b *testing.B) {
 		repo := govc.New()
 		b.ReportAllocs()
 		b.ResetTimer()
-		
+
 		for i := 0; i < b.N; i++ {
 			tx := repo.Transaction()
 			tx.Add(fmt.Sprintf("file%d.txt", i), []byte("test content"))
@@ -44,10 +44,10 @@ func BenchmarkCoreOperations(b *testing.B) {
 		tx := repo.Transaction()
 		tx.Add("base.txt", []byte("base"))
 		tx.Commit("Initial")
-		
+
 		b.ReportAllocs()
 		b.ResetTimer()
-		
+
 		for i := 0; i < b.N; i++ {
 			branches := make([]string, 5)
 			for j := 0; j < 5; j++ {
@@ -63,27 +63,27 @@ func BenchmarkAuthOperations(b *testing.B) {
 	cfg := config.DefaultConfig()
 	jwtAuth := auth.NewJWTAuth(cfg.Auth.JWT.Secret, cfg.Auth.JWT.Issuer, cfg.Auth.JWT.TTL)
 	rbac := auth.NewRBAC()
-	
+
 	// Create test user
 	rbac.CreateUser("bench-user", "Bench User", "bench@test.com", []string{"developer"})
-	
+
 	b.Run("JWT/Generate", func(b *testing.B) {
 		b.ReportAllocs()
 		for i := 0; i < b.N; i++ {
 			_, _ = jwtAuth.GenerateToken("bench-user", "bench-user", "bench@test.com", []string{"repo:read"})
 		}
 	})
-	
+
 	b.Run("JWT/Validate", func(b *testing.B) {
 		token, _ := jwtAuth.GenerateToken("bench-user", "bench-user", "bench@test.com", []string{"repo:read"})
 		b.ReportAllocs()
 		b.ResetTimer()
-		
+
 		for i := 0; i < b.N; i++ {
 			_, _ = jwtAuth.ValidateToken(token)
 		}
 	})
-	
+
 	b.Run("RBAC/HasPermission", func(b *testing.B) {
 		b.ReportAllocs()
 		for i := 0; i < b.N; i++ {
@@ -102,7 +102,7 @@ func BenchmarkPoolOperations(b *testing.B) {
 	}
 	p := pool.NewRepositoryPool(poolConfig)
 	defer p.Close()
-	
+
 	b.Run("Pool/Get", func(b *testing.B) {
 		b.ReportAllocs()
 		for i := 0; i < b.N; i++ {
@@ -110,16 +110,16 @@ func BenchmarkPoolOperations(b *testing.B) {
 			_, _ = p.Get(repoID, ":memory:", true)
 		}
 	})
-	
+
 	b.Run("Pool/GetStats", func(b *testing.B) {
 		// Pre-populate pool
 		for i := 0; i < 50; i++ {
 			p.Get(fmt.Sprintf("stats-repo-%d", i), ":memory:", true)
 		}
-		
+
 		b.ReportAllocs()
 		b.ResetTimer()
-		
+
 		for i := 0; i < b.N; i++ {
 			_ = p.Stats()
 		}
@@ -129,14 +129,14 @@ func BenchmarkPoolOperations(b *testing.B) {
 // BenchmarkMetricsOperations benchmarks metrics collection
 func BenchmarkMetricsOperations(b *testing.B) {
 	m := metrics.NewPrometheusMetrics()
-	
+
 	b.Run("Metrics/RecordHTTP", func(b *testing.B) {
 		b.ReportAllocs()
 		for i := 0; i < b.N; i++ {
 			m.RecordHTTPRequest("GET", "/api/v1/repos", 200, 100*time.Microsecond)
 		}
 	})
-	
+
 	b.Run("Metrics/SetGauge", func(b *testing.B) {
 		b.ReportAllocs()
 		for i := 0; i < b.N; i++ {
@@ -153,14 +153,14 @@ func BenchmarkLoggingOperations(b *testing.B) {
 		Output:    bytes.NewBuffer(nil), // Discard output to a buffer
 	}
 	logger := logging.NewLogger(logConfig)
-	
+
 	b.Run("Logger/Info", func(b *testing.B) {
 		b.ReportAllocs()
 		for i := 0; i < b.N; i++ {
 			logger.Info("Benchmark message")
 		}
 	})
-	
+
 	b.Run("Logger/WithField", func(b *testing.B) {
 		b.ReportAllocs()
 		for i := 0; i < b.N; i++ {
@@ -175,11 +175,11 @@ func BenchmarkAPIEndToEnd(b *testing.B) {
 	cfg := config.DefaultConfig()
 	cfg.Auth.Enabled = false
 	cfg.Metrics.Enabled = false
-	
+
 	server := api.NewServer(cfg)
 	router := gin.New()
 	server.RegisterRoutes(router)
-	
+
 	b.Run("API/CreateRepo", func(b *testing.B) {
 		b.ReportAllocs()
 		for i := 0; i < b.N; i++ {
@@ -190,14 +190,14 @@ func BenchmarkAPIEndToEnd(b *testing.B) {
 			router.ServeHTTP(w, req)
 		}
 	})
-	
+
 	// Create a repo for other operations
 	body := bytes.NewBufferString(`{"id": "bench-repo", "memory_only": true}`)
 	req := httptest.NewRequest("POST", "/api/v1/repos", body)
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
-	
+
 	b.Run("API/GetRepo", func(b *testing.B) {
 		b.ReportAllocs()
 		for i := 0; i < b.N; i++ {
@@ -206,7 +206,7 @@ func BenchmarkAPIEndToEnd(b *testing.B) {
 			router.ServeHTTP(w, req)
 		}
 	})
-	
+
 	b.Run("API/AddFile", func(b *testing.B) {
 		b.ReportAllocs()
 		for i := 0; i < b.N; i++ {

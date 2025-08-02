@@ -134,7 +134,7 @@ func TestMemoryRefStore(t *testing.T) {
 
 	t.Run("delete ref", func(t *testing.T) {
 		store.SetRef("refs/heads/temp", "temp123")
-		
+
 		// Verify it exists
 		if _, err := store.GetRef("refs/heads/temp"); err != nil {
 			t.Fatal("Ref should exist before deletion")
@@ -453,7 +453,7 @@ func TestInstantBranchOperations(t *testing.T) {
 	duration := time.Since(start)
 
 	t.Logf("Created 1000 branches in %v", duration)
-	
+
 	// Should be very fast (< 10ms)
 	if duration > 10*time.Millisecond {
 		t.Logf("Warning: Creating 1000 branches took %v (expected < 10ms)", duration)

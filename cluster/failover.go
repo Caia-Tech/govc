@@ -10,40 +10,40 @@ import (
 
 // FailoverManager handles automatic failover and recovery
 type FailoverManager struct {
-	cluster           *Cluster
-	healthChecker     *HealthChecker
-	failoverPolicy    FailoverPolicy
-	recoveryManager   *RecoveryManager
-	alertManager      *AlertManager
-	eventLog          []FailoverEvent
-	mu                sync.RWMutex
+	cluster         *Cluster
+	healthChecker   *HealthChecker
+	failoverPolicy  FailoverPolicy
+	recoveryManager *RecoveryManager
+	alertManager    *AlertManager
+	eventLog        []FailoverEvent
+	mu              sync.RWMutex
 }
 
 // HealthChecker monitors node health
 type HealthChecker struct {
-	interval        time.Duration
-	timeout         time.Duration
+	interval           time.Duration
+	timeout            time.Duration
 	unhealthyThreshold int
-	nodeStatus      map[string]*NodeHealth
-	callbacks       []HealthCallback
-	mu              sync.RWMutex
+	nodeStatus         map[string]*NodeHealth
+	callbacks          []HealthCallback
+	mu                 sync.RWMutex
 }
 
 // RecoveryManager handles node recovery
 type RecoveryManager struct {
-	cluster         *Cluster
-	recoveryQueue   chan RecoveryTask
+	cluster          *Cluster
+	recoveryQueue    chan RecoveryTask
 	activeRecoveries map[string]*RecoveryTask
-	maxConcurrent   int
-	mu              sync.RWMutex
+	maxConcurrent    int
+	mu               sync.RWMutex
 }
 
 // AlertManager handles alerting for failover events
 type AlertManager struct {
-	channels    []AlertChannel
-	templates   map[AlertType]AlertTemplate
-	history     []Alert
-	mu          sync.RWMutex
+	channels  []AlertChannel
+	templates map[AlertType]AlertTemplate
+	history   []Alert
+	mu        sync.RWMutex
 }
 
 // NodeHealth represents the health status of a node
@@ -72,27 +72,27 @@ const (
 
 // FailoverPolicy defines failover behavior
 type FailoverPolicy struct {
-	AutoFailoverEnabled     bool          `yaml:"auto_failover_enabled"`
-	FailoverTimeout         time.Duration `yaml:"failover_timeout"`
-	MinHealthyNodes         int           `yaml:"min_healthy_nodes"`
-	RequireQuorum           bool          `yaml:"require_quorum"`
-	PreventSplitBrain       bool          `yaml:"prevent_split_brain"`
-	MaxFailoversPerMinute   int           `yaml:"max_failovers_per_minute"`
-	CooldownPeriod          time.Duration `yaml:"cooldown_period"`
+	AutoFailoverEnabled   bool          `yaml:"auto_failover_enabled"`
+	FailoverTimeout       time.Duration `yaml:"failover_timeout"`
+	MinHealthyNodes       int           `yaml:"min_healthy_nodes"`
+	RequireQuorum         bool          `yaml:"require_quorum"`
+	PreventSplitBrain     bool          `yaml:"prevent_split_brain"`
+	MaxFailoversPerMinute int           `yaml:"max_failovers_per_minute"`
+	CooldownPeriod        time.Duration `yaml:"cooldown_period"`
 }
 
 // FailoverEvent represents a failover event
 type FailoverEvent struct {
-	ID          string           `json:"id"`
-	Type        FailoverType     `json:"type"`
-	SourceNode  string           `json:"source_node"`
-	TargetNode  string           `json:"target_node"`
-	Reason      string           `json:"reason"`
-	Status      FailoverStatus   `json:"status"`
-	StartedAt   time.Time        `json:"started_at"`
-	CompletedAt time.Time        `json:"completed_at"`
-	Duration    time.Duration    `json:"duration"`
-	Errors      []string         `json:"errors"`
+	ID          string            `json:"id"`
+	Type        FailoverType      `json:"type"`
+	SourceNode  string            `json:"source_node"`
+	TargetNode  string            `json:"target_node"`
+	Reason      string            `json:"reason"`
+	Status      FailoverStatus    `json:"status"`
+	StartedAt   time.Time         `json:"started_at"`
+	CompletedAt time.Time         `json:"completed_at"`
+	Duration    time.Duration     `json:"duration"`
+	Errors      []string          `json:"errors"`
 	Metadata    map[string]string `json:"metadata"`
 }
 
@@ -100,10 +100,10 @@ type FailoverEvent struct {
 type FailoverType string
 
 const (
-	FailoverTypeNodeFailure     FailoverType = "node_failure"
-	FailoverTypeLeaderElection  FailoverType = "leader_election"
-	FailoverTypeShardMigration  FailoverType = "shard_migration"
-	FailoverTypeLoadBalancing   FailoverType = "load_balancing"
+	FailoverTypeNodeFailure    FailoverType = "node_failure"
+	FailoverTypeLeaderElection FailoverType = "leader_election"
+	FailoverTypeShardMigration FailoverType = "shard_migration"
+	FailoverTypeLoadBalancing  FailoverType = "load_balancing"
 )
 
 // FailoverStatus represents failover operation status
@@ -119,14 +119,14 @@ const (
 
 // RecoveryTask represents a node recovery operation
 type RecoveryTask struct {
-	ID          string           `json:"id"`
-	NodeID      string           `json:"node_id"`
-	Type        RecoveryType     `json:"type"`
-	Status      RecoveryStatus   `json:"status"`
-	StartedAt   time.Time        `json:"started_at"`
-	CompletedAt time.Time        `json:"completed_at"`
-	Progress    int              `json:"progress"`
-	Errors      []string         `json:"errors"`
+	ID          string            `json:"id"`
+	NodeID      string            `json:"node_id"`
+	Type        RecoveryType      `json:"type"`
+	Status      RecoveryStatus    `json:"status"`
+	StartedAt   time.Time         `json:"started_at"`
+	CompletedAt time.Time         `json:"completed_at"`
+	Progress    int               `json:"progress"`
+	Errors      []string          `json:"errors"`
 	Metadata    map[string]string `json:"metadata"`
 }
 
@@ -163,11 +163,11 @@ type AlertChannel interface {
 type AlertType string
 
 const (
-	AlertTypeNodeDown        AlertType = "node_down"
-	AlertTypeNodeRecovered   AlertType = "node_recovered"
-	AlertTypeFailoverStarted AlertType = "failover_started"
+	AlertTypeNodeDown         AlertType = "node_down"
+	AlertTypeNodeRecovered    AlertType = "node_recovered"
+	AlertTypeFailoverStarted  AlertType = "failover_started"
 	AlertTypeFailoverComplete AlertType = "failover_complete"
-	AlertTypeClusterDegraded AlertType = "cluster_degraded"
+	AlertTypeClusterDegraded  AlertType = "cluster_degraded"
 )
 
 // AlertTemplate defines alert message templates
@@ -239,10 +239,10 @@ func NewFailoverManager(cluster *Cluster, policy FailoverPolicy) *FailoverManage
 func (fm *FailoverManager) Start(ctx context.Context) error {
 	// Start health checking
 	go fm.healthChecker.Start(ctx, fm.cluster)
-	
+
 	// Start recovery manager
 	go fm.recoveryManager.Start(ctx)
-	
+
 	// Start failover monitoring
 	go fm.runFailoverMonitor(ctx)
 
@@ -479,10 +479,10 @@ func (hc *HealthChecker) Start(ctx context.Context, cluster *Cluster) {
 // checkAllNodes checks the health of all nodes
 func (hc *HealthChecker) checkAllNodes(cluster *Cluster) {
 	nodes := cluster.GetNodes()
-	
+
 	for _, node := range nodes {
 		health := hc.checkNodeHealth(node)
-		
+
 		hc.mu.Lock()
 		oldHealth := hc.nodeStatus[node.ID]
 		hc.nodeStatus[node.ID] = health
@@ -494,7 +494,7 @@ func (hc *HealthChecker) checkAllNodes(cluster *Cluster) {
 			if oldHealth != nil {
 				oldStatus = oldHealth.Status
 			}
-			
+
 			for _, callback := range hc.callbacks {
 				callback(node.ID, oldStatus, health.Status)
 			}
@@ -516,7 +516,7 @@ func (hc *HealthChecker) checkNodeHealth(node *Node) *NodeHealth {
 	defer cancel()
 
 	start := time.Now()
-	
+
 	// Simulate health check - in production this would be an HTTP request
 	// to the node's health endpoint
 	isResponsive := hc.pingNode(ctx, node)
@@ -593,7 +593,7 @@ func (fm *FailoverManager) onHealthChange(nodeID string, oldStatus, newStatus He
 func (fm *FailoverManager) isNodeUnhealthy(nodeID string) bool {
 	fm.healthChecker.mu.RLock()
 	defer fm.healthChecker.mu.RUnlock()
-	
+
 	health, exists := fm.healthChecker.nodeStatus[nodeID]
 	return exists && health.Status == HealthStatusUnhealthy
 }
@@ -601,14 +601,14 @@ func (fm *FailoverManager) isNodeUnhealthy(nodeID string) bool {
 func (fm *FailoverManager) isInCooldown(nodeID string) bool {
 	// Check if we've done too many failovers recently
 	cutoff := time.Now().Add(-fm.failoverPolicy.CooldownPeriod)
-	
+
 	count := 0
 	for _, event := range fm.eventLog {
 		if event.SourceNode == nodeID && event.StartedAt.After(cutoff) {
 			count++
 		}
 	}
-	
+
 	return count >= fm.failoverPolicy.MaxFailoversPerMinute
 }
 
@@ -666,7 +666,7 @@ func (rm *RecoveryManager) Start(ctx context.Context) {
 				rm.mu.Lock()
 				rm.activeRecoveries[task.ID] = &task
 				rm.mu.Unlock()
-				
+
 				go rm.executeRecovery(&task)
 			} else {
 				// Queue is full, put task back
@@ -689,7 +689,7 @@ func (rm *RecoveryManager) executeRecovery(task *RecoveryTask) {
 	}()
 
 	task.Status = RecoveryStatusActive
-	
+
 	switch task.Type {
 	case RecoveryTypeNodeRestart:
 		rm.executeNodeRestart(task)
@@ -753,7 +753,7 @@ func (am *AlertManager) SendAlert(alert Alert) {
 func (fm *FailoverManager) GetFailoverHistory() []FailoverEvent {
 	fm.mu.RLock()
 	defer fm.mu.RUnlock()
-	
+
 	// Return a copy to prevent race conditions
 	history := make([]FailoverEvent, len(fm.eventLog))
 	copy(history, fm.eventLog)
@@ -781,10 +781,10 @@ func (fm *FailoverManager) GetClusterHealth() map[string]interface{} {
 	}
 
 	return map[string]interface{}{
-		"total_nodes":    len(fm.healthChecker.nodeStatus),
-		"healthy_nodes":  healthyCount,
-		"degraded_nodes": degradedCount,
-		"unhealthy_nodes": unhealthyCount,
+		"total_nodes":      len(fm.healthChecker.nodeStatus),
+		"healthy_nodes":    healthyCount,
+		"degraded_nodes":   degradedCount,
+		"unhealthy_nodes":  unhealthyCount,
 		"failover_enabled": fm.failoverPolicy.AutoFailoverEnabled,
 	}
 }

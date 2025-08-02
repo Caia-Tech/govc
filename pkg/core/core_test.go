@@ -227,7 +227,7 @@ func TestMemoryObjectStore(t *testing.T) {
 		// Retrieve
 		obj, err := store.Get(hash)
 		require.NoError(t, err)
-		
+
 		retrievedBlob, ok := obj.(*object.Blob)
 		require.True(t, ok)
 		assert.Equal(t, blob.Content, retrievedBlob.Content)
@@ -248,7 +248,7 @@ func TestMemoryObjectStore(t *testing.T) {
 
 		obj, err := store.Get(hash)
 		require.NoError(t, err)
-		
+
 		retrievedTree, ok := obj.(*object.Tree)
 		require.True(t, ok)
 		assert.Len(t, retrievedTree.Entries, 1)

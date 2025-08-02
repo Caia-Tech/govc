@@ -13,7 +13,7 @@ import (
 func (s *Server) getBlame(c *gin.Context) {
 	repoID := c.Param("repo_id")
 	filePath := c.Param("path")
-	
+
 	// Clean the path
 	filePath = strings.TrimPrefix(filePath, "/")
 	if filePath == "" {
@@ -35,17 +35,17 @@ func (s *Server) getBlame(c *gin.Context) {
 
 	// Get optional ref parameter (defaults to HEAD)
 	ref := c.DefaultQuery("ref", "HEAD")
-	
+
 	// Get line range parameters
 	startLine := 0
 	endLine := -1 // -1 means all lines
-	
+
 	if startStr := c.Query("start"); startStr != "" {
 		if start, err := strconv.Atoi(startStr); err == nil && start > 0 {
 			startLine = start - 1 // Convert to 0-based
 		}
 	}
-	
+
 	if endStr := c.Query("end"); endStr != "" {
 		if end, err := strconv.Atoi(endStr); err == nil && end > 0 {
 			endLine = end
@@ -79,7 +79,7 @@ func (s *Server) getBlame(c *gin.Context) {
 		if endLine > 0 && line.LineNumber > endLine {
 			continue
 		}
-		
+
 		blameLines = append(blameLines, BlameLine{
 			LineNumber: line.LineNumber,
 			Content:    line.Content,

@@ -62,7 +62,7 @@ func (wd *WorkingDirectory) MatchFiles(pattern string) ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
-	
+
 	var matched []string
 	for _, file := range files {
 		if pattern == "." || pattern == "*" {
@@ -71,7 +71,7 @@ func (wd *WorkingDirectory) MatchFiles(pattern string) ([]string, error) {
 			matched = append(matched, file)
 		}
 	}
-	
+
 	return matched, nil
 }
 
@@ -117,11 +117,11 @@ func NewWorkspace(objectStore storage.ObjectStore, refStore storage.RefStore) *W
 func (ws *Workspace) GetWorkingDirectory(branch string) *WorkingDirectory {
 	ws.mu.Lock()
 	defer ws.mu.Unlock()
-	
+
 	if wd, exists := ws.workingDirs[branch]; exists {
 		return wd
 	}
-	
+
 	// Create new working directory for this branch
 	wd := NewMemoryWorkingDirectory()
 	ws.workingDirs[branch] = wd
@@ -135,16 +135,16 @@ func (ws *Workspace) CheckoutBranch(branchName string) error {
 	if err != nil {
 		return fmt.Errorf("branch not found: %s", branchName)
 	}
-	
+
 	// Get the working directory for this branch
 	wd := ws.GetWorkingDirectory(branchName)
-	
+
 	// Load the tree from the commit
 	err = ws.populateWorkingDirectory(wd, commitHash)
 	if err != nil {
 		return fmt.Errorf("failed to populate working directory: %v", err)
 	}
-	
+
 	// Update HEAD
 	return ws.refStore.SetHEAD("ref: refs/heads/" + branchName)
 }
@@ -156,44 +156,44 @@ func (ws *Workspace) populateWorkingDirectory(wd *WorkingDirectory, commitHash s
 	if err != nil {
 		return fmt.Errorf("failed to get commit %s: %v", commitHash, err)
 	}
-	
+
 	commit, ok := commitObj.(*object.Commit)
 	if !ok {
 		return fmt.Errorf("object %s is not a commit", commitHash)
 	}
-	
+
 	// Get the tree object
 	treeObj, err := ws.objectStore.Get(commit.TreeHash)
 	if err != nil {
 		return fmt.Errorf("failed to get tree %s: %v", commit.TreeHash, err)
 	}
-	
+
 	tree, ok := treeObj.(*object.Tree)
 	if !ok {
 		return fmt.Errorf("object %s is not a tree", commit.TreeHash)
 	}
-	
+
 	// Clear the working directory first
 	wd.Clear()
-	
+
 	// Load files from the tree
 	for _, entry := range tree.Entries {
 		blobObj, err := ws.objectStore.Get(entry.Hash)
 		if err != nil {
 			return fmt.Errorf("failed to get blob %s: %v", entry.Hash, err)
 		}
-		
+
 		blob, ok := blobObj.(*object.Blob)
 		if !ok {
 			return fmt.Errorf("object %s is not a blob", entry.Hash)
 		}
-		
+
 		err = wd.WriteFile(entry.Name, blob.Content)
 		if err != nil {
 			return fmt.Errorf("failed to write file %s: %v", entry.Name, err)
 		}
 	}
-	
+
 	return nil
 }
 
@@ -203,8 +203,7 @@ func (ws *Workspace) GetCurrentBranch() (string, error) {
 	if err != nil {
 		return "", err
 	}
-	
-	
+
 	// Handle symbolic references with "ref: " prefix
 	if head == "ref: refs/heads/main" {
 		return "main", nil
@@ -215,7 +214,7 @@ func (ws *Workspace) GetCurrentBranch() (string, error) {
 			return ref[len("refs/heads/"):], nil
 		}
 	}
-	
+
 	// Handle direct symbolic references
 	if head == "refs/heads/main" {
 		return "main", nil
@@ -223,13 +222,13 @@ func (ws *Workspace) GetCurrentBranch() (string, error) {
 	if len(head) > len("refs/heads/") && head[:len("refs/heads/")] == "refs/heads/" {
 		return head[len("refs/heads/"):], nil
 	}
-	
+
 	// Check if it's a hex hash (detached HEAD) - can be any length
 	// If it doesn't start with refs/ and isn't a simple branch name, assume it's a hash
 	if len(head) >= 4 && isHexString(head) {
 		return "", fmt.Errorf("HEAD is detached")
 	}
-	
+
 	// For other cases, assume it's a branch name without the refs/heads/ prefix
 	return head, nil
 }
@@ -240,7 +239,7 @@ func (ws *Workspace) GetCurrentWorkingDirectory() (*WorkingDirectory, error) {
 	if err != nil {
 		return nil, err
 	}
-	
+
 	return ws.GetWorkingDirectory(branch), nil
 }
 
@@ -250,10 +249,10 @@ func (ws *Workspace) CreateBranch(branchName string, fromCommit string) error {
 	if err != nil {
 		return err
 	}
-	
+
 	// Create a working directory for the new branch
 	wd := ws.GetWorkingDirectory(branchName)
-	
+
 	// Populate it with the commit's content
 	return ws.populateWorkingDirectory(wd, fromCommit)
 }
@@ -264,16 +263,16 @@ func (ws *Workspace) DeleteBranch(branchName string) error {
 	if err != nil {
 		return err
 	}
-	
+
 	// Clean up the working directory
 	ws.mu.Lock()
 	defer ws.mu.Unlock()
-	
+
 	if wd, exists := ws.workingDirs[branchName]; exists {
 		wd.Close()
 		delete(ws.workingDirs, branchName)
 	}
-	
+
 	return nil
 }
 
@@ -281,17 +280,17 @@ func (ws *Workspace) DeleteBranch(branchName string) error {
 func (ws *Workspace) Close() error {
 	ws.mu.Lock()
 	defer ws.mu.Unlock()
-	
+
 	// Close all working directories
 	for _, wd := range ws.workingDirs {
 		wd.Close()
 	}
 	ws.workingDirs = make(map[string]*WorkingDirectory)
-	
+
 	// Close storage components
 	ws.objectStore.Close()
 	ws.refStore.Close()
-	
+
 	return nil
 }
 

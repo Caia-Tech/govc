@@ -11,7 +11,7 @@ import (
 // registerHookV2 registers a webhook using new architecture
 func (s *Server) registerHookV2(c *gin.Context) {
 	repoID := c.Param("repo_id")
-	
+
 	var req HookRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, ErrorResponse{
@@ -35,7 +35,7 @@ func (s *Server) registerHookV2(c *gin.Context) {
 	for i, event := range req.Events {
 		eventStrings[i] = string(event)
 	}
-	
+
 	// Register webhook
 	webhook, err := components.Webhooks.Register(req.URL, eventStrings, req.Secret)
 	if err != nil {
@@ -60,7 +60,7 @@ func (s *Server) registerHookV2(c *gin.Context) {
 // listHooksV2 lists all webhooks using new architecture
 func (s *Server) listHooksV2(c *gin.Context) {
 	repoID := c.Param("repo_id")
-	
+
 	components, err := s.getRepositoryComponents(repoID)
 	if err != nil {
 		c.JSON(http.StatusNotFound, ErrorResponse{
@@ -72,7 +72,7 @@ func (s *Server) listHooksV2(c *gin.Context) {
 
 	// List webhooks
 	webhooks := components.Webhooks.List()
-	
+
 	// Convert to response format
 	hookList := make([]HookResponse, len(webhooks))
 	for i, webhook := range webhooks {
@@ -97,7 +97,7 @@ func (s *Server) listHooksV2(c *gin.Context) {
 func (s *Server) getHookV2(c *gin.Context) {
 	repoID := c.Param("repo_id")
 	hookID := c.Param("hook_id")
-	
+
 	components, err := s.getRepositoryComponents(repoID)
 	if err != nil {
 		c.JSON(http.StatusNotFound, ErrorResponse{
@@ -132,7 +132,7 @@ func (s *Server) getHookV2(c *gin.Context) {
 func (s *Server) deleteHookV2(c *gin.Context) {
 	repoID := c.Param("repo_id")
 	hookID := c.Param("hook_id")
-	
+
 	components, err := s.getRepositoryComponents(repoID)
 	if err != nil {
 		c.JSON(http.StatusNotFound, ErrorResponse{
@@ -160,7 +160,7 @@ func (s *Server) deleteHookV2(c *gin.Context) {
 func (s *Server) executeHookV2(c *gin.Context) {
 	repoID := c.Param("repo_id")
 	hookType := c.Param("hook_type")
-	
+
 	var req struct {
 		Data interface{} `json:"data"`
 	}
@@ -199,14 +199,14 @@ func (s *Server) executeHookV2(c *gin.Context) {
 				"timestamp": commit.Author.Time,
 			}
 		}
-		
+
 		status, _ := components.Operations.Status()
 		eventData = map[string]interface{}{
 			"ref":        fmt.Sprintf("refs/heads/%s", status.Branch),
 			"repository": repoID,
 			"commits":    commitData,
 		}
-		
+
 	case "commit":
 		// Get last commit
 		commits, _ := components.Operations.Log(1)
@@ -225,7 +225,7 @@ func (s *Server) executeHookV2(c *gin.Context) {
 				"repository": repoID,
 			}
 		}
-		
+
 	default:
 		eventData = req.Data
 	}

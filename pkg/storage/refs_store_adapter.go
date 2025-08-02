@@ -40,13 +40,13 @@ func (a *RefsStoreAdapter) ListRefs() (map[string]string, error) {
 	if err != nil {
 		return nil, err
 	}
-	
+
 	// Convert []refs.Ref to map[string]string
 	result := make(map[string]string)
 	for _, ref := range refsList {
 		result[ref.Name] = ref.Hash
 	}
-	
+
 	return result, nil
 }
 
@@ -63,7 +63,7 @@ func (a *RefsStoreAdapter) GetHEAD() (string, error) {
 		// TODO: This is a limitation - we need access to the head field
 		return "refs/heads/main", nil
 	}
-	
+
 	// For other stores, return the resolved value
 	return a.store.GetHEAD()
 }

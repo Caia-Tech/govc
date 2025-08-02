@@ -12,10 +12,11 @@ import (
 // CleanWorkspace manages the mutable working directory state
 // Separated from repository to maintain clean architecture
 type CleanWorkspace struct {
-	repo     *CleanRepository
-	working  WorkingStorage
-	staging  *CleanStagingArea
-	branch   string // Current branch
+	mu      sync.RWMutex
+	repo    *CleanRepository
+	working WorkingStorage
+	staging *CleanStagingArea
+	branch  string // Current branch
 }
 
 // NewCleanWorkspace creates a new workspace
@@ -50,25 +51,25 @@ func (w *CleanWorkspace) Add(path string) error {
 	if err != nil {
 		return fmt.Errorf("cannot read file %s: %w", path, err)
 	}
-	
+
 	// Create blob
 	blob := object.NewBlob(content)
 	hash, err := w.repo.objects.Put(blob)
 	if err != nil {
 		return fmt.Errorf("cannot store blob: %w", err)
 	}
-	
+
 	// Add to staging
 	w.staging.mu.Lock()
 	w.staging.entries[path] = StagedEntry{
 		Hash: hash,
 		Mode: "100644", // Regular file
 	}
-	
+
 	// Remove from removed list if it was there
 	delete(w.staging.removed, path)
 	w.staging.mu.Unlock()
-	
+
 	return nil
 }
 
@@ -77,31 +78,35 @@ func (w *CleanWorkspace) Remove(path string) error {
 	// Mark as removed
 	w.staging.mu.Lock()
 	w.staging.removed[path] = true
-	
+
 	// Remove from staged entries
 	delete(w.staging.entries, path)
 	w.staging.mu.Unlock()
-	
+
 	// Remove from working directory
 	return w.working.Delete(path)
 }
 
 // Status returns the current workspace status
 func (w *CleanWorkspace) Status() (*Status, error) {
+	w.mu.RLock()
+	currentBranch := w.branch
+	w.mu.RUnlock()
+
 	status := &Status{
-		Branch:    w.branch,
+		Branch:    currentBranch,
 		Staged:    []string{},
 		Modified:  []string{},
 		Untracked: []string{},
 	}
-	
+
 	// Get current commit tree
-	head, err := w.repo.GetBranch(w.branch)
+	head, err := w.repo.GetBranch(currentBranch)
 	if err != nil {
 		// New repository, no commits yet
 		head = ""
 	}
-	
+
 	var currentTree *object.Tree
 	if head != "" {
 		commit, err := w.repo.GetCommit(head)
@@ -109,7 +114,7 @@ func (w *CleanWorkspace) Status() (*Status, error) {
 			currentTree, _ = w.repo.GetTree(commit.TreeHash)
 		}
 	}
-	
+
 	// Build map of files in current commit
 	committedFiles := make(map[string]string)
 	if currentTree != nil {
@@ -117,7 +122,7 @@ func (w *CleanWorkspace) Status() (*Status, error) {
 			committedFiles[entry.Name] = entry.Hash
 		}
 	}
-	
+
 	// Check staged files
 	w.staging.mu.RLock()
 	for path := range w.staging.entries {
@@ -127,7 +132,7 @@ func (w *CleanWorkspace) Status() (*Status, error) {
 		status.Staged = append(status.Staged, path+" (deleted)")
 	}
 	w.staging.mu.RUnlock()
-	
+
 	// Check working directory files
 	workingFiles, _ := w.working.List()
 	for _, path := range workingFiles {
@@ -138,7 +143,7 @@ func (w *CleanWorkspace) Status() (*Status, error) {
 		if isStaged {
 			continue
 		}
-		
+
 		// Check if file is tracked
 		if commitHash, isTracked := committedFiles[path]; isTracked {
 			// File is tracked, check if modified
@@ -154,12 +159,12 @@ func (w *CleanWorkspace) Status() (*Status, error) {
 			status.Untracked = append(status.Untracked, path)
 		}
 	}
-	
+
 	// Sort for consistent output
 	sort.Strings(status.Staged)
 	sort.Strings(status.Modified)
 	sort.Strings(status.Untracked)
-	
+
 	return status, nil
 }
 
@@ -170,52 +175,56 @@ func (w *CleanWorkspace) Checkout(branch string) error {
 	if err != nil {
 		return fmt.Errorf("branch not found: %s", branch)
 	}
-	
+
 	// Get commit
 	commit, err := w.repo.GetCommit(commitHash)
 	if err != nil {
 		return err
 	}
-	
+
 	// Get tree
 	tree, err := w.repo.GetTree(commit.TreeHash)
 	if err != nil {
 		return err
 	}
-	
+
 	// Clear working directory
 	if err := w.working.Clear(); err != nil {
 		return err
 	}
-	
+
 	// Restore files from tree
 	for _, entry := range tree.Entries {
 		blob, err := w.repo.GetBlob(entry.Hash)
 		if err != nil {
 			return err
 		}
-		
+
 		if err := w.working.Write(entry.Name, blob.Content); err != nil {
 			return err
 		}
 	}
-	
-	// Update current branch
+
+	// Update current branch and staging area
+	w.mu.Lock()
 	w.branch = branch
-	
-	// Clear staging area
 	w.staging = NewCleanStagingArea()
-	
+	w.mu.Unlock()
+
 	return nil
 }
 
 // Reset resets staging area
 func (w *CleanWorkspace) Reset() {
+	w.mu.Lock()
 	w.staging = NewCleanStagingArea()
+	w.mu.Unlock()
 }
 
 // GetStagingArea returns the current staging area
 func (w *CleanWorkspace) GetStagingArea() *CleanStagingArea {
+	w.mu.RLock()
+	defer w.mu.RUnlock()
 	return w.staging
 }
 
@@ -245,7 +254,7 @@ func (w *CleanWorkspace) WriteFile(path string, content []byte) error {
 		// This is a simplified version - real implementation would handle this better
 		// For memory storage, directories don't matter
 	}
-	
+
 	return w.working.Write(path, content)
 }
 

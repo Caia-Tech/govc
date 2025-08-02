@@ -18,7 +18,7 @@ import (
 type Server struct {
 	config            *config.Config
 	repoPool          *pool.RepositoryPool
-	repoFactory       *RepositoryFactory  // New: factory for clean architecture
+	repoFactory       *RepositoryFactory // New: factory for clean architecture
 	transactions      map[string]*govc.TransactionalCommit
 	repoMetadata      map[string]*RepoMetadata
 	jwtAuth           *auth.JWTAuth
@@ -27,6 +27,7 @@ type Server struct {
 	authMiddleware    *auth.AuthMiddleware
 	prometheusMetrics *metrics.PrometheusMetrics
 	logger            *logging.Logger
+	csrfStore         *CSRFStore
 	mu                sync.RWMutex
 }
 
@@ -76,10 +77,13 @@ func NewServer(cfg *config.Config) *Server {
 	}
 	repoPool := pool.NewRepositoryPool(poolConfig)
 
+	// Initialize CSRF store with 1 hour TTL
+	csrfStore := NewCSRFStore(time.Hour)
+
 	return &Server{
 		config:            cfg,
 		repoPool:          repoPool,
-		repoFactory:       NewRepositoryFactory(),
+		repoFactory:       NewRepositoryFactory(logger),
 		transactions:      make(map[string]*govc.TransactionalCommit),
 		repoMetadata:      make(map[string]*RepoMetadata),
 		jwtAuth:           jwtAuth,
@@ -88,21 +92,41 @@ func NewServer(cfg *config.Config) *Server {
 		authMiddleware:    authMiddleware,
 		prometheusMetrics: prometheusMetrics,
 		logger:            logger,
+		csrfStore:         csrfStore,
 	}
 }
 
 func (s *Server) RegisterRoutes(router *gin.Engine) {
 	// Check if we should use new architecture
 	useNewArchitecture := s.config.Development.UseNewArchitecture
-	
+
 	// Add global middleware
+	router.Use(gin.Recovery()) // Panic recovery
+	router.Use(PerformanceLoggingMiddleware(s.logger)) // Enhanced request logging
 	router.Use(SecurityHeadersMiddleware())
+	router.Use(XSSProtectionMiddleware())
+	router.Use(SecurityMiddleware(DefaultSecurityConfig(), s.logger))
 	router.Use(RequestSizeMiddleware(s.config.Server.MaxRequestSize))
 	router.Use(TimeoutMiddleware(s.config.Server.RequestTimeout))
-	
+
 	// Add CORS middleware if enabled
 	if s.config.Development.CORSEnabled {
 		router.Use(CORSMiddleware(s.config.Development.AllowedOrigins))
+	}
+
+	// Add CSRF protection for state-changing operations
+	csrfSkipPaths := []string{
+		"/api/v1/auth/login",
+		"/api/v1/auth/csrf-token",
+		"/health",
+		"/metrics",
+		"/swagger",
+	}
+	
+	// Use double submit cookie pattern for simplicity in development
+	// In production, use the stateful CSRF store
+	if s.config.Auth.Enabled && !s.config.Development.Debug {
+		router.Use(CSRFMiddleware(s.csrfStore, csrfSkipPaths))
 	}
 
 	v1 := router.Group("/api/v1")
@@ -114,6 +138,7 @@ func (s *Server) RegisterRoutes(router *gin.Engine) {
 			authRoutes.POST("/login", s.login)
 			authRoutes.POST("/refresh", s.refreshToken)
 			authRoutes.GET("/whoami", s.authMiddleware.AuthRequired(), s.whoami)
+			authRoutes.GET("/csrf-token", s.getCSRFToken)
 		}
 
 		// API key management
@@ -185,11 +210,19 @@ func (s *Server) RegisterRoutes(router *gin.Engine) {
 		repoRoutes.GET("/:repo_id/blame/*path", s.getBlame)
 
 		// Branch operations
-		repoRoutes.GET("/:repo_id/branches", s.listBranches)
-		repoRoutes.POST("/:repo_id/branches", s.createBranch)
-		repoRoutes.DELETE("/:repo_id/branches/:branch", s.deleteBranch)
-		repoRoutes.POST("/:repo_id/checkout", s.checkout)
-		repoRoutes.POST("/:repo_id/merge", s.merge)
+		if useNewArchitecture {
+			repoRoutes.GET("/:repo_id/branches", s.listBranchesV2)
+			repoRoutes.POST("/:repo_id/branches", s.createBranchV2)
+			repoRoutes.DELETE("/:repo_id/branches/:branch", s.deleteBranchV2)
+			repoRoutes.POST("/:repo_id/checkout", s.checkoutV2)
+			repoRoutes.POST("/:repo_id/merge", s.mergeV2)
+		} else {
+			repoRoutes.GET("/:repo_id/branches", s.listBranches)
+			repoRoutes.POST("/:repo_id/branches", s.createBranch)
+			repoRoutes.DELETE("/:repo_id/branches/:branch", s.deleteBranch)
+			repoRoutes.POST("/:repo_id/checkout", s.checkout)
+			repoRoutes.POST("/:repo_id/merge", s.merge)
+		}
 
 		// Tag operations
 		repoRoutes.GET("/:repo_id/tags", s.listTags)
@@ -252,7 +285,7 @@ func (s *Server) RegisterRoutes(router *gin.Engine) {
 		v2.GET("/repos", s.listReposV2)
 		v2.GET("/repos/:repo_id", s.getRepoV2)
 		v2.DELETE("/repos/:repo_id", s.deleteRepoV2)
-		
+
 		// File operations
 		v2.POST("/repos/:repo_id/files", s.addFileV2)
 		v2.GET("/repos/:repo_id/files", s.readFileV2)
@@ -260,28 +293,27 @@ func (s *Server) RegisterRoutes(router *gin.Engine) {
 		v2.DELETE("/repos/:repo_id/files", s.removeFileV2)
 		v2.POST("/repos/:repo_id/files/move", s.moveFileV2)
 		v2.GET("/repos/:repo_id/tree", s.listTreeV2)
-		
+
 		// Git operations
 		v2.POST("/repos/:repo_id/commits", s.commitV2)
 		v2.GET("/repos/:repo_id/commits", s.getLogV2)
 		v2.GET("/repos/:repo_id/status", s.getStatusV2)
-		
+
 		// Branch operations
 		v2.POST("/repos/:repo_id/branches", s.createBranchV2)
 		v2.POST("/repos/:repo_id/checkout", s.checkoutV2)
 		v2.POST("/repos/:repo_id/merge", s.mergeV2)
-		
+
 		// Tag operations
 		v2.POST("/repos/:repo_id/tags", s.createTagV2)
-		
+
 		// Stash operations
 		v2.POST("/repos/:repo_id/stashes", s.createStashV2)
 		v2.GET("/repos/:repo_id/stashes", s.listStashesV2)
 		v2.GET("/repos/:repo_id/stashes/:stash_id", s.getStashV2)
 		v2.POST("/repos/:repo_id/stashes/:stash_id/apply", s.applyStashV2)
 		v2.DELETE("/repos/:repo_id/stashes/:stash_id", s.dropStashV2)
-		
-		
+
 		// Hooks & Events
 		v2.POST("/repos/:repo_id/hooks", s.registerHookV2)
 		v2.GET("/repos/:repo_id/hooks", s.listHooksV2)
@@ -296,7 +328,7 @@ func (s *Server) RegisterRoutes(router *gin.Engine) {
 	router.GET("/health/ready", s.readiness)
 	router.GET("/metrics", s.prometheusMetrics.PrometheusHandler())
 	router.GET("/version", s.versionInfo)
-	
+
 	// Pool management endpoints (admin only if auth is enabled)
 	poolRoutes := v1.Group("/pool")
 	if s.config.Auth.Enabled {
@@ -308,11 +340,12 @@ func (s *Server) RegisterRoutes(router *gin.Engine) {
 		poolRoutes.POST("/cleanup", s.cleanupPool)
 	}
 
-
 	// Container system removed - focusing on core VCS functionality
 
 	// Add Prometheus middleware for automatic metrics collection
-	router.Use(s.prometheusMetrics.GinMiddleware())
+	if s.prometheusMetrics != nil {
+		router.Use(s.prometheusMetrics.GinMiddleware())
+	}
 }
 
 func (s *Server) getRepository(id string) (*govc.Repository, error) {
@@ -344,22 +377,22 @@ func (s *Server) getRepositoryComponents(id string) (*RepositoryComponents, erro
 		s.mu.RLock()
 		metadata, ok := s.repoMetadata[id]
 		s.mu.RUnlock()
-		
+
 		if !ok {
 			return nil, fmt.Errorf("repository not found: %s", id)
 		}
-		
+
 		// Open existing repository
 		if metadata.Path == ":memory:" {
 			return nil, fmt.Errorf("cannot reload memory repository: %s", id)
 		}
-		
+
 		components, err = s.repoFactory.OpenRepository(id, metadata.Path)
 		if err != nil {
 			return nil, err
 		}
 	}
-	
+
 	return components, nil
 }
 
@@ -368,12 +401,12 @@ func (s *Server) updateMetrics() {
 	if s.prometheusMetrics == nil {
 		return
 	}
-	
+
 	s.mu.RLock()
 	repoCount := int64(len(s.repoMetadata))
 	transactionCount := int64(len(s.transactions))
 	s.mu.RUnlock()
-	
+
 	s.prometheusMetrics.SetRepositoryCount(repoCount)
 	s.prometheusMetrics.SetTransactionCount(transactionCount)
 }
@@ -410,4 +443,3 @@ func (s *Server) Close() error {
 	s.logger.Info("Server shutdown cleanup completed")
 	return nil
 }
-

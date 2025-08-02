@@ -10,17 +10,17 @@ import (
 )
 
 type CLIConfig struct {
-	DefaultServer   string            `json:"default_server,omitempty"`
-	DefaultTimeout  int               `json:"default_timeout,omitempty"`
-	EnableMetrics   bool              `json:"enable_metrics,omitempty"`
-	EnableLogging   bool              `json:"enable_logging,omitempty"`
-	LogLevel        string            `json:"log_level,omitempty"`
-	Editor          string            `json:"editor,omitempty"`
-	ColorOutput     bool              `json:"color_output,omitempty"`
-	Aliases         map[string]string `json:"aliases,omitempty"`
-	DefaultAuthor   Author            `json:"default_author,omitempty"`
-	AutoAuth        bool              `json:"auto_auth,omitempty"`
-	MemoryRepoPath  string            `json:"memory_repo_path,omitempty"`
+	DefaultServer  string            `json:"default_server,omitempty"`
+	DefaultTimeout int               `json:"default_timeout,omitempty"`
+	EnableMetrics  bool              `json:"enable_metrics,omitempty"`
+	EnableLogging  bool              `json:"enable_logging,omitempty"`
+	LogLevel       string            `json:"log_level,omitempty"`
+	Editor         string            `json:"editor,omitempty"`
+	ColorOutput    bool              `json:"color_output,omitempty"`
+	Aliases        map[string]string `json:"aliases,omitempty"`
+	DefaultAuthor  Author            `json:"default_author,omitempty"`
+	AutoAuth       bool              `json:"auto_auth,omitempty"`
+	MemoryRepoPath string            `json:"memory_repo_path,omitempty"`
 }
 
 type Author struct {
@@ -253,7 +253,7 @@ func runConfigList(cmd *cobra.Command, args []string) {
 	fmt.Printf("color_output = %v\n", config.ColorOutput)
 	fmt.Printf("auto_auth = %v\n", config.AutoAuth)
 	fmt.Printf("memory_repo_path = %s\n", config.MemoryRepoPath)
-	
+
 	if config.DefaultAuthor.Name != "" || config.DefaultAuthor.Email != "" {
 		fmt.Printf("\n# Default author\n")
 		fmt.Printf("default_author.name = %s\n", config.DefaultAuthor.Name)
@@ -272,7 +272,7 @@ func runConfigReset(cmd *cobra.Command, args []string) {
 	fmt.Print("Are you sure you want to reset all configuration to defaults? [y/N]: ")
 	var response string
 	fmt.Scanln(&response)
-	
+
 	if response != "y" && response != "Y" {
 		fmt.Println("Cancelled")
 		return

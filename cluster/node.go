@@ -22,25 +22,25 @@ type Node struct {
 	State    NodeState `json:"state"`
 	LastSeen time.Time `json:"last_seen"`
 	Version  string    `json:"version"`
-	
+
 	// Raft-specific fields
-	Term         uint64    `json:"term"`
-	VotedFor     string    `json:"voted_for"`
-	IsLeader     bool      `json:"is_leader"`
-	LeaderID     string    `json:"leader_id"`
-	CommitIndex  uint64    `json:"commit_index"`
-	LastApplied  uint64    `json:"last_applied"`
-	NextIndex    []uint64  `json:"next_index"`
-	MatchIndex   []uint64  `json:"match_index"`
-	
+	Term        uint64   `json:"term"`
+	VotedFor    string   `json:"voted_for"`
+	IsLeader    bool     `json:"is_leader"`
+	LeaderID    string   `json:"leader_id"`
+	CommitIndex uint64   `json:"commit_index"`
+	LastApplied uint64   `json:"last_applied"`
+	NextIndex   []uint64 `json:"next_index"`
+	MatchIndex  []uint64 `json:"match_index"`
+
 	// Node management
 	cluster      *Cluster                    `json:"-"`
 	repositories map[string]*govc.Repository `json:"-"`
-	httpServer   *http.Server               `json:"-"`
-	raftState    *RaftState                 `json:"-"`
-	Stats        NodeStats                  `json:"stats"`
-	Metadata     map[string]string          `json:"metadata"`
-	mu           sync.RWMutex               `json:"-"`
+	httpServer   *http.Server                `json:"-"`
+	raftState    *RaftState                  `json:"-"`
+	Stats        NodeStats                   `json:"stats"`
+	Metadata     map[string]string           `json:"metadata"`
+	mu           sync.RWMutex                `json:"-"`
 }
 
 // NodeStats holds node statistics
@@ -74,33 +74,33 @@ const (
 // RaftState manages Raft consensus state for the node
 type RaftState struct {
 	// Persistent state
-	CurrentTerm uint64   `json:"current_term"`
-	VotedFor    string   `json:"voted_for"`
+	CurrentTerm uint64     `json:"current_term"`
+	VotedFor    string     `json:"voted_for"`
 	Log         []LogEntry `json:"log"`
-	
+
 	// Volatile state
 	CommitIndex uint64 `json:"commit_index"`
 	LastApplied uint64 `json:"last_applied"`
-	
+
 	// Leader state (reinitialized after election)
 	NextIndex  map[string]uint64 `json:"next_index"`
 	MatchIndex map[string]uint64 `json:"match_index"`
-	
+
 	// Timing
 	ElectionTimeout  time.Duration `json:"election_timeout"`
 	HeartbeatTimeout time.Duration `json:"heartbeat_timeout"`
 	LastHeartbeat    time.Time     `json:"last_heartbeat"`
-	
+
 	mu sync.RWMutex
 }
 
-// LogEntry represents a single entry in the Raft log  
+// LogEntry represents a single entry in the Raft log
 type LogEntry struct {
-	Term      uint64      `json:"term"`
-	Index     uint64      `json:"index"`
-	Command   Command     `json:"command"`
-	Timestamp time.Time   `json:"timestamp"`
-	ClientID  string      `json:"client_id"`
+	Term      uint64    `json:"term"`
+	Index     uint64    `json:"index"`
+	Command   Command   `json:"command"`
+	Timestamp time.Time `json:"timestamp"`
+	ClientID  string    `json:"client_id"`
 }
 
 // Command represents a distributed command that can be replicated
@@ -115,16 +115,16 @@ type Command struct {
 type CommandType string
 
 const (
-	CommandTypeCreateRepo    CommandType = "create_repo"
-	CommandTypeDeleteRepo    CommandType = "delete_repo"
-	CommandTypeCommit        CommandType = "commit"
-	CommandTypeCreateBranch  CommandType = "create_branch"
-	CommandTypeDeleteBranch  CommandType = "delete_branch"
-	CommandTypeCreateTag     CommandType = "create_tag"
-	CommandTypeDeleteTag     CommandType = "delete_tag"
-	CommandTypeShardMove     CommandType = "shard_move"
-	CommandTypeNodeJoin      CommandType = "node_join"
-	CommandTypeNodeLeave     CommandType = "node_leave"
+	CommandTypeCreateRepo   CommandType = "create_repo"
+	CommandTypeDeleteRepo   CommandType = "delete_repo"
+	CommandTypeCommit       CommandType = "commit"
+	CommandTypeCreateBranch CommandType = "create_branch"
+	CommandTypeDeleteBranch CommandType = "delete_branch"
+	CommandTypeCreateTag    CommandType = "create_tag"
+	CommandTypeDeleteTag    CommandType = "delete_tag"
+	CommandTypeShardMove    CommandType = "shard_move"
+	CommandTypeNodeJoin     CommandType = "node_join"
+	CommandTypeNodeLeave    CommandType = "node_leave"
 )
 
 // NodeConfig contains configuration for a cluster node
@@ -145,11 +145,11 @@ func NewNode(config NodeConfig) (*Node, error) {
 	if config.ID == "" {
 		config.ID = generateNodeID()
 	}
-	
+
 	if config.ElectionTimeout == 0 {
 		config.ElectionTimeout = 150 * time.Millisecond
 	}
-	
+
 	if config.HeartbeatTimeout == 0 {
 		config.HeartbeatTimeout = 50 * time.Millisecond
 	}
@@ -235,17 +235,17 @@ func (n *Node) Stop() error {
 // startHTTPServer starts the HTTP server for inter-node communication
 func (n *Node) startHTTPServer() error {
 	mux := http.NewServeMux()
-	
+
 	// Raft endpoints
 	mux.HandleFunc("/raft/vote", n.handleRequestVote)
 	mux.HandleFunc("/raft/append", n.handleAppendEntries)
 	mux.HandleFunc("/raft/snapshot", n.handleSnapshot)
-	
+
 	// Cluster management endpoints
 	mux.HandleFunc("/cluster/join", n.handleJoin)
 	mux.HandleFunc("/cluster/leave", n.handleLeave)
 	mux.HandleFunc("/cluster/status", n.handleStatus)
-	
+
 	// Repository operations
 	mux.HandleFunc("/repo/", n.handleRepositoryOperation)
 
@@ -326,15 +326,15 @@ func (n *Node) startElection() {
 
 	// Vote for self
 	votes := 1
-	
+
 	// Request votes from other nodes (simplified)
 	// In a full implementation, this would send RequestVote RPCs
 	// to all other nodes in the cluster
-	
+
 	if n.cluster != nil {
 		totalNodes := len(n.cluster.GetNodes())
 		majority := totalNodes/2 + 1
-		
+
 		if votes >= majority {
 			n.becomeLeader()
 		}
@@ -346,7 +346,7 @@ func (n *Node) becomeLeader() {
 	n.State = NodeStateLeader
 	n.IsLeader = true
 	n.LeaderID = n.ID
-	
+
 	// Initialize leader state
 	if n.cluster != nil {
 		for _, node := range n.cluster.GetNodes() {
@@ -356,7 +356,7 @@ func (n *Node) becomeLeader() {
 			}
 		}
 	}
-	
+
 	// Send initial heartbeats
 	n.sendHeartbeats()
 }
@@ -366,7 +366,7 @@ func (n *Node) sendHeartbeats() {
 	if n.cluster == nil {
 		return
 	}
-	
+
 	for _, node := range n.cluster.GetNodes() {
 		if node.ID != n.ID {
 			go n.sendHeartbeat(node)
@@ -385,7 +385,7 @@ func (n *Node) sendHeartbeat(target *Node) {
 // loadState loads the node's persistent state from disk
 func (n *Node) loadState(dataDir string) error {
 	statePath := filepath.Join(dataDir, "node-state.json")
-	
+
 	data, err := os.ReadFile(statePath)
 	if os.IsNotExist(err) {
 		// No existing state, start fresh
@@ -398,7 +398,7 @@ func (n *Node) loadState(dataDir string) error {
 	var state struct {
 		RaftState *RaftState `json:"raft_state"`
 	}
-	
+
 	if err := json.Unmarshal(data, &state); err != nil {
 		return err
 	}
@@ -418,7 +418,7 @@ func (n *Node) saveState() error {
 	}
 
 	statePath := filepath.Join(dataDir, "node-state.json")
-	
+
 	state := struct {
 		RaftState *RaftState `json:"raft_state"`
 	}{
@@ -455,12 +455,12 @@ func (n *Node) performMaintenance() {
 
 	// Update last seen time
 	n.LastSeen = time.Now()
-	
+
 	// Compact log if needed
 	if len(n.raftState.Log) > 1000 { // Configurable threshold
 		n.compactLog()
 	}
-	
+
 	// Save state periodically
 	if err := n.saveState(); err != nil {
 		fmt.Printf("Warning: failed to save node state: %v\n", err)
@@ -472,18 +472,18 @@ func (n *Node) compactLog() {
 	// Simplified log compaction
 	// In a full implementation, this would create a snapshot
 	// and truncate the log up to the snapshot point
-	
+
 	if n.raftState.LastApplied > 100 {
 		// Keep only the last 100 entries
 		keepFrom := n.raftState.LastApplied - 100
 		newLog := make([]LogEntry, 0)
-		
+
 		for _, entry := range n.raftState.Log {
 			if entry.Index >= keepFrom {
 				newLog = append(newLog, entry)
 			}
 		}
-		
+
 		n.raftState.Log = newLog
 	}
 }
@@ -529,11 +529,11 @@ func (n *Node) GetLeaderID() string {
 func (n *Node) AddRepository(repoID string, repo *govc.Repository) error {
 	n.mu.Lock()
 	defer n.mu.Unlock()
-	
+
 	if _, exists := n.repositories[repoID]; exists {
 		return fmt.Errorf("repository %s already exists", repoID)
 	}
-	
+
 	n.repositories[repoID] = repo
 	return nil
 }
@@ -542,11 +542,11 @@ func (n *Node) AddRepository(repoID string, repo *govc.Repository) error {
 func (n *Node) RemoveRepository(repoID string) error {
 	n.mu.Lock()
 	defer n.mu.Unlock()
-	
+
 	if _, exists := n.repositories[repoID]; !exists {
 		return fmt.Errorf("repository %s not found", repoID)
 	}
-	
+
 	delete(n.repositories, repoID)
 	return nil
 }
@@ -555,7 +555,7 @@ func (n *Node) RemoveRepository(repoID string) error {
 func (n *Node) GetRepository(repoID string) *govc.Repository {
 	n.mu.RLock()
 	defer n.mu.RUnlock()
-	
+
 	return n.repositories[repoID]
 }
 
@@ -563,7 +563,7 @@ func (n *Node) GetRepository(repoID string) *govc.Repository {
 func (n *Node) GetRepositories() []string {
 	n.mu.RLock()
 	defer n.mu.RUnlock()
-	
+
 	repos := make([]string, 0, len(n.repositories))
 	for repoID := range n.repositories {
 		repos = append(repos, repoID)
@@ -575,11 +575,11 @@ func (n *Node) GetRepositories() []string {
 func (n *Node) UpdateStats() {
 	n.mu.Lock()
 	defer n.mu.Unlock()
-	
+
 	// In a real implementation, these would be gathered from the system
-	n.Stats.CPUUsage = 30.0 // Mock value
+	n.Stats.CPUUsage = 30.0    // Mock value
 	n.Stats.MemoryUsage = 45.0 // Mock value
-	n.Stats.DiskUsage = 60.0 // Mock value
+	n.Stats.DiskUsage = 60.0   // Mock value
 	n.Stats.RepositoryCount = int64(len(n.repositories))
 	n.Stats.LastUpdate = time.Now()
 }
@@ -588,16 +588,16 @@ func (n *Node) UpdateStats() {
 func (n *Node) IsHealthy() bool {
 	n.mu.RLock()
 	defer n.mu.RUnlock()
-	
+
 	if n.State == NodeStateOffline {
 		return false
 	}
-	
+
 	// Check resource usage
 	if n.Stats.CPUUsage > 90.0 || n.Stats.MemoryUsage > 90.0 || n.Stats.DiskUsage > 90.0 {
 		return false
 	}
-	
+
 	return true
 }
 
@@ -605,10 +605,10 @@ func (n *Node) IsHealthy() bool {
 func (n *Node) GetCapacity() NodeCapacity {
 	n.mu.RLock()
 	defer n.mu.RUnlock()
-	
+
 	return NodeCapacity{
 		RepositoryCount:   n.Stats.RepositoryCount,
 		MaxRepositories:   100, // Mock value
-		AvailableCapacity: 100.0 - (n.Stats.CPUUsage + n.Stats.MemoryUsage + n.Stats.DiskUsage) / 3.0,
+		AvailableCapacity: 100.0 - (n.Stats.CPUUsage+n.Stats.MemoryUsage+n.Stats.DiskUsage)/3.0,
 	}
 }

@@ -16,7 +16,7 @@ func TestStoreAdapter(t *testing.T) {
 
 	t.Run("Put and Get Blob", func(t *testing.T) {
 		blob := object.NewBlob([]byte("test content"))
-		
+
 		hash, err := adapter.Put(blob)
 		require.NoError(t, err)
 		assert.NotEmpty(t, hash)
@@ -79,9 +79,9 @@ func TestStoreAdapter(t *testing.T) {
 		adapter = NewStoreAdapter(store)
 
 		// Add objects with known sizes
-		blob1 := object.NewBlob([]byte("hello"))     // 5 bytes content
-		blob2 := object.NewBlob([]byte("world!!!"))  // 8 bytes content
-		
+		blob1 := object.NewBlob([]byte("hello"))    // 5 bytes content
+		blob2 := object.NewBlob([]byte("world!!!")) // 8 bytes content
+
 		adapter.Put(blob1)
 		adapter.Put(blob2)
 
@@ -103,14 +103,14 @@ func TestStoreAdapter(t *testing.T) {
 func TestMemoryObjectStore(t *testing.T) {
 	// Test the memory object store directly
 	objStore := NewMemoryObjectStore()
-	
+
 	assert.NotNil(t, objStore)
-	
+
 	// Verify it works correctly
 	blob := object.NewBlob([]byte("factory test"))
 	hash, err := objStore.Put(blob)
 	require.NoError(t, err)
-	
+
 	retrieved, err := objStore.Get(hash)
 	require.NoError(t, err)
 	assert.Equal(t, blob, retrieved)
@@ -133,7 +133,7 @@ func TestStoreAdapterWithDifferentObjectTypes(t *testing.T) {
 
 		retrieved, err := adapter.Get(hash)
 		require.NoError(t, err)
-		
+
 		retrievedTree, ok := retrieved.(*object.Tree)
 		require.True(t, ok)
 		assert.Len(t, retrievedTree.Entries, 2)
@@ -167,7 +167,7 @@ func TestStoreAdapterWithDifferentObjectTypes(t *testing.T) {
 
 		retrieved, err := adapter.Get(hash)
 		require.NoError(t, err)
-		
+
 		retrievedCommit, ok := retrieved.(*object.Commit)
 		require.True(t, ok)
 		assert.Equal(t, "Test commit", retrievedCommit.Message)
@@ -188,7 +188,7 @@ func TestStoreAdapterWithDifferentObjectTypes(t *testing.T) {
 
 		retrieved, err := adapter.Get(hash)
 		require.NoError(t, err)
-		
+
 		retrievedTag, ok := retrieved.(*object.Tag)
 		require.True(t, ok)
 		assert.Equal(t, "v1.0.0", retrievedTag.TagName)
@@ -204,7 +204,7 @@ func TestStoreAdapterConcurrency(t *testing.T) {
 
 	// Test concurrent operations
 	done := make(chan bool)
-	
+
 	// Multiple writers
 	for i := 0; i < 10; i++ {
 		go func(n int) {
@@ -257,7 +257,7 @@ func TestStoreAdapterErrorCases(t *testing.T) {
 		blob := object.NewBlob([]byte("test blob"))
 		tree := object.NewTree()
 		tree.AddEntry("100644", "file.txt", "abc123")
-		
+
 		author := object.Author{Name: "Test", Email: "test@example.com"}
 		commit := object.NewCommit("tree123", author, "Test commit")
 

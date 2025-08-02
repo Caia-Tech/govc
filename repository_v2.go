@@ -21,12 +21,12 @@ type RepositoryV2 struct {
 	workspace  *core.CleanWorkspace
 	operations *core.Operations
 	config     *core.Config
-	
+
 	// Legacy features to be extracted
 	// stashes    []*Stash
 	// webhooks   map[string]*Webhook
 	// events     chan *RepositoryEvent
-	mu         sync.RWMutex
+	mu sync.RWMutex
 }
 
 // InitRepositoryV2 creates a new repository with clean architecture
@@ -34,7 +34,7 @@ func InitRepositoryV2(path string) (*RepositoryV2, error) {
 	var objects core.ObjectStore
 	var refStore core.RefStore
 	var working core.WorkingStorage
-	
+
 	if path == ":memory:" {
 		// Pure memory operation
 		objects = core.NewMemoryObjectStore()
@@ -46,40 +46,40 @@ func InitRepositoryV2(path string) (*RepositoryV2, error) {
 		if err := os.MkdirAll(gitDir, 0755); err != nil {
 			return nil, fmt.Errorf("failed to create .govc directory: %v", err)
 		}
-		
+
 		objectsDir := filepath.Join(gitDir, "objects")
 		if err := os.MkdirAll(objectsDir, 0755); err != nil {
 			return nil, fmt.Errorf("failed to create objects directory: %v", err)
 		}
-		
+
 		refsDir := filepath.Join(gitDir, "refs", "heads")
 		if err := os.MkdirAll(refsDir, 0755); err != nil {
 			return nil, fmt.Errorf("failed to create refs directory: %v", err)
 		}
-		
+
 		// Use adapters for existing implementations
 		backend := storage.NewFileBackend(gitDir)
 		store := storage.NewStore(backend)
 		objects = &core.ObjectStoreAdapter{Store: store}
-		
+
 		fileRefStore := refs.NewFileRefStore(gitDir)
 		refManager := refs.NewRefManager(fileRefStore)
 		refStore = &core.RefStoreAdapter{RefManager: refManager, Store: fileRefStore}
-		
+
 		working = core.NewFileWorkingStorage(path)
 	}
-	
+
 	// Create clean architecture components
 	repo := core.NewCleanRepository(objects, refStore)
 	workspace := core.NewCleanWorkspace(repo, working)
 	config := core.NewConfig(core.NewMemoryConfigStore())
 	operations := core.NewOperations(repo, workspace, config)
-	
+
 	// Initialize repository
 	if err := operations.Init(); err != nil {
 		return nil, err
 	}
-	
+
 	return &RepositoryV2{
 		path:       path,
 		repo:       repo,
@@ -97,12 +97,12 @@ func OpenRepositoryV2(path string) (*RepositoryV2, error) {
 	if path == ":memory:" {
 		return nil, fmt.Errorf("cannot open memory repository")
 	}
-	
+
 	gitDir := filepath.Join(path, ".govc")
 	if _, err := os.Stat(gitDir); err != nil {
 		return nil, fmt.Errorf("not a govc repository: %v", err)
 	}
-	
+
 	// Reuse initialization logic
 	return InitRepositoryV2(path)
 }
@@ -123,13 +123,13 @@ func (r *RepositoryV2) Add(paths ...string) error {
 func (r *RepositoryV2) Commit(message string, author *object.Author) (string, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	
+
 	// Set author config if provided
 	if author != nil {
 		r.config.Set("user.name", author.Name)
 		r.config.Set("user.email", author.Email)
 	}
-	
+
 	return r.operations.Commit(message)
 }
 
@@ -148,7 +148,7 @@ func (r *RepositoryV2) Checkout(ref string) error {
 func (r *RepositoryV2) Status() (*core.Status, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
-	
+
 	return r.operations.Status()
 }
 
@@ -167,12 +167,12 @@ func (r *RepositoryV2) CreateTag(name string) error {
 func (r *RepositoryV2) ListBranches() ([]string, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
-	
+
 	branches, err := r.repo.ListBranches()
 	if err != nil {
 		return nil, err
 	}
-	
+
 	names := make([]string, len(branches))
 	for i, b := range branches {
 		names[i] = b.Name
@@ -183,12 +183,12 @@ func (r *RepositoryV2) ListBranches() ([]string, error) {
 func (r *RepositoryV2) ListTags() ([]string, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
-	
+
 	tags, err := r.repo.ListTags()
 	if err != nil {
 		return nil, err
 	}
-	
+
 	names := make([]string, len(tags))
 	for i, t := range tags {
 		names[i] = t.Name
@@ -200,12 +200,12 @@ func (r *RepositoryV2) ListTags() ([]string, error) {
 func (r *RepositoryV2) Merge(branch, into string) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	
+
 	// Checkout target branch
 	if err := r.operations.Checkout(into); err != nil {
 		return err
 	}
-	
+
 	// Merge source branch
 	_, err := r.operations.Merge(branch, fmt.Sprintf("Merge branch '%s' into %s", branch, into))
 	return err

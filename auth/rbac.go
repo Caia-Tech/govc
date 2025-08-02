@@ -42,15 +42,15 @@ type Role struct {
 
 // User represents a user in the system
 type User struct {
-	ID          string            `json:"id"`
-	Username    string            `json:"username"`
-	Email       string            `json:"email"`
-	Roles       []string          `json:"roles"`
-	Permissions []Permission      `json:"permissions"` // Direct permissions
+	ID          string                  `json:"id"`
+	Username    string                  `json:"username"`
+	Email       string                  `json:"email"`
+	Roles       []string                `json:"roles"`
+	Permissions []Permission            `json:"permissions"`      // Direct permissions
 	RepoPerms   map[string][]Permission `json:"repo_permissions"` // Repository-specific permissions
-	Active      bool              `json:"active"`
-	CreatedAt   string            `json:"created_at"`
-	UpdatedAt   string            `json:"updated_at"`
+	Active      bool                    `json:"active"`
+	CreatedAt   string                  `json:"created_at"`
+	UpdatedAt   string                  `json:"updated_at"`
 }
 
 // RBAC manages role-based access control
@@ -69,7 +69,7 @@ func NewRBAC() *RBAC {
 
 	// Define default roles
 	rbac.defineDefaultRoles()
-	
+
 	return rbac
 }
 
@@ -280,8 +280,8 @@ func (r *RBAC) HasPermission(userID string, permission Permission) bool {
 			return true
 		}
 		// Check for admin permissions that grant everything
-		if perm == PermissionSystemAdmin || 
-		   (strings.HasPrefix(string(permission), "repo:") && perm == PermissionRepoAdmin) {
+		if perm == PermissionSystemAdmin ||
+			(strings.HasPrefix(string(permission), "repo:") && perm == PermissionRepoAdmin) {
 			return true
 		}
 	}

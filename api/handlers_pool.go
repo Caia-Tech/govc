@@ -15,7 +15,7 @@ func (s *Server) getPoolStats(c *gin.Context) {
 // cleanupPool manually triggers pool cleanup
 func (s *Server) cleanupPool(c *gin.Context) {
 	evicted := s.repoPool.Cleanup()
-	
+
 	c.JSON(http.StatusOK, gin.H{
 		"status":          "success",
 		"evicted_count":   evicted,

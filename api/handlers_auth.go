@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/caiatech/govc/auth"
+	"github.com/caiatech/govc/validation"
 	"github.com/gin-gonic/gin"
 )
 
@@ -18,20 +19,20 @@ type LoginRequest struct {
 }
 
 type LoginResponse struct {
-	Token     string                `json:"token"`
-	ExpiresAt time.Time             `json:"expires_at"`
+	Token     string                  `json:"token"`
+	ExpiresAt time.Time               `json:"expires_at"`
 	User      *auth.AuthenticatedUser `json:"user"`
 }
 
 type CreateAPIKeyRequest struct {
-	Name        string                    `json:"name" binding:"required"`
-	Permissions []auth.Permission         `json:"permissions"`
+	Name        string                       `json:"name" binding:"required"`
+	Permissions []auth.Permission            `json:"permissions"`
 	RepoPerms   map[string][]auth.Permission `json:"repo_permissions"`
-	ExpiresAt   *time.Time                `json:"expires_at"`
+	ExpiresAt   *time.Time                   `json:"expires_at"`
 }
 
 type CreateAPIKeyResponse struct {
-	Key    string           `json:"key"`
+	Key     string           `json:"key"`
 	KeyInfo *auth.APIKeyInfo `json:"key_info"`
 }
 
@@ -276,6 +277,24 @@ func (s *Server) createUser(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, ErrorResponse{
 			Error: err.Error(),
 			Code:  "INVALID_REQUEST",
+		})
+		return
+	}
+
+	// Validate username
+	if err := validation.ValidateUsername(req.Username); err != nil {
+		c.JSON(http.StatusBadRequest, ErrorResponse{
+			Error: err.Error(),
+			Code:  "INVALID_USERNAME",
+		})
+		return
+	}
+	
+	// Validate email
+	if err := validation.ValidateEmail(req.Email); err != nil {
+		c.JSON(http.StatusBadRequest, ErrorResponse{
+			Error: err.Error(),
+			Code:  "INVALID_EMAIL",
 		})
 		return
 	}

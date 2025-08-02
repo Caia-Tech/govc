@@ -34,12 +34,12 @@ func (r *CleanRepository) GetCommit(hash string) (*object.Commit, error) {
 	if err != nil {
 		return nil, err
 	}
-	
+
 	commit, ok := obj.(*object.Commit)
 	if !ok {
 		return nil, fmt.Errorf("object %s is not a commit", hash)
 	}
-	
+
 	return commit, nil
 }
 
@@ -49,12 +49,12 @@ func (r *CleanRepository) GetTree(hash string) (*object.Tree, error) {
 	if err != nil {
 		return nil, err
 	}
-	
+
 	tree, ok := obj.(*object.Tree)
 	if !ok {
 		return nil, fmt.Errorf("object %s is not a tree", hash)
 	}
-	
+
 	return tree, nil
 }
 
@@ -64,12 +64,12 @@ func (r *CleanRepository) GetBlob(hash string) (*object.Blob, error) {
 	if err != nil {
 		return nil, err
 	}
-	
+
 	blob, ok := obj.(*object.Blob)
 	if !ok {
 		return nil, fmt.Errorf("object %s is not a blob", hash)
 	}
-	
+
 	return blob, nil
 }
 
@@ -79,7 +79,7 @@ func (r *CleanRepository) ListBranches() ([]Branch, error) {
 	if err != nil {
 		return nil, err
 	}
-	
+
 	var branches []Branch
 	for name, hash := range refs {
 		if strings.HasPrefix(name, "refs/heads/") {
@@ -90,12 +90,12 @@ func (r *CleanRepository) ListBranches() ([]Branch, error) {
 			})
 		}
 	}
-	
+
 	// Sort for consistent output
 	sort.Slice(branches, func(i, j int) bool {
 		return branches[i].Name < branches[j].Name
 	})
-	
+
 	return branches, nil
 }
 
@@ -110,7 +110,7 @@ func (r *CleanRepository) ListTags() ([]Tag, error) {
 	if err != nil {
 		return nil, err
 	}
-	
+
 	var tags []Tag
 	for name, hash := range refs {
 		if strings.HasPrefix(name, "refs/tags/") {
@@ -121,12 +121,12 @@ func (r *CleanRepository) ListTags() ([]Tag, error) {
 			})
 		}
 	}
-	
+
 	// Sort for consistent output
 	sort.Slice(tags, func(i, j int) bool {
 		return tags[i].Name < tags[j].Name
 	})
-	
+
 	return tags, nil
 }
 
@@ -146,27 +146,27 @@ func (r *CleanRepository) ResolveRef(ref string) (string, error) {
 	if r.objects.Exists(ref) {
 		return ref, nil
 	}
-	
+
 	// Try as branch
 	if hash, err := r.GetBranch(ref); err == nil {
 		return hash, nil
 	}
-	
+
 	// Try as tag
 	if hash, err := r.GetTag(ref); err == nil {
 		return hash, nil
 	}
-	
+
 	// Try as full ref
 	if hash, err := r.refs.GetRef(ref); err == nil {
 		return hash, nil
 	}
-	
+
 	// Try HEAD
 	if ref == "HEAD" {
 		return r.GetHEAD()
 	}
-	
+
 	return "", fmt.Errorf("reference not found: %s", ref)
 }
 
@@ -174,37 +174,37 @@ func (r *CleanRepository) ResolveRef(ref string) (string, error) {
 func (r *CleanRepository) Log(startHash string, limit int) ([]*object.Commit, error) {
 	var commits []*object.Commit
 	visited := make(map[string]bool)
-	
+
 	var walk func(hash string) error
 	walk = func(hash string) error {
 		if limit > 0 && len(commits) >= limit {
 			return nil
 		}
-		
+
 		if visited[hash] {
 			return nil
 		}
 		visited[hash] = true
-		
+
 		commit, err := r.GetCommit(hash)
 		if err != nil {
 			return err
 		}
-		
+
 		commits = append(commits, commit)
-		
+
 		// Walk parent
 		if commit.ParentHash != "" {
 			return walk(commit.ParentHash)
 		}
-		
+
 		return nil
 	}
-	
+
 	if err := walk(startHash); err != nil {
 		return nil, err
 	}
-	
+
 	return commits, nil
 }
 

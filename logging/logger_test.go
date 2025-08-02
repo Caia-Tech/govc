@@ -156,8 +156,8 @@ func TestLogger_WithFields(t *testing.T) {
 	})
 
 	fields := map[string]interface{}{
-		"str_field": "string_value",
-		"int_field": 123,
+		"str_field":  "string_value",
+		"int_field":  123,
 		"bool_field": true,
 	}
 
@@ -379,7 +379,7 @@ func TestLogger_ErrorWithErr(t *testing.T) {
 
 func TestLogger_LogLevel_Filtering(t *testing.T) {
 	var buf bytes.Buffer
-	
+
 	// Create logger with WARN level - should filter out DEBUG and INFO
 	logger := NewLogger(Config{
 		Level:     WarnLevel,
@@ -388,9 +388,9 @@ func TestLogger_LogLevel_Filtering(t *testing.T) {
 	})
 
 	testCases := []struct {
-		name        string
-		logFunc     func()
-		shouldLog   bool
+		name      string
+		logFunc   func()
+		shouldLog bool
 	}{
 		{
 			name: "debug should be filtered",
@@ -452,7 +452,7 @@ func TestLogger_LogOperation(t *testing.T) {
 	// Test successful operation
 	t.Run("successful operation", func(t *testing.T) {
 		buf.Reset()
-		
+
 		err := logger.LogOperation("test_operation", func() error {
 			time.Sleep(10 * time.Millisecond)
 			return nil
@@ -464,7 +464,7 @@ func TestLogger_LogOperation(t *testing.T) {
 
 		output := buf.String()
 		lines := strings.Split(strings.TrimSpace(output), "\n")
-		
+
 		if len(lines) != 2 {
 			t.Errorf("Expected 2 log lines (start and end), got %d", len(lines))
 		}
@@ -502,7 +502,7 @@ func TestLogger_LogOperation(t *testing.T) {
 		if !exists {
 			t.Error("Expected duration_ms field")
 		}
-		
+
 		if durationFloat, ok := duration.(float64); ok {
 			if durationFloat < 10 {
 				t.Errorf("Expected duration >= 10ms, got %f", durationFloat)
@@ -513,7 +513,7 @@ func TestLogger_LogOperation(t *testing.T) {
 	// Test failed operation
 	t.Run("failed operation", func(t *testing.T) {
 		buf.Reset()
-		
+
 		testErr := errors.New("operation failed")
 		err := logger.LogOperation("failing_operation", func() error {
 			return testErr
@@ -525,7 +525,7 @@ func TestLogger_LogOperation(t *testing.T) {
 
 		output := buf.String()
 		lines := strings.Split(strings.TrimSpace(output), "\n")
-		
+
 		if len(lines) != 2 {
 			t.Errorf("Expected 2 log lines (start and error), got %d", len(lines))
 		}
@@ -727,9 +727,9 @@ func TestGenerateRequestID(t *testing.T) {
 
 func TestGetRequestID(t *testing.T) {
 	gin.SetMode(gin.TestMode)
-	
+
 	c, _ := gin.CreateTestContext(httptest.NewRecorder())
-	
+
 	// Test when no request ID is set
 	id := GetRequestID(c)
 	if id != "" {
@@ -739,7 +739,7 @@ func TestGetRequestID(t *testing.T) {
 	// Test when request ID is set
 	expectedID := "test-request-id"
 	c.Set("request_id", expectedID)
-	
+
 	id = GetRequestID(c)
 	if id != expectedID {
 		t.Errorf("Expected request ID '%s', got '%s'", expectedID, id)
@@ -755,9 +755,9 @@ func TestGetRequestID(t *testing.T) {
 
 func TestGetUserID(t *testing.T) {
 	gin.SetMode(gin.TestMode)
-	
+
 	c, _ := gin.CreateTestContext(httptest.NewRecorder())
-	
+
 	// Test when no user is set
 	userID := GetUserID(c)
 	if userID != "" {
@@ -770,7 +770,7 @@ func TestGetUserID(t *testing.T) {
 		"name": "Test User",
 	}
 	c.Set("user", userData)
-	
+
 	userID = GetUserID(c)
 	if userID != "test-user-123" {
 		t.Errorf("Expected user ID 'test-user-123', got '%s'", userID)
@@ -781,7 +781,7 @@ func TestGetUserID(t *testing.T) {
 		"name": "Test User",
 	}
 	c.Set("user", userDataNoID)
-	
+
 	userID = GetUserID(c)
 	if userID != "" {
 		t.Errorf("Expected empty user ID when no id field, got '%s'", userID)
@@ -811,7 +811,7 @@ func TestDefaultLogger(t *testing.T) {
 	})
 
 	SetDefaultLogger(newLogger)
-	
+
 	if GetDefaultLogger() != newLogger {
 		t.Error("Default logger should have been updated")
 	}
@@ -819,7 +819,7 @@ func TestDefaultLogger(t *testing.T) {
 	// Test package-level functions use default logger
 	Debug("debug test")
 	output := buf.String()
-	
+
 	if output == "" {
 		t.Error("Package-level Debug should produce output")
 	}

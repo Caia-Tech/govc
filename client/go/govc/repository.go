@@ -9,11 +9,11 @@ import (
 
 // Repository represents a govc repository
 type Repository struct {
-	client       *Client
-	ID           string    `json:"id"`
-	Path         string    `json:"path"`
-	CurrentBranch string   `json:"current_branch,omitempty"`
-	CreatedAt    time.Time `json:"created_at"`
+	client        *Client
+	ID            string    `json:"id"`
+	Path          string    `json:"path"`
+	CurrentBranch string    `json:"current_branch,omitempty"`
+	CreatedAt     time.Time `json:"created_at"`
 }
 
 // CreateRepoOptions options for creating a repository
@@ -178,9 +178,9 @@ func (r *Repository) ReadFile(ctx context.Context, path string) (string, error) 
 		Encoding string `json:"encoding,omitempty"`
 	}
 
-	err := r.client.get(ctx, fmt.Sprintf("/api/v1/repos/%s/read/%s", 
+	err := r.client.get(ctx, fmt.Sprintf("/api/v1/repos/%s/read/%s",
 		url.PathEscape(r.ID), url.PathEscape(path)), &response)
-	
+
 	return response.Content, err
 }
 

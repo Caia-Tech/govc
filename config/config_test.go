@@ -111,15 +111,15 @@ metrics:
 func TestLoadConfigWithEnvVariables(t *testing.T) {
 	// Set environment variables
 	envVars := map[string]string{
-		"GOVC_PORT":                    "7777",
-		"GOVC_HOST":                    "192.168.1.1",
-		"GOVC_JWT_SECRET":              "env-secret-for-testing-purposes-only",
-		"GOVC_LOG_LEVEL":               "ERROR",
-		"GOVC_POOL_MAX_REPOS":          "200",
-		"GOVC_METRICS_ENABLED":         "false",
-		"GOVC_STORAGE_TYPE":            "disk",
-		"GOVC_STORAGE_DISK_PATH":       "/tmp/govc-test",
-		"GOVC_DEBUG":                   "true",
+		"GOVC_PORT":              "7777",
+		"GOVC_HOST":              "192.168.1.1",
+		"GOVC_JWT_SECRET":        "env-secret-for-testing-purposes-only",
+		"GOVC_LOG_LEVEL":         "ERROR",
+		"GOVC_POOL_MAX_REPOS":    "200",
+		"GOVC_METRICS_ENABLED":   "false",
+		"GOVC_STORAGE_TYPE":      "disk",
+		"GOVC_STORAGE_DISK_PATH": "/tmp/govc-test",
+		"GOVC_DEBUG":             "true",
 	}
 
 	// Set environment variables
@@ -480,16 +480,16 @@ func TestConfigWithCompleteValues(t *testing.T) {
 
 // Helper function to check if a string contains a substring
 func contains(s, substr string) bool {
-	return len(s) >= len(substr) && (s == substr || len(substr) == 0 || 
-		(len(s) > len(substr) && (s[:len(substr)] == substr || s[len(s)-len(substr):] == substr || 
-		 func() bool {
-			 for i := 1; i <= len(s)-len(substr); i++ {
-				 if s[i:i+len(substr)] == substr {
-					 return true
-				 }
-			 }
-			 return false
-		 }())))
+	return len(s) >= len(substr) && (s == substr || len(substr) == 0 ||
+		(len(s) > len(substr) && (s[:len(substr)] == substr || s[len(s)-len(substr):] == substr ||
+			func() bool {
+				for i := 1; i <= len(s)-len(substr); i++ {
+					if s[i:i+len(substr)] == substr {
+						return true
+					}
+				}
+				return false
+			}())))
 }
 
 func BenchmarkLoadConfig(b *testing.B) {

@@ -2,7 +2,7 @@ package storage
 
 import (
 	"strings"
-	
+
 	"github.com/caiatech/govc/pkg/refs"
 )
 
@@ -56,7 +56,7 @@ func (a *RefManagerAdapter) DeleteRef(name string) error {
 
 func (a *RefManagerAdapter) ListRefs() (map[string]string, error) {
 	result := make(map[string]string)
-	
+
 	// List branches
 	branches, err := a.manager.ListBranches()
 	if err != nil {
@@ -65,7 +65,7 @@ func (a *RefManagerAdapter) ListRefs() (map[string]string, error) {
 	for _, branch := range branches {
 		result[branch.Name] = branch.Hash
 	}
-	
+
 	// List tags
 	tags, err := a.manager.ListTags()
 	if err != nil {
@@ -74,7 +74,7 @@ func (a *RefManagerAdapter) ListRefs() (map[string]string, error) {
 	for _, tag := range tags {
 		result[tag.Name] = tag.Hash
 	}
-	
+
 	return result, nil
 }
 

@@ -10,6 +10,18 @@ import (
 )
 
 // addFile adds a file to the repository
+// @Summary Add a file to repository
+// @Description Writes a file to the working directory and stages it for commit
+// @Tags Git Operations
+// @Accept json
+// @Produce json
+// @Param repo_id path string true "Repository ID"
+// @Param request body AddFileRequest true "File addition request"
+// @Success 200 {object} SuccessResponse "File added successfully"
+// @Failure 400 {object} ErrorResponse "Invalid request data"
+// @Failure 404 {object} ErrorResponse "Repository not found"
+// @Failure 500 {object} ErrorResponse "Internal server error"
+// @Router /repositories/{repo_id}/files [post]
 func (s *Server) addFile(c *gin.Context) {
 	repoID := c.Param("repo_id")
 	repo, err := s.getRepository(repoID)
@@ -55,6 +67,18 @@ func (s *Server) addFile(c *gin.Context) {
 }
 
 // commit creates a new commit
+// @Summary Create a new commit
+// @Description Creates a new commit with staged changes
+// @Tags Git Operations
+// @Accept json
+// @Produce json
+// @Param repo_id path string true "Repository ID"
+// @Param request body CommitRequest true "Commit request"
+// @Success 201 {object} CommitResponse "Commit created successfully"
+// @Failure 400 {object} ErrorResponse "Invalid request data"
+// @Failure 404 {object} ErrorResponse "Repository not found"
+// @Failure 500 {object} ErrorResponse "Internal server error"
+// @Router /repositories/{repo_id}/commits [post]
 func (s *Server) commit(c *gin.Context) {
 	repoID := c.Param("repo_id")
 	repo, err := s.getRepository(repoID)
@@ -104,6 +128,17 @@ func (s *Server) commit(c *gin.Context) {
 }
 
 // getLog returns commit history
+// @Summary Get commit history
+// @Description Retrieves the commit history for a repository
+// @Tags Git Operations
+// @Produce json
+// @Param repo_id path string true "Repository ID"
+// @Param limit query int false "Maximum number of commits to return (default: 50, max: 10000)"
+// @Success 200 {object} object{commits=[]CommitResponse,count=int} "Commit history"
+// @Failure 400 {object} ErrorResponse "Invalid request parameters"
+// @Failure 404 {object} ErrorResponse "Repository not found"
+// @Failure 500 {object} ErrorResponse "Internal server error"
+// @Router /repositories/{repo_id}/commits [get]
 func (s *Server) getLog(c *gin.Context) {
 	repoID := c.Param("repo_id")
 	repo, err := s.getRepository(repoID)
@@ -179,6 +214,15 @@ func (s *Server) getLog(c *gin.Context) {
 }
 
 // getStatus returns repository status
+// @Summary Get repository status
+// @Description Returns the current status of the working directory and staging area
+// @Tags Git Operations
+// @Produce json
+// @Param repo_id path string true "Repository ID"
+// @Success 200 {object} StatusResponse "Repository status"
+// @Failure 404 {object} ErrorResponse "Repository not found"
+// @Failure 500 {object} ErrorResponse "Internal server error"
+// @Router /repositories/{repo_id}/status [get]
 func (s *Server) getStatus(c *gin.Context) {
 	repoID := c.Param("repo_id")
 	repo, err := s.getRepository(repoID)
@@ -201,13 +245,13 @@ func (s *Server) getStatus(c *gin.Context) {
 
 	// Calculate clean status
 	isClean := len(status.Staged) == 0 && len(status.Modified) == 0 && len(status.Untracked) == 0
-	
+
 	// Create combined changes list for backward compatibility
 	var changes []string
 	changes = append(changes, status.Staged...)
 	changes = append(changes, status.Modified...)
 	changes = append(changes, status.Untracked...)
-	
+
 	// Return both the standard format and the "changes" format for backward compatibility
 	c.JSON(http.StatusOK, gin.H{
 		"branch":    status.Branch,
@@ -220,6 +264,17 @@ func (s *Server) getStatus(c *gin.Context) {
 }
 
 // showCommit returns details of a specific commit
+// @Summary Get commit details
+// @Description Retrieves detailed information about a specific commit including files and diff
+// @Tags Git Operations
+// @Produce json
+// @Param repo_id path string true "Repository ID"
+// @Param commit path string true "Commit hash"
+// @Success 200 {object} object{commit=CommitResponse,tree=string,files=[]FileResponse,diff=object} "Commit details"
+// @Failure 400 {object} ErrorResponse "Invalid request or not a commit"
+// @Failure 404 {object} ErrorResponse "Repository or commit not found"
+// @Failure 500 {object} ErrorResponse "Internal server error"
+// @Router /repositories/{repo_id}/commits/{commit} [get]
 func (s *Server) showCommit(c *gin.Context) {
 	repoID := c.Param("repo_id")
 	commitHash := c.Param("commit")
@@ -280,48 +335,48 @@ func (s *Server) showCommit(c *gin.Context) {
 			parentCommit := parentObj.(*object.Commit)
 			parentTree, _ := repo.GetObject(parentCommit.TreeHash)
 			parentTreeObj := parentTree.(*object.Tree)
-			
+
 			// Compare trees to find changed files
 			changedFiles := make(map[string]bool)
-			
+
 			// Check for removed/modified files from parent
 			for _, entry := range parentTreeObj.Entries {
 				changedFiles[entry.Name] = true
 			}
-			
+
 			// Check for added/modified files in current
 			for _, entry := range treeObj.Entries {
 				changedFiles[entry.Name] = true
 			}
-			
+
 			// Create file diff entries for changed files
 			for path := range changedFiles {
 				status := "modified"
-				
+
 				// Determine actual status
 				inParent := false
 				inCurrent := false
-				
+
 				for _, e := range parentTreeObj.Entries {
 					if e.Name == path {
 						inParent = true
 						break
 					}
 				}
-				
+
 				for _, e := range treeObj.Entries {
 					if e.Name == path {
 						inCurrent = true
 						break
 					}
 				}
-				
+
 				if !inParent && inCurrent {
 					status = "added"
 				} else if inParent && !inCurrent {
 					status = "deleted"
 				}
-				
+
 				diffFiles = append(diffFiles, FileDiff{
 					Path:   path,
 					Status: status,
@@ -329,7 +384,7 @@ func (s *Server) showCommit(c *gin.Context) {
 			}
 		}
 	}
-	
+
 	c.JSON(http.StatusOK, gin.H{
 		"commit": CommitResponse{
 			Hash:      commit.Hash(),
@@ -346,4 +401,3 @@ func (s *Server) showCommit(c *gin.Context) {
 		},
 	})
 }
-

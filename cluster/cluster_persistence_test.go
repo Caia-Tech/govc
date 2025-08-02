@@ -20,8 +20,8 @@ func TestClusterStatePersistenceFixed(t *testing.T) {
 		// Create cluster with some state
 		config := ClusterConfig{
 			ReplicationFactor: 3,
-			ShardSize:        100,
-			ElectionTimeout:  5 * time.Second,
+			ShardSize:         100,
+			ElectionTimeout:   5 * time.Second,
 			HeartbeatInterval: 1 * time.Second,
 		}
 
@@ -36,7 +36,7 @@ func TestClusterStatePersistenceFixed(t *testing.T) {
 			LastSeen: time.Now(),
 		}
 		node2 := &Node{
-			ID:       "node2", 
+			ID:       "node2",
 			Address:  "127.0.0.1:8002",
 			State:    NodeStateLeader,
 			LastSeen: time.Now(),
@@ -56,7 +56,7 @@ func TestClusterStatePersistenceFixed(t *testing.T) {
 			},
 			PrimaryNode:  "node1",
 			ReplicaNodes: []string{"node2"},
-			State:       ShardStateActive,
+			State:        ShardStateActive,
 		}
 
 		cluster.mu.Lock()
@@ -116,7 +116,7 @@ func TestClusterStatePersistenceFixed(t *testing.T) {
 		config := ClusterConfig{
 			ReplicationFactor: 1,
 		}
-		
+
 		_, err = NewCluster("test-id", "test-cluster", config, tempDir)
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "failed to unmarshal cluster state")

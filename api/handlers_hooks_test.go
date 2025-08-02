@@ -362,7 +362,7 @@ func TestEventStream(t *testing.T) {
 	t.Run("Event stream connection", func(t *testing.T) {
 		w := httptest.NewRecorder()
 		req, _ := http.NewRequest("GET", "/api/v1/repos/event-stream-test/events", nil)
-		
+
 		// Start the event stream in a goroutine
 		done := make(chan bool, 1)
 		go func() {

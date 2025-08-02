@@ -76,13 +76,22 @@ func (s *Server) listTags(c *gin.Context) {
 		return
 	}
 
-	// For now, return simple list of tag names
-	// In a real implementation, we'd get the commit hash for each tag
+	// Get commit hash for each tag
 	tagResponses := make([]TagResponse, len(tags))
 	for i, tag := range tags {
-		tagResponses[i] = TagResponse{
-			Name:   tag,
-			Commit: "", // TODO: Get actual commit hash
+		// Get the commit hash for this tag
+		commitHash, err := repo.GetTagCommit(tag)
+		if err != nil {
+			// If we can't resolve the tag, use empty commit hash
+			tagResponses[i] = TagResponse{
+				Name:   tag,
+				Commit: "",
+			}
+		} else {
+			tagResponses[i] = TagResponse{
+				Name:   tag,
+				Commit: commitHash,
+			}
 		}
 	}
 

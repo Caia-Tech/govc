@@ -65,7 +65,7 @@ func TestGenerateToken(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			token, err := jwtAuth.GenerateToken(tc.userID, tc.username, tc.email, tc.roles)
-			
+
 			if tc.wantErr && err == nil {
 				t.Error("Expected error but got none")
 			}
@@ -118,7 +118,7 @@ func TestValidateToken(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			claims, err := jwtAuth.ValidateToken(tc.token)
-			
+
 			if tc.wantErr && err == nil {
 				t.Error("Expected error but got none")
 			}
@@ -209,7 +209,7 @@ func TestRefreshToken(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			refreshedToken, err := jwtAuth.RefreshToken(tc.token)
-			
+
 			if tc.wantErr && err == nil {
 				t.Error("Expected error but got none")
 			}
@@ -299,7 +299,7 @@ func TestTokenStructure(t *testing.T) {
 
 func BenchmarkGenerateToken(b *testing.B) {
 	jwtAuth := NewJWTAuth("test-secret", "test-issuer", time.Hour)
-	
+
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		_, err := jwtAuth.GenerateToken("user1", "testuser", "test@example.com", []string{"admin"})
@@ -311,7 +311,7 @@ func BenchmarkGenerateToken(b *testing.B) {
 
 func BenchmarkValidateToken(b *testing.B) {
 	jwtAuth := NewJWTAuth("test-secret", "test-issuer", time.Hour)
-	
+
 	token, err := jwtAuth.GenerateToken("user1", "testuser", "test@example.com", []string{"admin"})
 	if err != nil {
 		b.Fatalf("Failed to generate token: %v", err)

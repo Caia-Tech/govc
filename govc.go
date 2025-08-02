@@ -7,17 +7,17 @@
 // Basic usage:
 //
 //	repo := govc.New()
-//	
+//
 //	// Create parallel realities for testing
 //	realities := repo.ParallelRealities([]string{"test-a", "test-b", "test-c"})
-//	
+//
 //	// Transactional commits
 //	tx := repo.Transaction()
 //	tx.Add("config.yaml", []byte("version: 2.0"))
 //	if err := tx.Validate(); err == nil {
 //	    tx.Commit("Updated config")
 //	}
-//	
+//
 //	// Watch for changes
 //	repo.Watch(func(event CommitEvent) {
 //	    fmt.Printf("New commit: %s\n", event.Message)
@@ -58,13 +58,13 @@ func NewMemoryStore() *storage.Store {
 type Config struct {
 	// Memory-first operation (no disk I/O)
 	MemoryOnly bool
-	
+
 	// Enable event streaming
 	EventStream bool
-	
+
 	// Maximum parallel realities
 	MaxRealities int
-	
+
 	// Author information
 	Author ConfigAuthor
 }
@@ -78,14 +78,14 @@ type ConfigAuthor struct {
 // NewWithConfig creates a repository with custom configuration.
 func NewWithConfig(config Config) *Repository {
 	repo := NewRepository()
-	
+
 	if config.Author.Name != "" {
 		repo.SetConfig("user.name", config.Author.Name)
 	}
 	if config.Author.Email != "" {
 		repo.SetConfig("user.email", config.Author.Email)
 	}
-	
+
 	return repo
 }
 
@@ -124,31 +124,31 @@ type (
 func QuickStart() {
 	// Create a memory-first repository
 	repo := New()
-	
+
 	// Start a transaction
 	tx := repo.Transaction()
 	tx.Add("config.yaml", []byte("version: 1.0"))
 	tx.Add("app.yaml", []byte("name: myapp"))
-	
+
 	// Validate before committing
 	if err := tx.Validate(); err != nil {
 		// Rollback if validation fails
 		tx.Rollback()
 		return
 	}
-	
+
 	// Commit the transaction
 	tx.Commit("Initial configuration")
-	
+
 	// Create parallel realities for testing
 	realities := repo.ParallelRealities([]string{"staging", "production"})
-	
+
 	// Test changes in staging
 	staging := realities[0]
 	staging.Apply(map[string][]byte{
 		"config.yaml": []byte("version: 2.0-beta"),
 	})
-	
+
 	// If tests pass, merge to main
 	if staging.Benchmark().Better() {
 		repo.Merge(staging.Name(), "main")

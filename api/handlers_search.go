@@ -34,14 +34,14 @@ func (s *Server) searchCommits(c *gin.Context) {
 	author := c.Query("author")
 	since := c.Query("since")
 	until := c.Query("until")
-	
+
 	limit := 50 // default
 	if limitStr := c.Query("limit"); limitStr != "" {
 		if parsedLimit, err := strconv.Atoi(limitStr); err == nil && parsedLimit > 0 {
 			limit = parsedLimit
 		}
 	}
-	
+
 	offset := 0
 	if offsetStr := c.Query("offset"); offsetStr != "" {
 		if parsedOffset, err := strconv.Atoi(offsetStr); err == nil && parsedOffset >= 0 {
@@ -54,7 +54,7 @@ func (s *Server) searchCommits(c *gin.Context) {
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, ErrorResponse{
 			Error: fmt.Sprintf("search failed: %v", err),
-			Code:  "SEARCH_FAILED", 
+			Code:  "SEARCH_FAILED",
 		})
 		return
 	}
@@ -62,7 +62,7 @@ func (s *Server) searchCommits(c *gin.Context) {
 	// Convert to API response format
 	var results []CommitResponse
 	var matches []SearchMatch
-	
+
 	for _, commit := range commits {
 		// Create commit response
 		commitResp := CommitResponse{
@@ -93,7 +93,7 @@ func (s *Server) searchCommits(c *gin.Context) {
 		}
 		if strings.Contains(strings.ToLower(commit.Author.Email), queryLower) {
 			matches = append(matches, SearchMatch{
-				Field:   "email", 
+				Field:   "email",
 				Preview: commit.Author.Email,
 			})
 		}
@@ -135,14 +135,14 @@ func (s *Server) searchContent(c *gin.Context) {
 	ref := c.Query("ref")
 	caseSensitive := c.Query("case_sensitive") == "true"
 	regex := c.Query("regex") == "true"
-	
+
 	limit := 50 // default
 	if limitStr := c.Query("limit"); limitStr != "" {
 		if parsedLimit, err := strconv.Atoi(limitStr); err == nil && parsedLimit > 0 {
 			limit = parsedLimit
 		}
 	}
-	
+
 	offset := 0
 	if offsetStr := c.Query("offset"); offsetStr != "" {
 		if parsedOffset, err := strconv.Atoi(offsetStr); err == nil && parsedOffset >= 0 {
@@ -216,14 +216,14 @@ func (s *Server) searchFiles(c *gin.Context) {
 	ref := c.Query("ref")
 	caseSensitive := c.Query("case_sensitive") == "true"
 	regex := c.Query("regex") == "true"
-	
+
 	limit := 50 // default
 	if limitStr := c.Query("limit"); limitStr != "" {
 		if parsedLimit, err := strconv.Atoi(limitStr); err == nil && parsedLimit > 0 {
 			limit = parsedLimit
 		}
 	}
-	
+
 	offset := 0
 	if offsetStr := c.Query("offset"); offsetStr != "" {
 		if parsedOffset, err := strconv.Atoi(offsetStr); err == nil && parsedOffset >= 0 {

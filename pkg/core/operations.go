@@ -46,37 +46,37 @@ func (ops *Operations) Commit(message string) (string, error) {
 	if len(staging.entries) == 0 && len(staging.removed) == 0 {
 		return "", fmt.Errorf("nothing to commit")
 	}
-	
+
 	// Get author info from config
 	authorName, _ := ops.config.store.Get("user.name")
 	if authorName == "" {
 		authorName = "Unknown"
 	}
-	
+
 	authorEmail, _ := ops.config.store.Get("user.email")
 	if authorEmail == "" {
 		authorEmail = "unknown@example.com"
 	}
-	
+
 	author := object.Author{
 		Name:  authorName,
 		Email: authorEmail,
 		Time:  time.Now(),
 	}
-	
+
 	// Build tree from staging area
 	tree := ops.buildTreeFromStaging()
 	treeHash, err := ops.repo.objects.Put(tree)
 	if err != nil {
 		return "", err
 	}
-	
+
 	// Get parent commit
 	parentHash := ""
 	if currentBranch := ops.workspace.branch; currentBranch != "" {
 		parentHash, _ = ops.repo.GetBranch(currentBranch)
 	}
-	
+
 	// Create commit
 	commit := object.NewCommit(treeHash, author, message)
 	if parentHash != "" {
@@ -86,16 +86,16 @@ func (ops *Operations) Commit(message string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	
+
 	// Update branch reference
 	branchRef := fmt.Sprintf("refs/heads/%s", ops.workspace.branch)
 	if err := ops.repo.refs.UpdateRef(branchRef, commitHash); err != nil {
 		return "", err
 	}
-	
+
 	// Clear staging area
 	ops.workspace.Reset()
-	
+
 	return commitHash, nil
 }
 
@@ -107,10 +107,27 @@ func (ops *Operations) Branch(name string) error {
 		// No commits yet
 		currentHash = ""
 	}
-	
+
 	// Create branch reference
 	branchRef := fmt.Sprintf("refs/heads/%s", name)
 	return ops.repo.refs.UpdateRef(branchRef, currentHash)
+}
+
+// DeleteBranch deletes a branch
+func (ops *Operations) DeleteBranch(name string) error {
+	// Don't allow deleting current branch
+	if name == ops.workspace.branch {
+		return fmt.Errorf("cannot delete current branch")
+	}
+
+	// Check if branch exists
+	if _, err := ops.repo.GetBranch(name); err != nil {
+		return fmt.Errorf("branch not found: %s", name)
+	}
+
+	// Delete branch reference
+	branchRef := fmt.Sprintf("refs/heads/%s", name)
+	return ops.repo.refs.DeleteRef(branchRef)
 }
 
 // Checkout switches to a branch
@@ -130,7 +147,7 @@ func (ops *Operations) Log(limit int) ([]*object.Commit, error) {
 	if err != nil {
 		return nil, fmt.Errorf("no commits on branch %s", ops.workspace.branch)
 	}
-	
+
 	return ops.repo.Log(currentHash, limit)
 }
 
@@ -141,21 +158,21 @@ func (ops *Operations) Merge(branch string, message string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("current branch has no commits")
 	}
-	
+
 	otherHash, err := ops.repo.GetBranch(branch)
 	if err != nil {
 		return "", fmt.Errorf("branch %s not found", branch)
 	}
-	
+
 	// For now, implement fast-forward only
 	// Full merge would require three-way merge algorithm
-	
+
 	// Check if fast-forward is possible
 	commits, err := ops.repo.Log(otherHash, 0)
 	if err != nil {
 		return "", err
 	}
-	
+
 	// Check if current is ancestor of other
 	isAncestor := false
 	for _, commit := range commits {
@@ -164,22 +181,22 @@ func (ops *Operations) Merge(branch string, message string) (string, error) {
 			break
 		}
 	}
-	
+
 	if isAncestor {
 		// Fast-forward merge
 		branchRef := fmt.Sprintf("refs/heads/%s", ops.workspace.branch)
 		if err := ops.repo.refs.UpdateRef(branchRef, otherHash); err != nil {
 			return "", err
 		}
-		
+
 		// Update working directory
 		if err := ops.workspace.Checkout(ops.workspace.branch); err != nil {
 			return "", err
 		}
-		
+
 		return otherHash, nil
 	}
-	
+
 	// Would need three-way merge here
 	return "", fmt.Errorf("three-way merge not yet implemented")
 }
@@ -191,7 +208,7 @@ func (ops *Operations) Tag(name string) error {
 	if err != nil {
 		return fmt.Errorf("no commits to tag")
 	}
-	
+
 	// Create tag reference
 	tagRef := fmt.Sprintf("refs/tags/%s", name)
 	return ops.repo.refs.UpdateRef(tagRef, currentHash)
@@ -201,7 +218,7 @@ func (ops *Operations) Tag(name string) error {
 func (ops *Operations) buildTreeFromStaging() *object.Tree {
 	staging := ops.workspace.GetStagingArea()
 	entries := make([]object.TreeEntry, 0, len(staging.entries))
-	
+
 	for path, staged := range staging.entries {
 		entries = append(entries, object.TreeEntry{
 			Mode: staged.Mode,
@@ -209,7 +226,7 @@ func (ops *Operations) buildTreeFromStaging() *object.Tree {
 			Hash: staged.Hash,
 		})
 	}
-	
+
 	// Sort entries for consistent trees
 	tree := object.NewTree()
 	tree.Entries = entries
@@ -223,35 +240,35 @@ func Clone(sourceRepo *CleanRepository, targetObjects ObjectStore, targetRefs Re
 	if err != nil {
 		return nil, err
 	}
-	
+
 	for _, hash := range hashes {
 		obj, err := sourceRepo.objects.Get(hash)
 		if err != nil {
 			return nil, err
 		}
-		
+
 		if _, err := targetObjects.Put(obj); err != nil {
 			return nil, err
 		}
 	}
-	
+
 	// Copy all refs
 	refs, err := sourceRepo.refs.ListRefs()
 	if err != nil {
 		return nil, err
 	}
-	
+
 	for name, hash := range refs {
 		if err := targetRefs.UpdateRef(name, hash); err != nil {
 			return nil, err
 		}
 	}
-	
+
 	// Copy HEAD
 	head, err := sourceRepo.refs.GetHEAD()
 	if err == nil {
 		targetRefs.SetHEAD(head)
 	}
-	
+
 	return NewCleanRepository(targetObjects, targetRefs), nil
 }

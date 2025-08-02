@@ -2,7 +2,7 @@ package core
 
 import (
 	"time"
-	
+
 	"github.com/caiatech/govc/pkg/object"
 	"github.com/caiatech/govc/pkg/refs"
 	"github.com/caiatech/govc/pkg/storage"
@@ -13,16 +13,16 @@ import (
 func MigrateRepository(old interface{}) (*Repository, *Workspace, error) {
 	// This would extract the stores from the old repository
 	// and create the new clean separation
-	
+
 	// For now, return a simple example
 	objStore := storage.NewMemoryObjectStore()
 	refStore := storage.NewMemoryRefStore()
-	
+
 	repo := NewRepository(objStore, refStore)
-	
+
 	workingStore := storage.NewMemoryWorkingStorage()
 	workspace := NewWorkspace(repo, workingStore)
-	
+
 	return repo, workspace, nil
 }
 
@@ -51,22 +51,22 @@ func (g *GitOperations) Add(path string) error {
 	if err != nil {
 		return err
 	}
-	
+
 	// Create blob object
 	blob := object.NewBlob(content)
-	
+
 	// Store in object database
 	hash, err := g.repo.objects.Put(blob)
 	if err != nil {
 		return err
 	}
-	
+
 	// Add to staging area
 	g.workspace.staging.entries[path] = StagedEntry{
 		Hash: hash,
 		Mode: "100644",
 	}
-	
+
 	// Publish event
 	g.events.Publish(Event{
 		Type: "file.staged",
@@ -75,7 +75,7 @@ func (g *GitOperations) Add(path string) error {
 			"hash": hash,
 		},
 	})
-	
+
 	return nil
 }
 
@@ -83,13 +83,13 @@ func (g *GitOperations) Add(path string) error {
 func (g *GitOperations) Commit(message string) (string, error) {
 	// Build tree from staging area
 	tree := g.buildTreeFromStaging()
-	
+
 	// Store tree object
 	treeHash, err := g.repo.objects.Put(tree)
 	if err != nil {
 		return "", err
 	}
-	
+
 	// Get parent commit
 	parentHash := ""
 	headRef, err := g.repo.refs.GetHEAD()
@@ -99,7 +99,7 @@ func (g *GitOperations) Commit(message string) (string, error) {
 			parentHash = ref
 		}
 	}
-	
+
 	// Create commit object
 	authorName, _ := g.config.store.Get("user.name")
 	authorEmail, _ := g.config.store.Get("user.email")
@@ -108,27 +108,27 @@ func (g *GitOperations) Commit(message string) (string, error) {
 		Email: authorEmail,
 		Time:  time.Now(),
 	}
-	
+
 	commit := object.NewCommit(treeHash, author, message)
 	if parentHash != "" {
 		commit.SetParent(parentHash)
 	}
-	
+
 	// Store commit
 	commitHash, err := g.repo.objects.Put(commit)
 	if err != nil {
 		return "", err
 	}
-	
+
 	// Update HEAD
 	err = g.repo.refs.UpdateRef("HEAD", commitHash)
 	if err != nil {
 		return "", err
 	}
-	
+
 	// Clear staging area
 	g.workspace.staging = NewStagingArea()
-	
+
 	// Publish event
 	g.events.Publish(Event{
 		Type: "commit.created",
@@ -137,13 +137,13 @@ func (g *GitOperations) Commit(message string) (string, error) {
 			"message": message,
 		},
 	})
-	
+
 	return commitHash, nil
 }
 
 func (g *GitOperations) buildTreeFromStaging() *object.Tree {
 	entries := make([]object.TreeEntry, 0, len(g.workspace.staging.entries))
-	
+
 	for path, staged := range g.workspace.staging.entries {
 		entries = append(entries, object.TreeEntry{
 			Mode: staged.Mode,
@@ -151,7 +151,7 @@ func (g *GitOperations) buildTreeFromStaging() *object.Tree {
 			Hash: staged.Hash,
 		})
 	}
-	
+
 	tree := object.NewTree()
 	tree.Entries = entries
 	return tree

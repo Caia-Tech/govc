@@ -26,22 +26,22 @@ type ReplicationManager struct {
 
 // ReplicationTask represents a replication operation
 type ReplicationTask struct {
-	ID             string            `json:"id"`
-	Type           ReplicationType   `json:"type"`
-	SourceNode     string            `json:"source_node"`
-	TargetNodes    []string          `json:"target_nodes"`
-	RepositoryID   string            `json:"repository_id"`
-	ShardID        string            `json:"shard_id"`
-	Data           []byte            `json:"data"`
-	Checksum       string            `json:"checksum"`
-	State          ReplicationState  `json:"state"`
-	Progress       int               `json:"progress"`
-	StartedAt      time.Time         `json:"started_at"`
-	CompletedAt    time.Time         `json:"completed_at"`
-	RetryCount     int               `json:"retry_count"`
-	MaxRetries     int               `json:"max_retries"`
-	Error          string            `json:"error"`
-	Metadata       map[string]string `json:"metadata"`
+	ID           string            `json:"id"`
+	Type         ReplicationType   `json:"type"`
+	SourceNode   string            `json:"source_node"`
+	TargetNodes  []string          `json:"target_nodes"`
+	RepositoryID string            `json:"repository_id"`
+	ShardID      string            `json:"shard_id"`
+	Data         []byte            `json:"data"`
+	Checksum     string            `json:"checksum"`
+	State        ReplicationState  `json:"state"`
+	Progress     int               `json:"progress"`
+	StartedAt    time.Time         `json:"started_at"`
+	CompletedAt  time.Time         `json:"completed_at"`
+	RetryCount   int               `json:"retry_count"`
+	MaxRetries   int               `json:"max_retries"`
+	Error        string            `json:"error"`
+	Metadata     map[string]string `json:"metadata"`
 }
 
 // ReplicationType defines types of replication operations
@@ -68,55 +68,55 @@ const (
 
 // ReplicationStrategy defines replication behavior
 type ReplicationStrategy struct {
-	Type              ReplicationType `yaml:"type"`
-	ConsistencyLevel  string          `yaml:"consistency_level"`
-	SyncTimeout       time.Duration   `yaml:"sync_timeout"`
-	AsyncBufferSize   int             `yaml:"async_buffer_size"`
-	CompressionEnabled bool           `yaml:"compression_enabled"`
-	EncryptionEnabled  bool           `yaml:"encryption_enabled"`
-	BatchSize          int            `yaml:"batch_size"`
-	RetryPolicy        RetryPolicy    `yaml:"retry_policy"`
+	Type               ReplicationType `yaml:"type"`
+	ConsistencyLevel   string          `yaml:"consistency_level"`
+	SyncTimeout        time.Duration   `yaml:"sync_timeout"`
+	AsyncBufferSize    int             `yaml:"async_buffer_size"`
+	CompressionEnabled bool            `yaml:"compression_enabled"`
+	EncryptionEnabled  bool            `yaml:"encryption_enabled"`
+	BatchSize          int             `yaml:"batch_size"`
+	RetryPolicy        RetryPolicy     `yaml:"retry_policy"`
 }
 
 // RetryPolicy defines retry behavior for failed replications
 type RetryPolicy struct {
-	MaxRetries      int           `yaml:"max_retries"`
-	InitialDelay    time.Duration `yaml:"initial_delay"`
-	MaxDelay        time.Duration `yaml:"max_delay"`
-	BackoffFactor   float64       `yaml:"backoff_factor"`
-	JitterEnabled   bool          `yaml:"jitter_enabled"`
+	MaxRetries    int           `yaml:"max_retries"`
+	InitialDelay  time.Duration `yaml:"initial_delay"`
+	MaxDelay      time.Duration `yaml:"max_delay"`
+	BackoffFactor float64       `yaml:"backoff_factor"`
+	JitterEnabled bool          `yaml:"jitter_enabled"`
 }
 
 // ReplicationMetrics contains replication performance metrics
 type ReplicationMetrics struct {
-	TotalReplications     uint64            `json:"total_replications"`
-	SuccessfulReplications uint64           `json:"successful_replications"`
-	FailedReplications    uint64            `json:"failed_replications"`
-	AverageLatency        time.Duration     `json:"average_latency"`
-	ThroughputBytesPerSec uint64           `json:"throughput_bytes_per_sec"`
-	ActiveReplications    int               `json:"active_replications"`
-	ReplicationsByNode    map[string]uint64 `json:"replications_by_node"`
-	ErrorsByType          map[string]uint64 `json:"errors_by_type"`
+	TotalReplications      uint64            `json:"total_replications"`
+	SuccessfulReplications uint64            `json:"successful_replications"`
+	FailedReplications     uint64            `json:"failed_replications"`
+	AverageLatency         time.Duration     `json:"average_latency"`
+	ThroughputBytesPerSec  uint64            `json:"throughput_bytes_per_sec"`
+	ActiveReplications     int               `json:"active_replications"`
+	ReplicationsByNode     map[string]uint64 `json:"replications_by_node"`
+	ErrorsByType           map[string]uint64 `json:"errors_by_type"`
 }
 
 // ConflictResolution handles replication conflicts
 type ConflictResolution struct {
-	Strategy      ConflictStrategy  `json:"strategy"`
-	WinnerNode    string           `json:"winner_node"`
-	ConflictData  map[string]interface{} `json:"conflict_data"`
-	Resolution    string           `json:"resolution"`
-	ResolvedAt    time.Time        `json:"resolved_at"`
+	Strategy     ConflictStrategy       `json:"strategy"`
+	WinnerNode   string                 `json:"winner_node"`
+	ConflictData map[string]interface{} `json:"conflict_data"`
+	Resolution   string                 `json:"resolution"`
+	ResolvedAt   time.Time              `json:"resolved_at"`
 }
 
 // ConflictStrategy defines how to resolve replication conflicts
 type ConflictStrategy string
 
 const (
-	ConflictStrategyLastWrite   ConflictStrategy = "last_write_wins"
-	ConflictStrategyMerge       ConflictStrategy = "merge"
-	ConflictStrategyManual      ConflictStrategy = "manual"
-	ConflictStrategySourceWins  ConflictStrategy = "source_wins"
-	ConflictStrategyTargetWins  ConflictStrategy = "target_wins"
+	ConflictStrategyLastWrite  ConflictStrategy = "last_write_wins"
+	ConflictStrategyMerge      ConflictStrategy = "merge"
+	ConflictStrategyManual     ConflictStrategy = "manual"
+	ConflictStrategySourceWins ConflictStrategy = "source_wins"
+	ConflictStrategyTargetWins ConflictStrategy = "target_wins"
 )
 
 // NewReplicationManager creates a new replication manager
@@ -368,7 +368,7 @@ func (rm *ReplicationManager) scheduleRetry(task *ReplicationTask) {
 	}
 
 	task.RetryCount++
-	
+
 	// Calculate retry delay with exponential backoff
 	delay := time.Duration(float64(time.Second) * float64(uint(1)<<uint(task.RetryCount))) // 2^retryCount seconds
 	if delay > 5*time.Minute {
@@ -501,7 +501,7 @@ func (rm *ReplicationManager) checkReplicationHealth() {
 	now := time.Now()
 	for _, task := range rm.activeReplicas {
 		if now.Sub(task.StartedAt) > 10*time.Minute {
-			log.Printf("Warning: Replication task %s has been running for %v", 
+			log.Printf("Warning: Replication task %s has been running for %v",
 				task.ID, now.Sub(task.StartedAt))
 		}
 	}
@@ -509,7 +509,7 @@ func (rm *ReplicationManager) checkReplicationHealth() {
 	// Check queue health
 	queueLength := len(rm.replicationQueue)
 	if queueLength > 400 { // 80% of queue capacity
-		log.Printf("Warning: Replication queue is %d%% full (%d/%d)", 
+		log.Printf("Warning: Replication queue is %d%% full (%d/%d)",
 			queueLength*100/500, queueLength, 500)
 	}
 }
@@ -523,7 +523,7 @@ func (rm *ReplicationManager) GetReplicationMetrics() ReplicationMetrics {
 		ActiveReplications: len(rm.activeReplicas),
 		// Other metrics would be collected over time
 		ReplicationsByNode: make(map[string]uint64),
-		ErrorsByType:      make(map[string]uint64),
+		ErrorsByType:       make(map[string]uint64),
 	}
 }
 

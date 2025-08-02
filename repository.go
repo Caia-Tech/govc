@@ -37,14 +37,14 @@ func isCommitHash(ref string) bool {
 // ":memory:" for pure in-memory operation or a filesystem path for
 // optional persistence.
 type Repository struct {
-	path       string              // ":memory:" for pure memory operation
-	store      *storage.Store      // Memory-first object storage
-	refManager *refs.RefManager    // Instant branch operations
-	staging    *StagingArea        // In-memory staging
-	worktree   *Worktree          // Can be virtual (memory-only)
-	config     map[string]string   // In-memory config
-	stashes    []*Stash           // In-memory stash list
-	webhooks   map[string]*Webhook // Registered webhooks
+	path       string                // ":memory:" for pure memory operation
+	store      *storage.Store        // Memory-first object storage
+	refManager *refs.RefManager      // Instant branch operations
+	staging    *StagingArea          // In-memory staging
+	worktree   *Worktree             // Can be virtual (memory-only)
+	config     map[string]string     // In-memory config
+	stashes    []*Stash              // In-memory stash list
+	webhooks   map[string]*Webhook   // Registered webhooks
 	events     chan *RepositoryEvent // Event stream
 	mu         sync.RWMutex
 }
@@ -70,6 +70,11 @@ func InitRepository(path string) (*Repository, error) {
 	store := storage.NewStore(backend)
 	refStore := refs.NewFileRefStore(gitDir)
 	refManager := refs.NewRefManager(refStore)
+
+	// Create main branch pointing to nil (no commits yet)
+	if err := refManager.CreateBranch("main", ""); err != nil {
+		return nil, fmt.Errorf("failed to create main branch: %v", err)
+	}
 
 	if err := refManager.SetHEADToBranch("main"); err != nil {
 		return nil, fmt.Errorf("failed to set HEAD: %v", err)
@@ -277,16 +282,24 @@ func (r *Repository) ListTags() ([]string, error) {
 	return tags, nil
 }
 
+// GetTagCommit returns the commit hash for a given tag
+func (r *Repository) GetTagCommit(tagName string) (string, error) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	
+	return r.refManager.GetTag(tagName)
+}
+
 // CurrentCommit returns the current HEAD commit
 func (r *Repository) CurrentCommit() (*object.Commit, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
-	
+
 	head, err := r.refManager.GetHEAD()
 	if err != nil {
 		return nil, err
 	}
-	
+
 	return r.store.GetCommit(head)
 }
 
@@ -316,22 +329,16 @@ func (r *Repository) Checkout(ref string) error {
 			}
 		}
 	}
-	
+
 	if isBranch {
-		
+
 		// Check if the branch exists
 		branchHash, err := r.refManager.GetBranch(branchName)
 		if err != nil {
-			// Branch doesn't exist yet, but we can still checkout to it
-			// This creates a branch that will point to the next commit
-			// Clear the worktree for a new empty branch
-			files := r.worktree.ListFiles()
-			for _, file := range files {
-				r.worktree.RemoveFile(file)
-			}
-			return r.refManager.SetHEADToBranch(branchName)
+			// Branch doesn't exist - return error
+			return fmt.Errorf("branch not found: %s", branchName)
 		}
-		
+
 		// Branch exists, update worktree
 		if branchHash == "" {
 			// Empty branch - clear the worktree
@@ -355,7 +362,7 @@ func (r *Repository) Checkout(ref string) error {
 		if err := r.updateWorktree(tree); err != nil {
 			return err
 		}
-		
+
 		return r.refManager.SetHEADToBranch(branchName)
 	}
 
@@ -400,7 +407,7 @@ func (r *Repository) Status() (*Status, error) {
 
 	// Get worktree files to check for untracked/modified
 	worktreeFiles := r.worktree.ListFiles()
-	
+
 	// Get committed files
 	var committedFiles map[string]bool
 	headHash, err := r.refManager.GetHEAD()
@@ -438,7 +445,7 @@ func (r *Repository) Log(limit int) ([]*object.Commit, error) {
 	defer r.mu.RUnlock()
 
 	commits := make([]*object.Commit, 0)
-	
+
 	headHash, err := r.refManager.GetHEAD()
 	if err != nil {
 		// No commits yet, return empty slice
@@ -460,7 +467,7 @@ func (r *Repository) Log(limit int) ([]*object.Commit, error) {
 
 func (r *Repository) createTreeFromStaging() (*object.Tree, error) {
 	tree := object.NewTree()
-	
+
 	// Get current branch to find parent commit
 	currentBranch, err := r.refManager.GetCurrentBranch()
 	if err == nil && currentBranch != "" {
@@ -482,7 +489,7 @@ func (r *Repository) createTreeFromStaging() (*object.Tree, error) {
 			}
 		}
 	}
-	
+
 	// Add/update files from staging
 	for file, hash := range r.staging.files {
 		mode := "100644"
@@ -532,21 +539,21 @@ func (r *Repository) resolveRef(ref string) (string, error) {
 	if ref == "HEAD" {
 		return r.refManager.GetHEAD()
 	}
-	
+
 	// Handle shortened refs like HEAD~1, HEAD^
 	if strings.HasPrefix(ref, "HEAD") {
 		headHash, err := r.refManager.GetHEAD()
 		if err != nil {
 			return "", err
 		}
-		
+
 		// Simple HEAD~N parsing
 		if strings.HasPrefix(ref, "HEAD~") {
 			n := 1
 			if len(ref) > 5 {
 				fmt.Sscanf(ref[5:], "%d", &n)
 			}
-			
+
 			// Walk back n commits
 			currentHash := headHash
 			for i := 0; i < n; i++ {
@@ -561,7 +568,7 @@ func (r *Repository) resolveRef(ref string) (string, error) {
 			}
 			return currentHash, nil
 		}
-		
+
 		if ref == "HEAD^" {
 			commit, err := r.store.GetCommit(headHash)
 			if err != nil {
@@ -573,7 +580,7 @@ func (r *Repository) resolveRef(ref string) (string, error) {
 			return commit.ParentHash, nil
 		}
 	}
-	
+
 	// Full hash
 	if len(ref) == 40 {
 		return ref, nil
@@ -590,7 +597,7 @@ func (r *Repository) resolveRef(ref string) (string, error) {
 	if err == nil {
 		return hash, nil
 	}
-	
+
 	// Try as shortened commit hash (at least 4 chars)
 	if len(ref) >= 4 && len(ref) < 40 {
 		// This is a simplified approach - in a real implementation,
@@ -679,7 +686,7 @@ func (s *StagingArea) IsRemoved(path string) bool {
 func (s *StagingArea) GetFiles() map[string]string {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	
+
 	files := make(map[string]string)
 	for k, v := range s.files {
 		files[k] = v
@@ -690,7 +697,7 @@ func (s *StagingArea) GetFiles() map[string]string {
 func (s *StagingArea) List() []string {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	
+
 	result := make([]string, 0, len(s.files))
 	for path := range s.files {
 		result = append(result, path)
@@ -714,7 +721,7 @@ func NewWorktree(path string) *Worktree {
 
 func (w *Worktree) MatchFiles(pattern string) ([]string, error) {
 	var files []string
-	
+
 	if w.path == ":memory:" {
 		// For memory worktree, return files from memory
 		w.mu.RLock()
@@ -729,7 +736,7 @@ func (w *Worktree) MatchFiles(pattern string) ([]string, error) {
 		}
 		return files, nil
 	}
-	
+
 	if pattern == "." || pattern == "*" {
 		err := filepath.Walk(w.path, func(path string, info os.FileInfo, err error) error {
 			if err != nil {
@@ -767,14 +774,14 @@ func (w *Worktree) MatchFiles(pattern string) ([]string, error) {
 	if _, err := os.Stat(fullPath); err == nil {
 		files = append(files, pattern)
 	}
-	
+
 	return files, nil
 }
 
 func (w *Worktree) ListFiles() []string {
 	w.mu.RLock()
 	defer w.mu.RUnlock()
-	
+
 	if w.path == ":memory:" {
 		// For memory-based worktree, list from memory
 		files := make([]string, 0, len(w.files))
@@ -783,26 +790,26 @@ func (w *Worktree) ListFiles() []string {
 		}
 		return files
 	}
-	
+
 	// For file-based worktree, walk the directory
 	var files []string
 	filepath.Walk(w.path, func(path string, info os.FileInfo, err error) error {
 		if err != nil || info.IsDir() {
 			return nil
 		}
-		
+
 		// Skip .git directory
 		if strings.Contains(path, ".git") {
 			return nil
 		}
-		
+
 		relPath, err := filepath.Rel(w.path, path)
 		if err == nil {
 			files = append(files, relPath)
 		}
 		return nil
 	})
-	
+
 	return files
 }
 
@@ -829,11 +836,11 @@ func (w *Worktree) WriteFile(path string, content []byte) error {
 	}
 	fullPath := filepath.Join(w.path, path)
 	dir := filepath.Dir(fullPath)
-	
+
 	if err := os.MkdirAll(dir, 0755); err != nil {
 		return err
 	}
-	
+
 	return os.WriteFile(fullPath, content, 0644)
 }
 
@@ -861,10 +868,10 @@ type Stash struct {
 	ID           string
 	Message      string
 	Author       object.Author
-	TreeHash     string              // Hash of the stashed tree
-	ParentCommit string              // Commit hash when stash was created
-	StagedFiles  map[string]string   // path -> hash of staged files
-	WorkingFiles map[string][]byte   // path -> content of working files
+	TreeHash     string            // Hash of the stashed tree
+	ParentCommit string            // Commit hash when stash was created
+	StagedFiles  map[string]string // path -> hash of staged files
+	WorkingFiles map[string][]byte // path -> content of working files
 	Timestamp    time.Time
 }
 
@@ -887,7 +894,7 @@ func (b *BranchBuilder) Create() error {
 		}
 		return b.repo.refManager.CreateBranch(b.name, headHash)
 	}
-	
+
 	// HEAD points to a branch, get the branch's commit
 	branchHash, err := b.repo.refManager.GetBranch(currentBranch)
 	if err != nil {
@@ -895,7 +902,7 @@ func (b *BranchBuilder) Create() error {
 		// Create the new branch pointing to nothing (will be set on first commit)
 		return b.repo.refManager.CreateBranch(b.name, "")
 	}
-	
+
 	return b.repo.refManager.CreateBranch(b.name, branchHash)
 }
 
@@ -930,7 +937,7 @@ func (r *Repository) Push(remote, branch string) error {
 	if err := r.executePrePushHooks(remote, branch); err != nil {
 		return fmt.Errorf("pre-push hooks failed: %v", err)
 	}
-	
+
 	return fmt.Errorf("push not yet implemented")
 }
 
@@ -1005,7 +1012,7 @@ func (r *Repository) canFastForward(currentHash, targetHash string) bool {
 
 func (r *Repository) findMergeBase(hash1, hash2 string) (string, error) {
 	ancestors1 := make(map[string]bool)
-	
+
 	commitHash := hash1
 	for commitHash != "" {
 		ancestors1[commitHash] = true
@@ -1197,7 +1204,7 @@ func (s *HTTPServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 func (s *HTTPServer) handleInfoRefs(w http.ResponseWriter, r *http.Request) {
 	service := r.URL.Query().Get("service")
-	
+
 	if service != "git-upload-pack" && service != "git-receive-pack" {
 		http.Error(w, "Invalid service", http.StatusBadRequest)
 		return
@@ -1275,30 +1282,30 @@ func (r *Repository) Export(w io.Writer, format string) error {
 	// Collect all unique commits from all branches
 	allCommits := make(map[string]*object.Commit)
 	commitOrder := make([]string, 0)
-	
+
 	var collectCommits func(hash string) error
 	collectCommits = func(hash string) error {
 		if hash == "" || allCommits[hash] != nil {
 			return nil
 		}
-		
+
 		commit, err := r.store.GetCommit(hash)
 		if err != nil {
 			return err
 		}
-		
+
 		// Recurse to parent first
 		if commit.ParentHash != "" {
 			if err := collectCommits(commit.ParentHash); err != nil {
 				return err
 			}
 		}
-		
+
 		allCommits[hash] = commit
 		commitOrder = append(commitOrder, hash)
 		return nil
 	}
-	
+
 	// Collect commits from all branches
 	for _, branch := range branches {
 		if branch.Hash != "" {
@@ -1310,7 +1317,7 @@ func (r *Repository) Export(w io.Writer, format string) error {
 	for _, hash := range commitOrder {
 		commit := allCommits[hash]
 		commitToMark[hash] = markCounter
-		
+
 		// For now, export all commits to the main branch
 		// This is a simplification - a full implementation would track branch points
 		fmt.Fprintf(w, "commit refs/heads/main\n")
@@ -1318,13 +1325,13 @@ func (r *Repository) Export(w io.Writer, format string) error {
 		fmt.Fprintf(w, "author %s <%s> %d +0000\n", commit.Author.Name, commit.Author.Email, commit.Author.Time.Unix())
 		fmt.Fprintf(w, "committer %s <%s> %d +0000\n", commit.Committer.Name, commit.Committer.Email, commit.Committer.Time.Unix())
 		fmt.Fprintf(w, "data %d\n%s\n", len(commit.Message), commit.Message)
-		
+
 		if commit.ParentHash != "" {
 			if parentMark, exists := commitToMark[commit.ParentHash]; exists {
 				fmt.Fprintf(w, "from :%d\n", parentMark)
 			}
 		}
-		
+
 		// Export tree
 		tree, err := r.store.GetTree(commit.TreeHash)
 		if err == nil {
@@ -1338,7 +1345,7 @@ func (r *Repository) Export(w io.Writer, format string) error {
 				}
 			}
 		}
-		
+
 		markCounter++
 	}
 
@@ -1361,7 +1368,7 @@ func (r *Repository) Export(w io.Writer, format string) error {
 			fmt.Fprintf(w, "data 0\n\n")
 		}
 	}
-	
+
 	fmt.Fprintf(w, "done\n")
 	return nil
 }
@@ -1459,7 +1466,7 @@ func (r *Repository) Remove(path string) error {
 
 	// Remove from staging
 	r.staging.Remove(path)
-	
+
 	// Also remove from working directory
 	return r.worktree.RemoveFile(path)
 }
@@ -1668,7 +1675,7 @@ func (r *Repository) getFileAtCommit(commitHash, filePath string) ([]byte, error
 // Generate unified diff between two trees
 func (r *Repository) generateUnifiedDiff(fromTree, toTree *object.Tree, fromRef, toRef string) (string, error) {
 	var diff strings.Builder
-	
+
 	// Create maps for easy lookup
 	fromFiles := make(map[string]string)
 	for _, entry := range fromTree.Entries {
@@ -1731,7 +1738,7 @@ func (r *Repository) generateUnifiedDiff(fromTree, toTree *object.Tree, fromRef,
 // Generate raw diff format
 func (r *Repository) generateRawDiff(fromTree, toTree *object.Tree) (string, error) {
 	var diff strings.Builder
-	
+
 	// Create maps for easy lookup
 	fromFiles := make(map[string]string)
 	for _, entry := range fromTree.Entries {
@@ -1766,7 +1773,7 @@ func (r *Repository) generateRawDiff(fromTree, toTree *object.Tree) (string, err
 // Generate name-only diff
 func (r *Repository) generateNameOnlyDiff(fromTree, toTree *object.Tree) (string, error) {
 	var diff strings.Builder
-	
+
 	// Create maps for easy lookup
 	fromFiles := make(map[string]string)
 	for _, entry := range fromTree.Entries {
@@ -1925,7 +1932,7 @@ func (r *Repository) Blame(filePath, ref string) (*BlameInfo, error) {
 func (r *Repository) findLastCommitForFile(filePath, startHash string) (string, *object.Commit, error) {
 	// Walk back through commit history
 	currentHash := startHash
-	
+
 	for currentHash != "" {
 		commit, err := r.store.GetCommit(currentHash)
 		if err != nil {
@@ -1984,7 +1991,7 @@ func (r *Repository) Stash(message string, includeUntracked bool) (*Stash, error
 		Modified:  []string{},
 		Untracked: []string{},
 	}
-	
+
 	// Get modified and untracked files
 	if r.worktree != nil {
 		// Get all files in working directory
@@ -2015,7 +2022,7 @@ func (r *Repository) Stash(message string, includeUntracked bool) (*Stash, error
 						}
 					}
 				}
-				
+
 				if !isTracked {
 					// Check if it's staged
 					isStaged := false
@@ -2035,7 +2042,7 @@ func (r *Repository) Stash(message string, includeUntracked bool) (*Stash, error
 
 	// Create stash ID
 	stashID := fmt.Sprintf("stash@{%d}", len(r.stashes))
-	
+
 	// Save staged files
 	stagedFiles := make(map[string]string)
 	for _, path := range status.Staged {
@@ -2046,7 +2053,7 @@ func (r *Repository) Stash(message string, includeUntracked bool) (*Stash, error
 
 	// Save working directory files
 	workingFiles := make(map[string][]byte)
-	
+
 	// Add modified files
 	for _, path := range status.Modified {
 		content, err := r.worktree.ReadFile(path)
@@ -2055,7 +2062,7 @@ func (r *Repository) Stash(message string, includeUntracked bool) (*Stash, error
 		}
 		workingFiles[path] = content
 	}
-	
+
 	// Add untracked files if requested
 	if includeUntracked {
 		for _, path := range status.Untracked {
@@ -2069,8 +2076,8 @@ func (r *Repository) Stash(message string, includeUntracked bool) (*Stash, error
 
 	// Create stash object
 	stash := &Stash{
-		ID:           stashID,
-		Message:      message,
+		ID:      stashID,
+		Message: message,
 		Author: object.Author{
 			Name:  authorName,
 			Email: authorEmail,
@@ -2087,7 +2094,7 @@ func (r *Repository) Stash(message string, includeUntracked bool) (*Stash, error
 
 	// Clear staging area and reset working directory
 	r.staging = NewStagingArea()
-	
+
 	// Reset modified files to HEAD state
 	if headHash != "" {
 		commit, err := r.store.GetCommit(headHash)
@@ -2099,7 +2106,7 @@ func (r *Repository) Stash(message string, includeUntracked bool) (*Stash, error
 				for i := range tree.Entries {
 					treeFiles[tree.Entries[i].Name] = &tree.Entries[i]
 				}
-				
+
 				// Reset all modified files to their HEAD state
 				for _, path := range status.Modified {
 					if entry, exists := treeFiles[path]; exists {
@@ -2112,7 +2119,7 @@ func (r *Repository) Stash(message string, includeUntracked bool) (*Stash, error
 			}
 		}
 	}
-	
+
 	// Remove untracked files if they were included in the stash
 	if includeUntracked {
 		for _, path := range status.Untracked {
@@ -2143,7 +2150,7 @@ func (r *Repository) GetStash(stashID string) (*Stash, error) {
 			return stash, nil
 		}
 	}
-	
+
 	return nil, fmt.Errorf("stash not found: %s", stashID)
 }
 
@@ -2162,7 +2169,7 @@ func (r *Repository) ApplyStash(stashID string, drop bool) error {
 			break
 		}
 	}
-	
+
 	if stash == nil {
 		return fmt.Errorf("stash not found: %s", stashID)
 	}
@@ -2182,7 +2189,7 @@ func (r *Repository) ApplyStash(stashID string, drop bool) error {
 	// Drop stash if requested
 	if drop && stashIndex != -1 {
 		r.stashes = append(r.stashes[:stashIndex], r.stashes[stashIndex+1:]...)
-		
+
 		// Renumber remaining stashes
 		for i := stashIndex; i < len(r.stashes); i++ {
 			r.stashes[i].ID = fmt.Sprintf("stash@{%d}", i)
@@ -2200,16 +2207,16 @@ func (r *Repository) DropStash(stashID string) error {
 	for i, stash := range r.stashes {
 		if stash.ID == stashID {
 			r.stashes = append(r.stashes[:i], r.stashes[i+1:]...)
-			
+
 			// Renumber remaining stashes
 			for j := i; j < len(r.stashes); j++ {
 				r.stashes[j].ID = fmt.Sprintf("stash@{%d}", j)
 			}
-			
+
 			return nil
 		}
 	}
-	
+
 	return fmt.Errorf("stash not found: %s", stashID)
 }
 
@@ -2280,7 +2287,7 @@ func (r *Repository) CherryPick(commitHash string) (*object.Commit, error) {
 	// Apply changes to staging area
 	for path, hash := range changes {
 		r.staging.Add(path, hash)
-		
+
 		// Also update working directory if not memory-based
 		if r.worktree.path != ":memory:" {
 			blob, err := r.store.GetBlob(hash)
@@ -2298,8 +2305,8 @@ func (r *Repository) CherryPick(commitHash string) (*object.Commit, error) {
 
 	// Create the commit with current user as author
 	newCommit := &object.Commit{
-		TreeHash:    "", // Will be set by commit process
-		ParentHash:  "", // Will be set by commit process
+		TreeHash:   "", // Will be set by commit process
+		ParentHash: "", // Will be set by commit process
 		Author: object.Author{
 			Name:  authorName,
 			Email: authorEmail,
@@ -2369,7 +2376,7 @@ func (r *Repository) Revert(commitHash string) (*object.Commit, error) {
 				if parentEntry.Hash != entry.Hash {
 					// File was modified - revert to parent version
 					r.staging.Add(entry.Name, parentEntry.Hash)
-					
+
 					// Update working directory
 					blob, err := r.store.GetBlob(parentEntry.Hash)
 					if err == nil {
@@ -2398,7 +2405,7 @@ func (r *Repository) Revert(commitHash string) (*object.Commit, error) {
 		if !found {
 			// File was removed in this commit - restore it
 			r.staging.Add(parentEntry.Name, parentEntry.Hash)
-			
+
 			// Update working directory
 			blob, err := r.store.GetBlob(parentEntry.Hash)
 			if err == nil {
@@ -2414,8 +2421,8 @@ func (r *Repository) Revert(commitHash string) (*object.Commit, error) {
 
 	// Create the commit
 	newCommit := &object.Commit{
-		TreeHash:    "", // Will be set by commit process
-		ParentHash:  "", // Will be set by commit process
+		TreeHash:   "", // Will be set by commit process
+		ParentHash: "", // Will be set by commit process
 		Author: object.Author{
 			Name:  authorName,
 			Email: authorEmail,
@@ -2535,7 +2542,7 @@ func (r *Repository) Reset(target string, mode string) error {
 				for _, file := range currentFiles {
 					r.worktree.RemoveFile(file)
 				}
-				
+
 				// Restore files from the target commit
 				for _, entry := range tree.Entries {
 					blob, err := r.store.GetBlob(entry.Hash)
@@ -2604,7 +2611,7 @@ func (r *Repository) Rebase(onto string) ([]string, error) {
 
 	// Replay each commit
 	rebasedCommits := make([]string, 0, len(commitsToRebase))
-	
+
 	for _, commitHash := range commitsToRebase {
 		commit, err := r.store.GetCommit(commitHash)
 		if err != nil {
@@ -2620,7 +2627,7 @@ func (r *Repository) Rebase(onto string) ([]string, error) {
 					// Apply changes from this commit
 					for _, entry := range tree.Entries {
 						r.staging.Add(entry.Name, entry.Hash)
-						
+
 						// Update working directory
 						if r.worktree.path != ":memory:" {
 							blob, err := r.store.GetBlob(entry.Hash)
@@ -2679,7 +2686,7 @@ func (r *Repository) Rebase(onto string) ([]string, error) {
 func (r *Repository) findCommonAncestor(hash1, hash2 string) string {
 	// Simple implementation: walk back from hash1 and check if we reach hash2's ancestors
 	ancestors1 := make(map[string]bool)
-	
+
 	// Collect all ancestors of hash1
 	current := hash1
 	for current != "" {
@@ -2714,12 +2721,12 @@ func (r *Repository) collectCommitsBetween(start, end string) ([]string, error) 
 
 	for current != "" && current != start {
 		commits = append([]string{current}, commits...) // Prepend to maintain order
-		
+
 		commit, err := r.store.GetCommit(current)
 		if err != nil {
 			return nil, err
 		}
-		
+
 		current = commit.ParentHash
 	}
 
@@ -2729,15 +2736,15 @@ func (r *Repository) collectCommitsBetween(start, end string) ([]string, error) 
 // Webhook and Event System
 
 type Webhook struct {
-	ID          string      `json:"id"`
-	URL         string      `json:"url"`
-	Events      []string    `json:"events"`
-	Secret      string      `json:"secret"`
-	ContentType string      `json:"content_type"`
-	Active      bool        `json:"active"`
-	InsecureSSL bool        `json:"insecure_ssl"`
-	CreatedAt   time.Time   `json:"created_at"`
-	UpdatedAt   time.Time   `json:"updated_at"`
+	ID           string                `json:"id"`
+	URL          string                `json:"url"`
+	Events       []string              `json:"events"`
+	Secret       string                `json:"secret"`
+	ContentType  string                `json:"content_type"`
+	Active       bool                  `json:"active"`
+	InsecureSSL  bool                  `json:"insecure_ssl"`
+	CreatedAt    time.Time             `json:"created_at"`
+	UpdatedAt    time.Time             `json:"updated_at"`
 	LastDelivery *HookDeliveryInternal `json:"last_delivery,omitempty"`
 }
 
@@ -2754,12 +2761,12 @@ type HookDeliveryInternal struct {
 }
 
 type RepositoryEvent struct {
-	ID         string      `json:"id"`
-	Event      string      `json:"event"`
-	Repository string      `json:"repository"`
-	Timestamp  time.Time   `json:"timestamp"`
+	ID         string             `json:"id"`
+	Event      string             `json:"event"`
+	Repository string             `json:"repository"`
+	Timestamp  time.Time          `json:"timestamp"`
 	Actor      EventActorInternal `json:"actor"`
-	Data       interface{} `json:"data"`
+	Data       interface{}        `json:"data"`
 }
 
 type EventActorInternal struct {
@@ -2932,7 +2939,7 @@ func (r *Repository) deliverWebhook(webhook *Webhook, event *RepositoryEvent) {
 		delivery.Delivered = true
 		delivery.StatusCode = resp.StatusCode
 		defer resp.Body.Close()
-		
+
 		responseBody, _ := io.ReadAll(resp.Body)
 		delivery.Response = string(responseBody)
 	}
@@ -2994,13 +3001,13 @@ func (r *Repository) SearchCommits(query, author, since, until string, limit, of
 
 	// Get all commits by walking from all branch heads and HEAD
 	visitedCommits := make(map[string]bool)
-	
+
 	// Start with HEAD
 	headHash, err := r.refManager.GetHEAD()
 	if err == nil && headHash != "" {
 		r.walkCommitsForSearch(headHash, visitedCommits, &allCommits, queryLower, authorLower, author, query, sinceTime, untilTime)
 	}
-	
+
 	// Also walk from all branch heads to catch any additional commits
 	branches, err := r.refManager.ListBranches()
 	if err == nil {
@@ -3009,7 +3016,7 @@ func (r *Repository) SearchCommits(query, author, since, until string, limit, of
 			if err != nil {
 				continue
 			}
-			
+
 			// Walk commits from this branch head
 			r.walkCommitsForSearch(branchHash, visitedCommits, &allCommits, queryLower, authorLower, author, query, sinceTime, untilTime)
 		}
@@ -3436,7 +3443,7 @@ func (r *Repository) Grep(pattern, pathPattern, ref string, caseSensitive, regex
 					if end > len(lines) {
 						end = len(lines)
 					}
-					after = lines[lineNum+1:end]
+					after = lines[lineNum+1 : end]
 				}
 
 				allMatches = append(allMatches, GrepMatchInternal{
@@ -3530,7 +3537,7 @@ func (r *Repository) ExecuteHook(hookType, script string, environment map[string
 
 	// Create the execution environment
 	execEnv := make(map[string]string)
-	
+
 	// Add repository-specific environment variables
 	execEnv["GOVC_REPO_PATH"] = r.path
 	if currentBranch := r.getCurrentBranchName(); currentBranch != "" {
@@ -3547,11 +3554,11 @@ func (r *Repository) ExecuteHook(hookType, script string, environment map[string
 	}
 
 	start := time.Now()
-	
+
 	// For security and simplicity, we'll simulate hook execution
 	// In a real implementation, you would execute the script using os/exec
 	// with proper sandboxing and security measures
-	
+
 	result := &HookExecutionResult{
 		Success:     true,
 		ExitCode:    0,

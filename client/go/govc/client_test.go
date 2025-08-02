@@ -180,7 +180,7 @@ func TestErrorResponse(t *testing.T) {
 	defer server.Close()
 
 	client, _ := NewClient(server.URL)
-	
+
 	// Try to get a non-existent repo
 	repo, err := client.GetRepo(context.Background(), "non-existent")
 	if err == nil {

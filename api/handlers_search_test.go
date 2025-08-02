@@ -231,7 +231,7 @@ func TestSearchContent(t *testing.T) {
 				break
 			}
 		}
-		
+
 		if !found {
 			t.Errorf("Expected to find match in docs/guide.md")
 		}
@@ -324,7 +324,7 @@ func TestGrepEndpoint(t *testing.T) {
 
 	// Add a file with content for grep testing
 	addReq := AddFileRequest{
-		Path: "test.txt", 
+		Path:    "test.txt",
 		Content: "Line 1: Hello World\nLine 2: Goodbye World\nLine 3: Hello Universe\nLine 4: Test content",
 	}
 	reqBody, _ := json.Marshal(addReq)

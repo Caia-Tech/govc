@@ -162,7 +162,7 @@ func TestCherryPickOperations(t *testing.T) {
 		req = httptest.NewRequest("GET", fmt.Sprintf("/api/v1/repos/%s/log?limit=1", repoID), nil)
 		w = httptest.NewRecorder()
 		router.ServeHTTP(w, req)
-		
+
 		var logResp map[string]interface{}
 		json.Unmarshal(w.Body.Bytes(), &logResp)
 		commits := logResp["commits"].([]interface{})

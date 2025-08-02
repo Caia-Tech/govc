@@ -40,12 +40,12 @@ type PooledRepository struct {
 
 // RepositoryStats provides statistics about the repository pool
 type RepositoryStats struct {
-	TotalRepositories int                            `json:"total_repositories"`
-	ActiveRepositories int                           `json:"active_repositories"`
-	IdleRepositories  int                            `json:"idle_repositories"`
-	RepositoryDetails map[string]*RepositoryDetail   `json:"repository_details,omitempty"`
-	LastCleanup       time.Time                      `json:"last_cleanup"`
-	Config            PoolConfig                     `json:"config"`
+	TotalRepositories  int                          `json:"total_repositories"`
+	ActiveRepositories int                          `json:"active_repositories"`
+	IdleRepositories   int                          `json:"idle_repositories"`
+	RepositoryDetails  map[string]*RepositoryDetail `json:"repository_details,omitempty"`
+	LastCleanup        time.Time                    `json:"last_cleanup"`
+	Config             PoolConfig                   `json:"config"`
 }
 
 // RepositoryDetail provides detailed information about a pooled repository
@@ -171,12 +171,12 @@ func (p *RepositoryPool) Stats() RepositoryStats {
 	defer p.mu.RUnlock()
 
 	stats := RepositoryStats{
-		TotalRepositories: len(p.repositories),
+		TotalRepositories:  len(p.repositories),
 		ActiveRepositories: 0,
-		IdleRepositories:  0,
-		RepositoryDetails: make(map[string]*RepositoryDetail),
-		LastCleanup:       p.lastCleanup,
-		Config:            p.config,
+		IdleRepositories:   0,
+		RepositoryDetails:  make(map[string]*RepositoryDetail),
+		LastCleanup:        p.lastCleanup,
+		Config:             p.config,
 	}
 
 	now := time.Now()
@@ -184,7 +184,7 @@ func (p *RepositoryPool) Stats() RepositoryStats {
 
 	for id, pooledRepo := range p.repositories {
 		pooledRepo.mu.RLock()
-		
+
 		detail := &RepositoryDetail{
 			ID:           pooledRepo.ID,
 			Path:         pooledRepo.Path,
@@ -221,15 +221,15 @@ func (p *RepositoryPool) Cleanup() int {
 func (p *RepositoryPool) Close() {
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	
+
 	// Check if already closed
 	if p.closed {
 		return
 	}
-	
+
 	p.closed = true
 	close(p.done)
-	
+
 	if p.cleanupTicker != nil {
 		p.cleanupTicker.Stop()
 	}
@@ -241,7 +241,7 @@ func (p *RepositoryPool) Close() {
 // startCleanupRoutine starts the background cleanup routine
 func (p *RepositoryPool) startCleanupRoutine() {
 	p.cleanupTicker = time.NewTicker(p.config.CleanupInterval)
-	
+
 	go func() {
 		for {
 			select {
@@ -296,7 +296,7 @@ func (pr *PooledRepository) GetRepository() *govc.Repository {
 func (pr *PooledRepository) GetStats() RepositoryDetail {
 	pr.mu.RLock()
 	defer pr.mu.RUnlock()
-	
+
 	return RepositoryDetail{
 		ID:           pr.ID,
 		Path:         pr.Path,

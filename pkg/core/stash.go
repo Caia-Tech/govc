@@ -44,31 +44,31 @@ func (sm *StashManager) Create(message string, includeUntracked bool) (*Stash, e
 	if err != nil {
 		return nil, fmt.Errorf("cannot stash without commits")
 	}
-	
+
 	// Get current branch
 	currentBranch := sm.workspace.branch
 	currentCommit, err := sm.repo.GetBranch(currentBranch)
 	if err != nil {
 		currentCommit = head
 	}
-	
+
 	// Get status
 	status, err := sm.workspace.Status()
 	if err != nil {
 		return nil, err
 	}
-	
+
 	if status.Clean() {
 		return nil, fmt.Errorf("no local changes to stash")
 	}
-	
+
 	// Save staged changes
 	staging := sm.workspace.GetStagingArea()
 	index := make(map[string]string)
 	for path, entry := range staging.entries {
 		index[path] = entry.Hash
 	}
-	
+
 	// Save unstaged changes
 	changes := make(map[string][]byte)
 	for _, path := range status.Modified {
@@ -77,7 +77,7 @@ func (sm *StashManager) Create(message string, includeUntracked bool) (*Stash, e
 			changes[path] = content
 		}
 	}
-	
+
 	// Save untracked files if requested
 	untrackedFiles := make(map[string][]byte)
 	if includeUntracked {
@@ -88,18 +88,18 @@ func (sm *StashManager) Create(message string, includeUntracked bool) (*Stash, e
 			}
 		}
 	}
-	
+
 	// Create tree from current state
 	tree := sm.buildTreeFromWorkspace()
 	treeHash, err := sm.repo.objects.Put(tree)
 	if err != nil {
 		return nil, err
 	}
-	
+
 	// Create stash
 	stash := &Stash{
-		ID:           uuid.New().String(),
-		Message:      message,
+		ID:      uuid.New().String(),
+		Message: message,
 		Author: object.Author{
 			Name:  "Stash",
 			Email: "stash@govc",
@@ -112,12 +112,12 @@ func (sm *StashManager) Create(message string, includeUntracked bool) (*Stash, e
 		Index:        index,
 		Untracked:    untrackedFiles,
 	}
-	
+
 	sm.stashes = append(sm.stashes, stash)
-	
+
 	// Reset workspace to clean state
 	sm.workspace.Reset()
-	
+
 	// Also need to restore files to their committed state
 	// Get the committed tree
 	commit, _ := sm.repo.GetCommit(currentCommit)
@@ -131,7 +131,7 @@ func (sm *StashManager) Create(message string, includeUntracked bool) (*Stash, e
 			}
 		}
 	}
-	
+
 	// Restore modified files to committed state
 	for path := range changes {
 		if hash, exists := committedFiles[path]; exists {
@@ -142,7 +142,7 @@ func (sm *StashManager) Create(message string, includeUntracked bool) (*Stash, e
 			}
 		}
 	}
-	
+
 	// Remove newly added files that were staged
 	for path := range index {
 		if _, exists := committedFiles[path]; !exists {
@@ -150,12 +150,12 @@ func (sm *StashManager) Create(message string, includeUntracked bool) (*Stash, e
 			sm.workspace.working.Delete(path)
 		}
 	}
-	
+
 	// Remove untracked files if they were included
 	for path := range untrackedFiles {
 		sm.workspace.working.Delete(path)
 	}
-	
+
 	return stash, nil
 }
 
@@ -180,17 +180,17 @@ func (sm *StashManager) Apply(id string) error {
 	if err != nil {
 		return err
 	}
-	
+
 	// Check if workspace is clean
 	status, err := sm.workspace.Status()
 	if err != nil {
 		return err
 	}
-	
+
 	if !status.Clean() {
 		return fmt.Errorf("cannot apply stash: workspace has uncommitted changes")
 	}
-	
+
 	// Restore staged changes
 	for path, hash := range stash.Index {
 		// The object already exists in the repository
@@ -199,21 +199,21 @@ func (sm *StashManager) Apply(id string) error {
 			Mode: "100644",
 		}
 	}
-	
+
 	// Restore unstaged changes
 	for path, content := range stash.Changes {
 		if err := sm.workspace.WriteFile(path, content); err != nil {
 			return err
 		}
 	}
-	
+
 	// Restore untracked files
 	for path, content := range stash.Untracked {
 		if err := sm.workspace.WriteFile(path, content); err != nil {
 			return err
 		}
 	}
-	
+
 	return nil
 }
 
@@ -241,7 +241,7 @@ func (sm *StashManager) Pop(id string) error {
 func (sm *StashManager) buildTreeFromWorkspace() *object.Tree {
 	staging := sm.workspace.GetStagingArea()
 	entries := make([]object.TreeEntry, 0, len(staging.entries))
-	
+
 	for path, staged := range staging.entries {
 		entries = append(entries, object.TreeEntry{
 			Mode: staged.Mode,
@@ -249,7 +249,7 @@ func (sm *StashManager) buildTreeFromWorkspace() *object.Tree {
 			Hash: staged.Hash,
 		})
 	}
-	
+
 	tree := object.NewTree()
 	tree.Entries = entries
 	return tree

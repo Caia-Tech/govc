@@ -76,7 +76,7 @@ var (
 
 	userRoleRemoveCmd = &cobra.Command{
 		Use:   "remove [username] [role]",
-		Short: "Remove role from user",  
+		Short: "Remove role from user",
 		Args:  cobra.ExactArgs(2),
 		Run:   runUserRoleRemove,
 	}

@@ -1,0 +1,1128 @@
+basePath: /api/v1
+definitions:
+  api.AddFileRequest:
+    properties:
+      content:
+        example: '# My Project'
+        type: string
+      path:
+        example: README.md
+        type: string
+    required:
+    - content
+    - path
+    type: object
+  api.BranchResponse:
+    properties:
+      commit:
+        example: abc123def456
+        type: string
+      is_current:
+        example: true
+        type: boolean
+      name:
+        example: main
+        type: string
+    type: object
+  api.CheckoutRequest:
+    properties:
+      branch:
+        example: main
+        type: string
+    required:
+    - branch
+    type: object
+  api.CommitRequest:
+    properties:
+      author:
+        example: John Doe
+        type: string
+      email:
+        example: john@example.com
+        type: string
+      message:
+        example: Initial commit
+        type: string
+    required:
+    - message
+    type: object
+  api.CommitResponse:
+    properties:
+      author:
+        example: John Doe
+        type: string
+      email:
+        example: john@example.com
+        type: string
+      hash:
+        example: abc123def456
+        type: string
+      message:
+        example: Initial commit
+        type: string
+      parent:
+        example: def456abc123
+        type: string
+      timestamp:
+        example: "2023-01-01T00:00:00Z"
+        type: string
+    type: object
+  api.CreateBranchRequest:
+    properties:
+      from:
+        example: main
+        type: string
+      name:
+        example: feature/new-feature
+        type: string
+    required:
+    - name
+    type: object
+  api.CreateRepoRequest:
+    properties:
+      id:
+        example: my-repo
+        type: string
+      memory_only:
+        example: false
+        type: boolean
+    required:
+    - id
+    type: object
+  api.ErrorResponse:
+    properties:
+      code:
+        example: REPO_NOT_FOUND
+        type: string
+      details: {}
+      error:
+        example: Repository not found
+        type: string
+    type: object
+  api.FileResponse:
+    properties:
+      content:
+        type: string
+      path:
+        type: string
+      size:
+        type: integer
+    type: object
+  api.LogResponse:
+    properties:
+      commits:
+        items:
+          $ref: '#/definitions/api.CommitResponse'
+        type: array
+      total:
+        type: integer
+    type: object
+  api.MergeRequest:
+    properties:
+      from:
+        example: feature/new-feature
+        type: string
+      to:
+        example: main
+        type: string
+    required:
+    - from
+    - to
+    type: object
+  api.ReadFileResponse:
+    properties:
+      content:
+        type: string
+      encoding:
+        description: '"utf-8" or "base64"'
+        type: string
+      path:
+        type: string
+      size:
+        type: integer
+    type: object
+  api.RepoResponse:
+    properties:
+      created_at:
+        example: "2023-01-01T00:00:00Z"
+        type: string
+      current_branch:
+        example: main
+        type: string
+      id:
+        example: my-repo
+        type: string
+      path:
+        example: /repos/my-repo
+        type: string
+    type: object
+  api.StatusResponse:
+    properties:
+      branch:
+        example: main
+        type: string
+      clean:
+        example: false
+        type: boolean
+      modified:
+        example:
+        - '["file2.txt"]'
+        items:
+          type: string
+        type: array
+      staged:
+        example:
+        - '["file1.txt"]'
+        items:
+          type: string
+        type: array
+      untracked:
+        example:
+        - '["file3.txt"]'
+        items:
+          type: string
+        type: array
+    type: object
+  api.SuccessResponse:
+    properties:
+      data: {}
+      message:
+        example: Repository deleted successfully
+        type: string
+      status:
+        example: success
+        type: string
+    type: object
+  api.WriteFileRequest:
+    properties:
+      content:
+        type: string
+      path:
+        type: string
+    required:
+    - content
+    - path
+    type: object
+host: localhost:8080
+info:
+  contact:
+    email: support@caiatech.com
+    name: GOVC API Support
+    url: https://github.com/caiatech/govc/issues
+  description: A high-performance Git version control system API with memory-first
+    architecture
+  license:
+    name: MIT
+    url: https://github.com/caiatech/govc/blob/main/LICENSE
+  termsOfService: https://github.com/caiatech/govc/blob/main/LICENSE
+  title: GOVC API
+  version: 1.0.0-dev
+paths:
+  /repositories:
+    get:
+      description: Retrieves a list of all repositories with their metadata
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: List of repositories
+          schema:
+            properties:
+              count:
+                type: integer
+              repositories:
+                items:
+                  $ref: '#/definitions/api.RepoResponse'
+                type: array
+            type: object
+      summary: List all repositories
+      tags:
+      - Repository Management
+    post:
+      consumes:
+      - application/json
+      description: Creates a new Git repository with the specified configuration
+      parameters:
+      - description: Repository creation request
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/api.CreateRepoRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Repository created successfully
+          schema:
+            $ref: '#/definitions/api.RepoResponse'
+        "400":
+          description: Invalid request data
+          schema:
+            $ref: '#/definitions/api.ErrorResponse'
+        "409":
+          description: Repository already exists
+          schema:
+            $ref: '#/definitions/api.ErrorResponse'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/api.ErrorResponse'
+        "503":
+          description: Maximum repositories reached
+          schema:
+            $ref: '#/definitions/api.ErrorResponse'
+      summary: Create a new repository
+      tags:
+      - Repository Management
+  /repositories/{repo_id}:
+    delete:
+      description: Permanently deletes a repository and all its data
+      parameters:
+      - description: Repository ID
+        in: path
+        name: repo_id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Repository deleted successfully
+          schema:
+            $ref: '#/definitions/api.SuccessResponse'
+        "404":
+          description: Repository not found
+          schema:
+            $ref: '#/definitions/api.ErrorResponse'
+      summary: Delete a repository
+      tags:
+      - Repository Management
+    get:
+      description: Retrieves detailed information about a specific repository
+      parameters:
+      - description: Repository ID
+        in: path
+        name: repo_id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Repository information
+          schema:
+            $ref: '#/definitions/api.RepoResponse'
+        "404":
+          description: Repository not found
+          schema:
+            $ref: '#/definitions/api.ErrorResponse'
+      summary: Get repository information
+      tags:
+      - Repository Management
+  /repositories/{repo_id}/branches:
+    get:
+      description: Retrieves a list of all branches in the repository
+      parameters:
+      - description: Repository ID
+        in: path
+        name: repo_id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: List of branches
+          schema:
+            properties:
+              branches:
+                items:
+                  $ref: '#/definitions/api.BranchResponse'
+                type: array
+              count:
+                type: integer
+              current:
+                type: string
+            type: object
+        "404":
+          description: Repository not found
+          schema:
+            $ref: '#/definitions/api.ErrorResponse'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/api.ErrorResponse'
+      summary: List all branches
+      tags:
+      - Git Operations
+    post:
+      consumes:
+      - application/json
+      description: Creates a new branch from the current or specified branch
+      parameters:
+      - description: Repository ID
+        in: path
+        name: repo_id
+        required: true
+        type: string
+      - description: Branch creation request
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/api.CreateBranchRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Branch created successfully
+          schema:
+            $ref: '#/definitions/api.SuccessResponse'
+        "400":
+          description: Invalid request data
+          schema:
+            $ref: '#/definitions/api.ErrorResponse'
+        "404":
+          description: Repository or source branch not found
+          schema:
+            $ref: '#/definitions/api.ErrorResponse'
+        "409":
+          description: Branch already exists
+          schema:
+            $ref: '#/definitions/api.ErrorResponse'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/api.ErrorResponse'
+      summary: Create a new branch
+      tags:
+      - Git Operations
+  /repositories/{repo_id}/branches/{branch}:
+    delete:
+      description: Permanently deletes a branch (cannot delete current branch)
+      parameters:
+      - description: Repository ID
+        in: path
+        name: repo_id
+        required: true
+        type: string
+      - description: Branch name
+        in: path
+        name: branch
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Branch deleted successfully
+          schema:
+            $ref: '#/definitions/api.SuccessResponse'
+        "400":
+          description: Cannot delete current branch
+          schema:
+            $ref: '#/definitions/api.ErrorResponse'
+        "404":
+          description: Repository not found
+          schema:
+            $ref: '#/definitions/api.ErrorResponse'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/api.ErrorResponse'
+      summary: Delete a branch
+      tags:
+      - Git Operations
+  /repositories/{repo_id}/checkout:
+    post:
+      consumes:
+      - application/json
+      description: Switches the working directory to a different branch
+      parameters:
+      - description: Repository ID
+        in: path
+        name: repo_id
+        required: true
+        type: string
+      - description: Checkout request
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/api.CheckoutRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Branch checked out successfully
+          schema:
+            $ref: '#/definitions/api.SuccessResponse'
+        "400":
+          description: Invalid request data
+          schema:
+            $ref: '#/definitions/api.ErrorResponse'
+        "404":
+          description: Repository not found
+          schema:
+            $ref: '#/definitions/api.ErrorResponse'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/api.ErrorResponse'
+      summary: Checkout a branch
+      tags:
+      - Git Operations
+  /repositories/{repo_id}/commits:
+    get:
+      description: Retrieves the commit history for a repository
+      parameters:
+      - description: Repository ID
+        in: path
+        name: repo_id
+        required: true
+        type: string
+      - description: 'Maximum number of commits to return (default: 50, max: 10000)'
+        in: query
+        name: limit
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Commit history
+          schema:
+            properties:
+              commits:
+                items:
+                  $ref: '#/definitions/api.CommitResponse'
+                type: array
+              count:
+                type: integer
+            type: object
+        "400":
+          description: Invalid request parameters
+          schema:
+            $ref: '#/definitions/api.ErrorResponse'
+        "404":
+          description: Repository not found
+          schema:
+            $ref: '#/definitions/api.ErrorResponse'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/api.ErrorResponse'
+      summary: Get commit history
+      tags:
+      - Git Operations
+    post:
+      consumes:
+      - application/json
+      description: Creates a new commit with staged changes
+      parameters:
+      - description: Repository ID
+        in: path
+        name: repo_id
+        required: true
+        type: string
+      - description: Commit request
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/api.CommitRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Commit created successfully
+          schema:
+            $ref: '#/definitions/api.CommitResponse'
+        "400":
+          description: Invalid request data
+          schema:
+            $ref: '#/definitions/api.ErrorResponse'
+        "404":
+          description: Repository not found
+          schema:
+            $ref: '#/definitions/api.ErrorResponse'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/api.ErrorResponse'
+      summary: Create a new commit
+      tags:
+      - Git Operations
+  /repositories/{repo_id}/commits/{commit}:
+    get:
+      description: Retrieves detailed information about a specific commit including
+        files and diff
+      parameters:
+      - description: Repository ID
+        in: path
+        name: repo_id
+        required: true
+        type: string
+      - description: Commit hash
+        in: path
+        name: commit
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Commit details
+          schema:
+            properties:
+              commit:
+                $ref: '#/definitions/api.CommitResponse'
+              diff:
+                type: object
+              files:
+                items:
+                  $ref: '#/definitions/api.FileResponse'
+                type: array
+              tree:
+                type: string
+            type: object
+        "400":
+          description: Invalid request or not a commit
+          schema:
+            $ref: '#/definitions/api.ErrorResponse'
+        "404":
+          description: Repository or commit not found
+          schema:
+            $ref: '#/definitions/api.ErrorResponse'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/api.ErrorResponse'
+      summary: Get commit details
+      tags:
+      - Git Operations
+  /repositories/{repo_id}/files:
+    post:
+      consumes:
+      - application/json
+      description: Writes a file to the working directory and stages it for commit
+      parameters:
+      - description: Repository ID
+        in: path
+        name: repo_id
+        required: true
+        type: string
+      - description: File addition request
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/api.AddFileRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: File added successfully
+          schema:
+            $ref: '#/definitions/api.SuccessResponse'
+        "400":
+          description: Invalid request data
+          schema:
+            $ref: '#/definitions/api.ErrorResponse'
+        "404":
+          description: Repository not found
+          schema:
+            $ref: '#/definitions/api.ErrorResponse'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/api.ErrorResponse'
+      summary: Add a file to repository
+      tags:
+      - Git Operations
+  /repositories/{repo_id}/merge:
+    post:
+      consumes:
+      - application/json
+      description: Merges one branch into another branch
+      parameters:
+      - description: Repository ID
+        in: path
+        name: repo_id
+        required: true
+        type: string
+      - description: Merge request
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/api.MergeRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Branches merged successfully
+          schema:
+            $ref: '#/definitions/api.SuccessResponse'
+        "400":
+          description: Invalid request data
+          schema:
+            $ref: '#/definitions/api.ErrorResponse'
+        "404":
+          description: Repository not found
+          schema:
+            $ref: '#/definitions/api.ErrorResponse'
+        "409":
+          description: Merge conflict
+          schema:
+            $ref: '#/definitions/api.ErrorResponse'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/api.ErrorResponse'
+      summary: Merge branches
+      tags:
+      - Git Operations
+  /repositories/{repo_id}/status:
+    get:
+      description: Returns the current status of the working directory and staging
+        area
+      parameters:
+      - description: Repository ID
+        in: path
+        name: repo_id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Repository status
+          schema:
+            $ref: '#/definitions/api.StatusResponse'
+        "404":
+          description: Repository not found
+          schema:
+            $ref: '#/definitions/api.ErrorResponse'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/api.ErrorResponse'
+      summary: Get repository status
+      tags:
+      - Git Operations
+  /v2/repositories:
+    get:
+      description: Retrieves a list of all repositories using V2 clean architecture
+        with enhanced metadata
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: List of repositories
+          schema:
+            properties:
+              count:
+                type: integer
+              repositories:
+                items:
+                  $ref: '#/definitions/api.RepoResponse'
+                type: array
+            type: object
+      summary: List all repositories (V2 Clean Architecture)
+      tags:
+      - V2 Architecture
+    post:
+      consumes:
+      - application/json
+      description: Creates a new Git repository using the V2 clean architecture with
+        enhanced performance and modularity
+      parameters:
+      - description: Repository creation request
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/api.CreateRepoRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Repository created successfully
+          schema:
+            $ref: '#/definitions/api.RepoResponse'
+        "400":
+          description: Invalid request data
+          schema:
+            $ref: '#/definitions/api.ErrorResponse'
+        "409":
+          description: Repository already exists
+          schema:
+            $ref: '#/definitions/api.ErrorResponse'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/api.ErrorResponse'
+        "503":
+          description: Maximum repositories reached
+          schema:
+            $ref: '#/definitions/api.ErrorResponse'
+      summary: Create a new repository (V2 Clean Architecture)
+      tags:
+      - V2 Architecture
+  /v2/repositories/{repo_id}:
+    delete:
+      description: Permanently deletes a repository using V2 clean architecture with
+        proper cleanup
+      parameters:
+      - description: Repository ID
+        in: path
+        name: repo_id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Repository deleted successfully
+          schema:
+            $ref: '#/definitions/api.SuccessResponse'
+        "404":
+          description: Repository not found
+          schema:
+            $ref: '#/definitions/api.ErrorResponse'
+      summary: Delete a repository (V2 Clean Architecture)
+      tags:
+      - V2 Architecture
+    get:
+      description: Retrieves detailed information about a specific repository using
+        V2 clean architecture
+      parameters:
+      - description: Repository ID
+        in: path
+        name: repo_id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Repository information
+          schema:
+            $ref: '#/definitions/api.RepoResponse'
+        "404":
+          description: Repository not found
+          schema:
+            $ref: '#/definitions/api.ErrorResponse'
+      summary: Get repository information (V2 Clean Architecture)
+      tags:
+      - V2 Architecture
+  /v2/repositories/{repo_id}/branches:
+    get:
+      description: Retrieves all branches using V2 clean architecture with enhanced
+        metadata
+      parameters:
+      - description: Repository ID
+        in: path
+        name: repo_id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: List of branches
+          schema:
+            properties:
+              branches:
+                items:
+                  $ref: '#/definitions/api.BranchResponse'
+                type: array
+              count:
+                type: integer
+              current:
+                type: string
+            type: object
+        "404":
+          description: Repository not found
+          schema:
+            $ref: '#/definitions/api.ErrorResponse'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/api.ErrorResponse'
+      summary: List all branches (V2 Clean Architecture)
+      tags:
+      - V2 Architecture
+    post:
+      consumes:
+      - application/json
+      description: Creates a new branch using V2 clean architecture with enhanced
+        branch management
+      parameters:
+      - description: Repository ID
+        in: path
+        name: repo_id
+        required: true
+        type: string
+      - description: Branch creation request
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/api.CreateBranchRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Branch created successfully
+          schema:
+            $ref: '#/definitions/api.SuccessResponse'
+        "400":
+          description: Invalid request data
+          schema:
+            $ref: '#/definitions/api.ErrorResponse'
+        "404":
+          description: Repository not found
+          schema:
+            $ref: '#/definitions/api.ErrorResponse'
+      summary: Create a new branch (V2 Clean Architecture)
+      tags:
+      - V2 Architecture
+  /v2/repositories/{repo_id}/commits:
+    get:
+      description: Retrieves the commit history using V2 clean architecture with enhanced
+        performance
+      parameters:
+      - description: Repository ID
+        in: path
+        name: repo_id
+        required: true
+        type: string
+      - description: 'Maximum number of commits to return (default: 20, max: 10000)'
+        in: query
+        name: limit
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Commit history
+          schema:
+            $ref: '#/definitions/api.LogResponse'
+        "400":
+          description: Invalid request parameters
+          schema:
+            $ref: '#/definitions/api.ErrorResponse'
+        "404":
+          description: Repository not found
+          schema:
+            $ref: '#/definitions/api.ErrorResponse'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/api.ErrorResponse'
+      summary: Get commit history (V2 Clean Architecture)
+      tags:
+      - V2 Architecture
+    post:
+      consumes:
+      - application/json
+      description: Creates a new commit with staged changes using V2 clean architecture
+      parameters:
+      - description: Repository ID
+        in: path
+        name: repo_id
+        required: true
+        type: string
+      - description: Commit request
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/api.CommitRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Commit created successfully
+          schema:
+            $ref: '#/definitions/api.CommitResponse'
+        "400":
+          description: Invalid request data
+          schema:
+            $ref: '#/definitions/api.ErrorResponse'
+        "404":
+          description: Repository not found
+          schema:
+            $ref: '#/definitions/api.ErrorResponse'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/api.ErrorResponse'
+      summary: Create a new commit (V2 Clean Architecture)
+      tags:
+      - V2 Architecture
+  /v2/repositories/{repo_id}/files:
+    get:
+      description: Reads a file from the working directory using V2 clean architecture
+        with binary support
+      parameters:
+      - description: Repository ID
+        in: path
+        name: repo_id
+        required: true
+        type: string
+      - description: File path relative to repository root
+        in: query
+        name: path
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: File contents
+          schema:
+            $ref: '#/definitions/api.ReadFileResponse'
+        "400":
+          description: Missing path parameter
+          schema:
+            $ref: '#/definitions/api.ErrorResponse'
+        "404":
+          description: Repository or file not found
+          schema:
+            $ref: '#/definitions/api.ErrorResponse'
+      summary: Read a file from repository (V2 Clean Architecture)
+      tags:
+      - V2 Architecture
+    post:
+      consumes:
+      - application/json
+      description: Writes a file to the working directory and stages it using V2 clean
+        architecture
+      parameters:
+      - description: Repository ID
+        in: path
+        name: repo_id
+        required: true
+        type: string
+      - description: File addition request
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/api.AddFileRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: File added successfully
+          schema:
+            $ref: '#/definitions/api.SuccessResponse'
+        "400":
+          description: Invalid request data
+          schema:
+            $ref: '#/definitions/api.ErrorResponse'
+        "404":
+          description: Repository not found
+          schema:
+            $ref: '#/definitions/api.ErrorResponse'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/api.ErrorResponse'
+      summary: Add a file to repository (V2 Clean Architecture)
+      tags:
+      - V2 Architecture
+    put:
+      consumes:
+      - application/json
+      description: Writes a file to the working directory using V2 clean architecture
+      parameters:
+      - description: Repository ID
+        in: path
+        name: repo_id
+        required: true
+        type: string
+      - description: File write request
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/api.WriteFileRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: File written successfully
+          schema:
+            $ref: '#/definitions/api.SuccessResponse'
+        "400":
+          description: Invalid request data
+          schema:
+            $ref: '#/definitions/api.ErrorResponse'
+        "404":
+          description: Repository not found
+          schema:
+            $ref: '#/definitions/api.ErrorResponse'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/api.ErrorResponse'
+      summary: Write a file to repository (V2 Clean Architecture)
+      tags:
+      - V2 Architecture
+  /v2/repositories/{repo_id}/status:
+    get:
+      description: Returns the current status using V2 clean architecture with improved
+        accuracy
+      parameters:
+      - description: Repository ID
+        in: path
+        name: repo_id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Repository status
+          schema:
+            $ref: '#/definitions/api.StatusResponse'
+        "404":
+          description: Repository not found
+          schema:
+            $ref: '#/definitions/api.ErrorResponse'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/api.ErrorResponse'
+      summary: Get repository status (V2 Clean Architecture)
+      tags:
+      - V2 Architecture
+securityDefinitions:
+  ApiKeyAuth:
+    description: 'Enter the token with the `Bearer: ` prefix, e.g. "Bearer abcde12345"'
+    in: header
+    name: Authorization
+    type: apiKey
+  ApiKeyQuery:
+    description: API key for accessing the API
+    in: query
+    name: api_key
+    type: apiKey
+  BasicAuth:
+    type: basic
+swagger: "2.0"
+tags:
+- description: Operations for managing Git repositories
+  name: Repository Management
+- description: Core Git operations like add, commit, checkout
+  name: Git Operations
+- description: Authentication and authorization endpoints
+  name: Authentication
+- description: Health checks and monitoring endpoints
+  name: Health & Monitoring
+- description: Clean architecture V2 API endpoints
+  name: V2 Architecture

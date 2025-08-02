@@ -83,11 +83,11 @@ func (as *AuthService) WhoAmI(ctx context.Context) (*User, error) {
 
 // APIKey represents an API key
 type APIKey struct {
-	ID          string    `json:"id"`
-	Name        string    `json:"name"`
-	KeyHash     string    `json:"key_hash"`
-	Permissions []string  `json:"permissions"`
-	CreatedAt   time.Time `json:"created_at"`
+	ID          string     `json:"id"`
+	Name        string     `json:"name"`
+	KeyHash     string     `json:"key_hash"`
+	Permissions []string   `json:"permissions"`
+	CreatedAt   time.Time  `json:"created_at"`
 	LastUsedAt  *time.Time `json:"last_used_at,omitempty"`
 	ExpiresAt   *time.Time `json:"expires_at,omitempty"`
 }
@@ -101,8 +101,8 @@ type CreateAPIKeyRequest struct {
 
 // CreateAPIKeyResponse represents the response when creating an API key
 type CreateAPIKeyResponse struct {
-	ID     string `json:"id"`
-	Key    string `json:"key"`
+	ID     string  `json:"id"`
+	Key    string  `json:"key"`
 	APIKey *APIKey `json:"api_key"`
 }
 

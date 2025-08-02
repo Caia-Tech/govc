@@ -26,7 +26,7 @@ func BenchmarkSimpleOperations(b *testing.B) {
 		repo := govc.New()
 		b.ReportAllocs()
 		b.ResetTimer()
-		
+
 		for i := 0; i < b.N; i++ {
 			tx := repo.Transaction()
 			tx.Add(fmt.Sprintf("file%d.txt", i), []byte("test"))
@@ -37,10 +37,10 @@ func BenchmarkSimpleOperations(b *testing.B) {
 	b.Run("Auth/GenerateToken", func(b *testing.B) {
 		cfg := config.DefaultConfig()
 		jwtAuth := auth.NewJWTAuth(cfg.Auth.JWT.Secret, cfg.Auth.JWT.Issuer, cfg.Auth.JWT.TTL)
-		
+
 		b.ReportAllocs()
 		b.ResetTimer()
-		
+
 		for i := 0; i < b.N; i++ {
 			_, _ = jwtAuth.GenerateToken("user", "user", "user@test.com", []string{"read"})
 		}
@@ -53,10 +53,10 @@ func BenchmarkSimpleOperations(b *testing.B) {
 			CleanupInterval: 1 * time.Minute,
 		})
 		defer p.Close()
-		
+
 		b.ReportAllocs()
 		b.ResetTimer()
-		
+
 		for i := 0; i < b.N; i++ {
 			_, _ = p.Get(fmt.Sprintf("repo-%d", i%10), ":memory:", true)
 		}
@@ -64,10 +64,10 @@ func BenchmarkSimpleOperations(b *testing.B) {
 
 	b.Run("Metrics/Record", func(b *testing.B) {
 		m := metrics.NewPrometheusMetrics()
-		
+
 		b.ReportAllocs()
 		b.ResetTimer()
-		
+
 		for i := 0; i < b.N; i++ {
 			m.RecordHTTPRequest("GET", "/api/v1/repos", 200, 100*time.Microsecond)
 		}
@@ -79,10 +79,10 @@ func BenchmarkSimpleOperations(b *testing.B) {
 			Component: "bench",
 			Output:    nil, // Will go to stderr but not captured in benchmark
 		})
-		
+
 		b.ReportAllocs()
 		b.ResetTimer()
-		
+
 		for i := 0; i < b.N; i++ {
 			logger.Info("Benchmark log")
 		}
@@ -93,10 +93,10 @@ func BenchmarkSimpleOperations(b *testing.B) {
 func BenchmarkConcurrentAccess(b *testing.B) {
 	b.Run("Repository/ConcurrentCommits", func(b *testing.B) {
 		repo := govc.New()
-		
+
 		b.ReportAllocs()
 		b.ResetTimer()
-		
+
 		b.RunParallel(func(pb *testing.PB) {
 			i := 0
 			for pb.Next() {
@@ -115,10 +115,10 @@ func BenchmarkConcurrentAccess(b *testing.B) {
 			CleanupInterval: 1 * time.Minute,
 		})
 		defer p.Close()
-		
+
 		b.ReportAllocs()
 		b.ResetTimer()
-		
+
 		b.RunParallel(func(pb *testing.PB) {
 			i := 0
 			for pb.Next() {
@@ -133,10 +133,10 @@ func BenchmarkConcurrentAccess(b *testing.B) {
 func BenchmarkMemoryVsDisk(b *testing.B) {
 	b.Run("Memory/Commits", func(b *testing.B) {
 		repo := govc.New()
-		
+
 		b.ReportAllocs()
 		b.ResetTimer()
-		
+
 		for i := 0; i < b.N; i++ {
 			tx := repo.Transaction()
 			tx.Add("file.txt", []byte("memory test"))
@@ -150,10 +150,10 @@ func BenchmarkMemoryVsDisk(b *testing.B) {
 		if err != nil {
 			b.Fatal(err)
 		}
-		
+
 		b.ReportAllocs()
 		b.ResetTimer()
-		
+
 		for i := 0; i < b.N; i++ {
 			tx := repo.Transaction()
 			tx.Add("file.txt", []byte("disk test"))

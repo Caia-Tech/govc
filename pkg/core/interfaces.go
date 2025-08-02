@@ -11,19 +11,19 @@ import (
 type ObjectStore interface {
 	// Get retrieves an object by its hash
 	Get(hash string) (object.Object, error)
-	
+
 	// Put stores an object and returns its hash
 	Put(obj object.Object) (string, error)
-	
+
 	// Exists checks if an object exists
 	Exists(hash string) bool
-	
+
 	// List returns all object hashes
 	List() ([]string, error)
-	
+
 	// Size returns the total size of stored objects
 	Size() (int64, error)
-	
+
 	// Close releases any resources
 	io.Closer
 }
@@ -32,22 +32,22 @@ type ObjectStore interface {
 type RefStore interface {
 	// GetRef returns the hash a reference points to
 	GetRef(name string) (string, error)
-	
+
 	// UpdateRef updates a reference to point to a new hash
 	UpdateRef(name string, hash string) error
-	
+
 	// DeleteRef removes a reference
 	DeleteRef(name string) error
-	
+
 	// ListRefs returns all references
 	ListRefs() (map[string]string, error)
-	
+
 	// GetHEAD returns what HEAD points to
 	GetHEAD() (string, error)
-	
+
 	// SetHEAD updates HEAD
 	SetHEAD(target string) error
-	
+
 	// Close releases any resources
 	io.Closer
 }
@@ -56,22 +56,22 @@ type RefStore interface {
 type WorkingStorage interface {
 	// Read reads a file from working directory
 	Read(path string) ([]byte, error)
-	
+
 	// Write writes a file to working directory
 	Write(path string, data []byte) error
-	
+
 	// Delete removes a file from working directory
 	Delete(path string) error
-	
+
 	// List returns all files in working directory
 	List() ([]string, error)
-	
+
 	// Clear removes all files
 	Clear() error
-	
+
 	// Exists checks if a file exists
 	Exists(path string) bool
-	
+
 	// Close releases any resources
 	io.Closer
 }
@@ -80,16 +80,16 @@ type WorkingStorage interface {
 type ConfigStore interface {
 	// Get retrieves a config value
 	Get(key string) (string, error)
-	
+
 	// Set stores a config value
 	Set(key, value string) error
-	
+
 	// Delete removes a config value
 	Delete(key string) error
-	
+
 	// List returns all config keys
 	List() (map[string]string, error)
-	
+
 	// Close releases any resources
 	io.Closer
 }
@@ -121,9 +121,9 @@ func (r *Repository) Refs() RefStore {
 
 // Workspace represents the mutable working directory state
 type Workspace struct {
-	repo     *Repository
-	working  WorkingStorage
-	staging  *StagingArea
+	repo    *Repository
+	working WorkingStorage
+	staging *StagingArea
 }
 
 // NewWorkspace creates a new workspace
@@ -152,7 +152,6 @@ func NewStagingArea() *StagingArea {
 		entries: make(map[string]StagedEntry),
 	}
 }
-
 
 // Event represents a repository event
 type Event struct {

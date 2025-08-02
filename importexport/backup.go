@@ -52,26 +52,26 @@ type BackupMetadata struct {
 
 // BackupOptions contains backup configuration
 type BackupOptions struct {
-	Output      string            `json:"output"`       // Output file path
-	Compression bool              `json:"compression"`  // Enable gzip compression
-	Incremental bool              `json:"incremental"`  // Incremental backup
-	Since       *time.Time        `json:"since"`        // Backup changes since this time
-	Include     []string          `json:"include"`      // Include patterns
-	Exclude     []string          `json:"exclude"`      // Exclude patterns
-	Metadata    map[string]string `json:"metadata"`     // Custom metadata
-	Encryption  *EncryptionConfig `json:"encryption"`   // Encryption settings
+	Output      string            `json:"output"`      // Output file path
+	Compression bool              `json:"compression"` // Enable gzip compression
+	Incremental bool              `json:"incremental"` // Incremental backup
+	Since       *time.Time        `json:"since"`       // Backup changes since this time
+	Include     []string          `json:"include"`     // Include patterns
+	Exclude     []string          `json:"exclude"`     // Exclude patterns
+	Metadata    map[string]string `json:"metadata"`    // Custom metadata
+	Encryption  *EncryptionConfig `json:"encryption"`  // Encryption settings
 }
 
 // RestoreOptions contains restore configuration
 type RestoreOptions struct {
-	Target       string            `json:"target"`        // Target repository path
-	Overwrite    bool              `json:"overwrite"`     // Overwrite existing repository
-	Branch       string            `json:"branch"`        // Restore specific branch
-	Since        *time.Time        `json:"since"`         // Restore commits since this time
-	Until        *time.Time        `json:"until"`         // Restore commits until this time
-	DryRun       bool              `json:"dry_run"`       // Don't actually restore
-	Verification bool              `json:"verification"`  // Verify backup integrity
-	Metadata     map[string]string `json:"metadata"`      // Expected metadata
+	Target       string            `json:"target"`       // Target repository path
+	Overwrite    bool              `json:"overwrite"`    // Overwrite existing repository
+	Branch       string            `json:"branch"`       // Restore specific branch
+	Since        *time.Time        `json:"since"`        // Restore commits since this time
+	Until        *time.Time        `json:"until"`        // Restore commits until this time
+	DryRun       bool              `json:"dry_run"`      // Don't actually restore
+	Verification bool              `json:"verification"` // Verify backup integrity
+	Metadata     map[string]string `json:"metadata"`     // Expected metadata
 }
 
 // EncryptionConfig contains encryption settings
@@ -95,7 +95,7 @@ func NewBackupManager(repo *govc.Repository) *BackupManager {
 // Backup creates a backup of the repository
 func (bm *BackupManager) Backup(ctx context.Context, opts BackupOptions) error {
 	bm.progress.CurrentPhase = "Initializing backup"
-	
+
 	// Create output file
 	outFile, err := os.Create(opts.Output)
 	if err != nil {
@@ -147,7 +147,7 @@ func (bm *BackupManager) Backup(ctx context.Context, opts BackupOptions) error {
 // Restore restores a repository from backup
 func (bm *BackupManager) Restore(ctx context.Context, backupPath string, opts RestoreOptions) error {
 	bm.progress.CurrentPhase = "Opening backup file"
-	
+
 	// Open backup file
 	inFile, err := os.Open(backupPath)
 	if err != nil {
@@ -292,7 +292,7 @@ func (bm *BackupManager) backupRepositoryData(ctx context.Context, tarWriter *ta
 	// For now, we'll backup the entire repository directory
 	// In a full implementation, this would be the actual repository path
 	repoPath := "." // Current directory for now
-	
+
 	return filepath.Walk(repoPath, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			return err
@@ -358,7 +358,7 @@ func (bm *BackupManager) isGzipFile(file *os.File) bool {
 	magic := make([]byte, 2)
 	file.Read(magic)
 	file.Seek(0, 0) // Reset file position
-	
+
 	return magic[0] == 0x1f && magic[1] == 0x8b
 }
 
@@ -507,12 +507,12 @@ func (bm *BackupManager) VerifyBackup(backupPath string) error {
 	}
 
 	checksum := hex.EncodeToString(hasher.Sum(nil))
-	
+
 	// For a full implementation, we would:
 	// 1. Read the stored checksum from metadata
 	// 2. Compare with calculated checksum
 	// 3. Verify individual file checksums if stored
-	
+
 	_ = checksum // Use the checksum
 	return nil
 }
@@ -520,7 +520,7 @@ func (bm *BackupManager) VerifyBackup(backupPath string) error {
 // ListBackups lists available backups in a directory
 func ListBackups(backupDir string) ([]BackupMetadata, error) {
 	var backups []BackupMetadata
-	
+
 	err := filepath.Walk(backupDir, func(path string, info os.FileInfo, err error) error {
 		if err != nil || info.IsDir() {
 			return err

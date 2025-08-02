@@ -9,11 +9,11 @@ import (
 func TestNewAPIKeyManager(t *testing.T) {
 	rbac := NewRBAC()
 	apiKeyMgr := NewAPIKeyManager(rbac)
-	
+
 	if apiKeyMgr == nil {
 		t.Fatal("NewAPIKeyManager returned nil")
 	}
-	
+
 	if apiKeyMgr.rbac != rbac {
 		t.Error("RBAC reference not set correctly")
 	}
@@ -22,13 +22,13 @@ func TestNewAPIKeyManager(t *testing.T) {
 func TestGenerateAPIKey(t *testing.T) {
 	rbac := NewRBAC()
 	apiKeyMgr := NewAPIKeyManager(rbac)
-	
+
 	// Create a test user first
 	err := rbac.CreateUser("testuser", "testname", "test@example.com", []string{"developer"})
 	if err != nil {
 		t.Fatalf("Failed to create test user: %v", err)
 	}
-	
+
 	testCases := []struct {
 		name        string
 		userID      string
@@ -90,22 +90,22 @@ func TestGenerateAPIKey(t *testing.T) {
 			permissions: []Permission{PermissionRepoRead},
 			repoPerms:   nil,
 			expiresAt:   timePtr(time.Now().Add(-time.Hour)), // Already expired
-			wantErr:     false, // Implementation allows expired keys
+			wantErr:     false,                               // Implementation allows expired keys
 		},
 	}
-	
+
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			keyString, apiKey, err := apiKeyMgr.GenerateAPIKey(
 				tc.userID, tc.keyName, tc.permissions, tc.repoPerms, tc.expiresAt)
-			
+
 			if tc.wantErr && err == nil {
 				t.Error("Expected error but got none")
 			}
 			if !tc.wantErr && err != nil {
 				t.Errorf("Unexpected error: %v", err)
 			}
-			
+
 			if !tc.wantErr {
 				if keyString == "" {
 					t.Error("Expected key string but got empty")
@@ -130,27 +130,27 @@ func TestGenerateAPIKey(t *testing.T) {
 func TestValidateAPIKey(t *testing.T) {
 	rbac := NewRBAC()
 	apiKeyMgr := NewAPIKeyManager(rbac)
-	
+
 	// Create a test user and API key
 	err := rbac.CreateUser("testuser", "testname", "test@example.com", []string{"developer"})
 	if err != nil {
 		t.Fatalf("Failed to create test user: %v", err)
 	}
-	
+
 	validKeyString, validAPIKey, err := apiKeyMgr.GenerateAPIKey(
 		"testuser", "test-key", []Permission{PermissionRepoRead}, nil, nil)
 	if err != nil {
 		t.Fatalf("Failed to generate API key: %v", err)
 	}
-	
+
 	// Create an expired key (implementation allows this)
 	_, _, err = apiKeyMgr.GenerateAPIKey(
-		"testuser", "expired-key", []Permission{PermissionRepoRead}, nil, 
+		"testuser", "expired-key", []Permission{PermissionRepoRead}, nil,
 		timePtr(time.Now().Add(-time.Hour)))
 	if err != nil {
 		t.Fatalf("Unexpected error for expired key generation: %v", err)
 	}
-	
+
 	testCases := []struct {
 		name      string
 		keyString string
@@ -177,18 +177,18 @@ func TestValidateAPIKey(t *testing.T) {
 			wantErr:   true,
 		},
 	}
-	
+
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			apiKey, err := apiKeyMgr.ValidateAPIKey(tc.keyString)
-			
+
 			if tc.wantErr && err == nil {
 				t.Error("Expected error but got none")
 			}
 			if !tc.wantErr && err != nil {
 				t.Errorf("Unexpected error: %v", err)
 			}
-			
+
 			if !tc.wantErr {
 				if apiKey == nil {
 					t.Error("Expected API key but got nil")
@@ -204,19 +204,19 @@ func TestValidateAPIKey(t *testing.T) {
 func TestRevokeAPIKey(t *testing.T) {
 	rbac := NewRBAC()
 	apiKeyMgr := NewAPIKeyManager(rbac)
-	
+
 	// Create a test user and API key
 	err := rbac.CreateUser("testuser", "testname", "test@example.com", []string{"developer"})
 	if err != nil {
 		t.Fatalf("Failed to create test user: %v", err)
 	}
-	
+
 	keyString, apiKey, err := apiKeyMgr.GenerateAPIKey(
 		"testuser", "test-key", []Permission{PermissionRepoRead}, nil, nil)
 	if err != nil {
 		t.Fatalf("Failed to generate API key: %v", err)
 	}
-	
+
 	testCases := []struct {
 		name    string
 		keyID   string
@@ -235,21 +235,21 @@ func TestRevokeAPIKey(t *testing.T) {
 		{
 			name:    "revoke already revoked key",
 			keyID:   apiKey.ID, // Already revoked above
-			wantErr: false, // Implementation allows revoking already revoked keys
+			wantErr: false,     // Implementation allows revoking already revoked keys
 		},
 	}
-	
+
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			err := apiKeyMgr.RevokeAPIKey(tc.keyID)
-			
+
 			if tc.wantErr && err == nil {
 				t.Error("Expected error but got none")
 			}
 			if !tc.wantErr && err != nil {
 				t.Errorf("Unexpected error: %v", err)
 			}
-			
+
 			// If revocation was successful, verify key can't be validated
 			if !tc.wantErr && err == nil {
 				_, validateErr := apiKeyMgr.ValidateAPIKey(keyString)
@@ -264,35 +264,35 @@ func TestRevokeAPIKey(t *testing.T) {
 func TestListAPIKeys(t *testing.T) {
 	rbac := NewRBAC()
 	apiKeyMgr := NewAPIKeyManager(rbac)
-	
+
 	// Create test users
 	err := rbac.CreateUser("user1", "user1", "user1@example.com", []string{"developer"})
 	if err != nil {
 		t.Fatalf("Failed to create user1: %v", err)
 	}
-	
+
 	err = rbac.CreateUser("user2", "user2", "user2@example.com", []string{"reader"})
 	if err != nil {
 		t.Fatalf("Failed to create user2: %v", err)
 	}
-	
+
 	// Create API keys for user1
 	_, _, err = apiKeyMgr.GenerateAPIKey("user1", "key1", []Permission{PermissionRepoRead}, nil, nil)
 	if err != nil {
 		t.Fatalf("Failed to generate key1: %v", err)
 	}
-	
+
 	_, _, err = apiKeyMgr.GenerateAPIKey("user1", "key2", []Permission{PermissionRepoWrite}, nil, nil)
 	if err != nil {
 		t.Fatalf("Failed to generate key2: %v", err)
 	}
-	
+
 	// Create API key for user2
 	_, _, err = apiKeyMgr.GenerateAPIKey("user2", "key3", []Permission{PermissionRepoRead}, nil, nil)
 	if err != nil {
 		t.Fatalf("Failed to generate key3: %v", err)
 	}
-	
+
 	testCases := []struct {
 		name         string
 		userID       string
@@ -318,27 +318,27 @@ func TestListAPIKeys(t *testing.T) {
 			wantErr:      false, // Implementation allows listing for non-existent users
 		},
 	}
-	
+
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			keys, err := apiKeyMgr.ListAPIKeys(tc.userID)
-			
+
 			if tc.wantErr && err == nil {
 				t.Error("Expected error but got none")
 			}
 			if !tc.wantErr && err != nil {
 				t.Errorf("Unexpected error: %v", err)
 			}
-			
+
 			if !tc.wantErr {
 				if len(keys) != tc.expectedKeys {
 					t.Errorf("Expected %d keys, got %d", tc.expectedKeys, len(keys))
 				}
-				
+
 				// Verify all keys belong to the user
 				for _, key := range keys {
 					if key.UserID != tc.userID {
-						t.Errorf("Key belongs to wrong user: expected '%s', got '%s'", 
+						t.Errorf("Key belongs to wrong user: expected '%s', got '%s'",
 							tc.userID, key.UserID)
 					}
 				}
@@ -350,19 +350,19 @@ func TestListAPIKeys(t *testing.T) {
 func TestGetAPIKey(t *testing.T) {
 	rbac := NewRBAC()
 	apiKeyMgr := NewAPIKeyManager(rbac)
-	
+
 	// Create a test user and API key
 	err := rbac.CreateUser("testuser", "testname", "test@example.com", []string{"developer"})
 	if err != nil {
 		t.Fatalf("Failed to create test user: %v", err)
 	}
-	
+
 	_, apiKey, err := apiKeyMgr.GenerateAPIKey(
 		"testuser", "test-key", []Permission{PermissionRepoRead}, nil, nil)
 	if err != nil {
 		t.Fatalf("Failed to generate API key: %v", err)
 	}
-	
+
 	testCases := []struct {
 		name    string
 		keyID   string
@@ -384,18 +384,18 @@ func TestGetAPIKey(t *testing.T) {
 			wantErr: true,
 		},
 	}
-	
+
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			key, err := apiKeyMgr.GetAPIKey(tc.keyID)
-			
+
 			if tc.wantErr && err == nil {
 				t.Error("Expected error but got none")
 			}
 			if !tc.wantErr && err != nil {
 				t.Errorf("Unexpected error: %v", err)
 			}
-			
+
 			if !tc.wantErr {
 				if key == nil {
 					t.Error("Expected API key but got nil")
@@ -411,58 +411,58 @@ func TestGetAPIKey(t *testing.T) {
 func TestGetKeyStats(t *testing.T) {
 	rbac := NewRBAC()
 	apiKeyMgr := NewAPIKeyManager(rbac)
-	
+
 	// Create a test user
 	err := rbac.CreateUser("testuser", "testname", "test@example.com", []string{"developer"})
 	if err != nil {
 		t.Fatalf("Failed to create test user: %v", err)
 	}
-	
+
 	// Create various API keys
 	_, _, err = apiKeyMgr.GenerateAPIKey("testuser", "active-key", []Permission{PermissionRepoRead}, nil, nil)
 	if err != nil {
 		t.Fatalf("Failed to generate active key: %v", err)
 	}
-	
+
 	// Create expired key (implementation allows this)
-	_, _, err = apiKeyMgr.GenerateAPIKey("testuser", "expired-key", []Permission{PermissionRepoRead}, nil, 
+	_, _, err = apiKeyMgr.GenerateAPIKey("testuser", "expired-key", []Permission{PermissionRepoRead}, nil,
 		timePtr(time.Now().Add(-time.Hour)))
 	if err != nil {
 		t.Fatalf("Unexpected error for expired key: %v", err)
 	}
-	
+
 	// Create a key and then revoke it
 	_, revokedKey, err := apiKeyMgr.GenerateAPIKey("testuser", "revoked-key", []Permission{PermissionRepoRead}, nil, nil)
 	if err != nil {
 		t.Fatalf("Failed to generate key to revoke: %v", err)
 	}
-	
+
 	err = apiKeyMgr.RevokeAPIKey(revokedKey.ID)
 	if err != nil {
 		t.Fatalf("Failed to revoke key: %v", err)
 	}
-	
+
 	stats := apiKeyMgr.GetKeyStats()
-	
+
 	// Check that stats contain expected keys
 	if stats == nil {
 		t.Fatal("GetKeyStats returned nil")
 	}
-	
+
 	total, exists := stats["total"]
 	if !exists {
 		t.Error("Stats should contain 'total' key")
 	}
-	
+
 	if total < 1 { // At least the active key
 		t.Errorf("Expected at least 1 total key, got %v", total)
 	}
-	
+
 	active, exists := stats["active"]
 	if !exists {
 		t.Error("Stats should contain 'active' key")
 	}
-	
+
 	if active < 1 { // At least the active key
 		t.Errorf("Expected at least 1 active key, got %v", active)
 	}
@@ -471,23 +471,23 @@ func TestGetKeyStats(t *testing.T) {
 func TestAPIKeyInfo(t *testing.T) {
 	rbac := NewRBAC()
 	apiKeyMgr := NewAPIKeyManager(rbac)
-	
+
 	// Create a test user and API key
 	err := rbac.CreateUser("testuser", "testname", "test@example.com", []string{"developer"})
 	if err != nil {
 		t.Fatalf("Failed to create test user: %v", err)
 	}
-	
+
 	expiresAt := time.Now().Add(24 * time.Hour)
 	_, apiKey, err := apiKeyMgr.GenerateAPIKey(
-		"testuser", "test-key", []Permission{PermissionRepoRead, PermissionRepoWrite}, 
+		"testuser", "test-key", []Permission{PermissionRepoRead, PermissionRepoWrite},
 		map[string][]Permission{"repo1": {PermissionRepoAdmin}}, &expiresAt)
 	if err != nil {
 		t.Fatalf("Failed to generate API key: %v", err)
 	}
-	
+
 	info := apiKey.ToInfo()
-	
+
 	if info.ID != apiKey.ID {
 		t.Errorf("Expected ID '%s', got '%s'", apiKey.ID, info.ID)
 	}
@@ -513,7 +513,7 @@ func TestAPIKeyInfo(t *testing.T) {
 func TestConcurrentAPIKeyOperations(t *testing.T) {
 	rbac := NewRBAC()
 	apiKeyMgr := NewAPIKeyManager(rbac)
-	
+
 	// Create test users
 	for i := 0; i < 10; i++ {
 		userID := fmt.Sprintf("user%d", i)
@@ -522,16 +522,16 @@ func TestConcurrentAPIKeyOperations(t *testing.T) {
 			t.Fatalf("Failed to create user %s: %v", userID, err)
 		}
 	}
-	
+
 	// Concurrent key generation
 	done := make(chan bool, 100)
 	keyIDs := make(chan string, 100)
-	
+
 	for i := 0; i < 100; i++ {
 		go func(id int) {
 			userID := fmt.Sprintf("user%d", id%10) // 10 keys per user
 			keyName := fmt.Sprintf("key%d", id)
-			
+
 			_, apiKey, err := apiKeyMgr.GenerateAPIKey(
 				userID, keyName, []Permission{PermissionRepoRead}, nil, nil)
 			if err != nil {
@@ -539,30 +539,30 @@ func TestConcurrentAPIKeyOperations(t *testing.T) {
 			} else {
 				keyIDs <- apiKey.ID
 			}
-			
+
 			done <- true
 		}(i)
 	}
-	
+
 	// Collect key IDs
 	var generatedKeys []string
 	for i := 0; i < 100; i++ {
 		<-done
 	}
 	close(keyIDs)
-	
+
 	for keyID := range keyIDs {
 		generatedKeys = append(generatedKeys, keyID)
 	}
-	
+
 	// Verify all keys were created
 	if len(generatedKeys) != 100 {
 		t.Errorf("Expected 100 keys, got %d", len(generatedKeys))
 	}
-	
+
 	// Test concurrent validation
 	done = make(chan bool, len(generatedKeys))
-	
+
 	for _, keyID := range generatedKeys {
 		go func(id string) {
 			_, err := apiKeyMgr.GetAPIKey(id)
@@ -572,7 +572,7 @@ func TestConcurrentAPIKeyOperations(t *testing.T) {
 			done <- true
 		}(keyID)
 	}
-	
+
 	for i := 0; i < len(generatedKeys); i++ {
 		<-done
 	}
@@ -581,13 +581,13 @@ func TestConcurrentAPIKeyOperations(t *testing.T) {
 func BenchmarkGenerateAPIKey(b *testing.B) {
 	rbac := NewRBAC()
 	apiKeyMgr := NewAPIKeyManager(rbac)
-	
+
 	// Create a test user
 	err := rbac.CreateUser("benchuser", "benchuser", "bench@example.com", []string{"developer"})
 	if err != nil {
 		b.Fatalf("Failed to create test user: %v", err)
 	}
-	
+
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		keyName := fmt.Sprintf("key%d", i)
@@ -602,19 +602,19 @@ func BenchmarkGenerateAPIKey(b *testing.B) {
 func BenchmarkValidateAPIKey(b *testing.B) {
 	rbac := NewRBAC()
 	apiKeyMgr := NewAPIKeyManager(rbac)
-	
+
 	// Create a test user and API key
 	err := rbac.CreateUser("benchuser", "benchuser", "bench@example.com", []string{"developer"})
 	if err != nil {
 		b.Fatalf("Failed to create test user: %v", err)
 	}
-	
+
 	keyString, _, err := apiKeyMgr.GenerateAPIKey(
 		"benchuser", "bench-key", []Permission{PermissionRepoRead}, nil, nil)
 	if err != nil {
 		b.Fatalf("Failed to generate API key: %v", err)
 	}
-	
+
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		_, err := apiKeyMgr.ValidateAPIKey(keyString)

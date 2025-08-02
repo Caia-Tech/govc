@@ -47,10 +47,10 @@ func TestRepositoryEdgeCases(t *testing.T) {
 
 	t.Run("Create duplicate repository", func(t *testing.T) {
 		repoID := "duplicate-test"
-		
+
 		// Create first repository
 		createRepo(t, router, repoID)
-		
+
 		// Try to create duplicate
 		body := bytes.NewBufferString(fmt.Sprintf(`{"id": "%s", "memory_only": true}`, repoID))
 		req := httptest.NewRequest("POST", "/api/v1/repos", body)
@@ -84,7 +84,7 @@ func TestRepositoryEdgeCases(t *testing.T) {
 
 			// Should succeed for most characters
 			if w.Code != http.StatusCreated && w.Code != http.StatusBadRequest {
-				t.Errorf("For ID '%s': expected status %d or %d, got %d", 
+				t.Errorf("For ID '%s': expected status %d or %d, got %d",
 					id, http.StatusCreated, http.StatusBadRequest, w.Code)
 			}
 		}
@@ -180,7 +180,7 @@ func TestGitOperationsEdgeCases(t *testing.T) {
 
 		// Should handle large files gracefully
 		if w.Code != http.StatusOK && w.Code != http.StatusRequestEntityTooLarge {
-			t.Errorf("Expected status %d or %d, got %d", 
+			t.Errorf("Expected status %d or %d, got %d",
 				http.StatusOK, http.StatusRequestEntityTooLarge, w.Code)
 		}
 	})
@@ -203,7 +203,7 @@ func TestGitOperationsEdgeCases(t *testing.T) {
 
 		// Empty message might be allowed or rejected
 		if w.Code != http.StatusCreated && w.Code != http.StatusBadRequest {
-			t.Errorf("Expected status %d or %d, got %d", 
+			t.Errorf("Expected status %d or %d, got %d",
 				http.StatusCreated, http.StatusBadRequest, w.Code)
 		}
 	})
@@ -230,7 +230,7 @@ func TestGitOperationsEdgeCases(t *testing.T) {
 
 			// Should handle gracefully
 			if w.Code != http.StatusOK && w.Code != http.StatusBadRequest {
-				t.Errorf("For limit '%s': expected status %d or %d, got %d", 
+				t.Errorf("For limit '%s': expected status %d or %d, got %d",
 					limit, http.StatusOK, http.StatusBadRequest, w.Code)
 			}
 		}
@@ -254,7 +254,7 @@ func TestBranchOperationsComplex(t *testing.T) {
 		router.ServeHTTP(w, req)
 
 		if w.Code != http.StatusNotFound && w.Code != http.StatusBadRequest {
-			t.Errorf("Expected status %d or %d, got %d", 
+			t.Errorf("Expected status %d or %d, got %d",
 				http.StatusNotFound, http.StatusBadRequest, w.Code)
 		}
 	})
@@ -266,7 +266,7 @@ func TestBranchOperationsComplex(t *testing.T) {
 		req.Header.Set("Content-Type", "application/json")
 		w := httptest.NewRecorder()
 		router.ServeHTTP(w, req)
-		
+
 		if w.Code != http.StatusCreated {
 			t.Fatalf("Failed to create first branch: %d", w.Code)
 		}
@@ -279,7 +279,7 @@ func TestBranchOperationsComplex(t *testing.T) {
 		router.ServeHTTP(w, req)
 
 		if w.Code != http.StatusConflict && w.Code != http.StatusBadRequest {
-			t.Errorf("Expected status %d or %d, got %d. Response: %s", 
+			t.Errorf("Expected status %d or %d, got %d. Response: %s",
 				http.StatusConflict, http.StatusBadRequest, w.Code, w.Body.String())
 		}
 	})
@@ -403,7 +403,7 @@ func TestTransactionsConcurrency(t *testing.T) {
 
 				body := bytes.NewBufferString(fmt.Sprintf(
 					`{"path": "file%d.txt", "content": "content %d"}`, index, index))
-				req := httptest.NewRequest("POST", 
+				req := httptest.NewRequest("POST",
 					fmt.Sprintf("/api/v1/repos/%s/transaction/%s/add", repoID, txID), body)
 				req.Header.Set("Content-Type", "application/json")
 				w := httptest.NewRecorder()
@@ -439,7 +439,7 @@ func TestTransactionsConcurrency(t *testing.T) {
 
 		// Commit the transaction
 		body := bytes.NewBufferString(`{"message": "test commit"}`)
-		req = httptest.NewRequest("POST", 
+		req = httptest.NewRequest("POST",
 			fmt.Sprintf("/api/v1/repos/%s/transaction/%s/commit", repoID, txResp.ID), body)
 		req.Header.Set("Content-Type", "application/json")
 		w = httptest.NewRecorder()
@@ -451,7 +451,7 @@ func TestTransactionsConcurrency(t *testing.T) {
 		server.mu.RUnlock()
 
 		if finalCount != initialCount {
-			t.Errorf("Transaction not cleaned up after commit. Initial: %d, Final: %d", 
+			t.Errorf("Transaction not cleaned up after commit. Initial: %d, Final: %d",
 				initialCount, finalCount)
 		}
 	})
@@ -529,7 +529,7 @@ func TestParallelRealitiesComplex(t *testing.T) {
 		for _, cfg := range configs {
 			changesJSON, _ := json.Marshal(cfg.changes)
 			body := bytes.NewBufferString(fmt.Sprintf(`{"changes": %s}`, changesJSON))
-			req := httptest.NewRequest("POST", 
+			req := httptest.NewRequest("POST",
 				fmt.Sprintf("/api/v1/repos/%s/parallel-realities/%s/apply", repoID, cfg.reality), body)
 			req.Header.Set("Content-Type", "application/json")
 			w := httptest.NewRecorder()
@@ -543,7 +543,7 @@ func TestParallelRealitiesComplex(t *testing.T) {
 	})
 
 	t.Run("Benchmark non-existent reality", func(t *testing.T) {
-		req := httptest.NewRequest("GET", 
+		req := httptest.NewRequest("GET",
 			fmt.Sprintf("/api/v1/repos/%s/parallel-realities/non-existent/benchmark", repoID), nil)
 		w := httptest.NewRecorder()
 
@@ -586,7 +586,7 @@ func TestTimeTravelFeatures(t *testing.T) {
 	}
 
 	timestamps := make([]int64, len(commits)+1)
-	
+
 	// Capture initial timestamp before any commits
 	timestamps[0] = time.Now().Unix()
 	time.Sleep(1000 * time.Millisecond) // Ensure distinct timestamps
@@ -598,7 +598,7 @@ func TestTimeTravelFeatures(t *testing.T) {
 		for path, content := range commit.files {
 			body := bytes.NewBufferString(fmt.Sprintf(
 				`{"path": "%s", "content": "%s"}`, path, content))
-			req := httptest.NewRequest("POST", 
+			req := httptest.NewRequest("POST",
 				fmt.Sprintf("/api/v1/repos/%s/add", repoID), body)
 			req.Header.Set("Content-Type", "application/json")
 			w := httptest.NewRecorder()
@@ -607,12 +607,12 @@ func TestTimeTravelFeatures(t *testing.T) {
 
 		// Commit
 		body := bytes.NewBufferString(fmt.Sprintf(`{"message": "%s"}`, commit.message))
-		req := httptest.NewRequest("POST", 
+		req := httptest.NewRequest("POST",
 			fmt.Sprintf("/api/v1/repos/%s/commit", repoID), body)
 		req.Header.Set("Content-Type", "application/json")
 		w := httptest.NewRecorder()
 		router.ServeHTTP(w, req)
-		
+
 		// Capture timestamp AFTER commit with longer delay for distinctness
 		time.Sleep(1000 * time.Millisecond) // Longer delay for distinct timestamps
 		timestamps[i+1] = time.Now().Unix()
@@ -620,7 +620,7 @@ func TestTimeTravelFeatures(t *testing.T) {
 
 	t.Run("Time travel to past state", func(t *testing.T) {
 		// Travel to time of second commit
-		req := httptest.NewRequest("GET", 
+		req := httptest.NewRequest("GET",
 			fmt.Sprintf("/api/v1/repos/%s/time-travel/%d", repoID, timestamps[1]), nil)
 		w := httptest.NewRecorder()
 
@@ -653,7 +653,7 @@ func TestTimeTravelFeatures(t *testing.T) {
 
 	t.Run("Time travel to future", func(t *testing.T) {
 		futureTime := time.Now().Add(time.Hour).Unix()
-		req := httptest.NewRequest("GET", 
+		req := httptest.NewRequest("GET",
 			fmt.Sprintf("/api/v1/repos/%s/time-travel/%d", repoID, futureTime), nil)
 		w := httptest.NewRecorder()
 
@@ -673,7 +673,7 @@ func TestTimeTravelFeatures(t *testing.T) {
 
 	t.Run("Read file at specific time", func(t *testing.T) {
 		// Read v2.txt at time before it was created
-		req := httptest.NewRequest("GET", 
+		req := httptest.NewRequest("GET",
 			fmt.Sprintf("/api/v1/repos/%s/time-travel/%d/read/v2.txt", repoID, timestamps[0]), nil)
 		w := httptest.NewRecorder()
 
@@ -694,7 +694,7 @@ func TestTimeTravelFeatures(t *testing.T) {
 		}
 
 		// Read v2.txt at time after it was created (should be after commit 1)
-		req = httptest.NewRequest("GET", 
+		req = httptest.NewRequest("GET",
 			fmt.Sprintf("/api/v1/repos/%s/time-travel/%d/read/v2.txt", repoID, timestamps[2]), nil)
 		w = httptest.NewRecorder()
 
@@ -715,7 +715,7 @@ func TestMiddlewareFunctionality(t *testing.T) {
 		cfg.Server.MaxRepos = 100
 		server := NewServer(cfg)
 		router := gin.New()
-		
+
 		// Add rate limiting middleware
 		router.Use(RateLimitMiddleware(10))
 		server.RegisterRoutes(router)
@@ -789,12 +789,12 @@ func TestServerMaxRepos(t *testing.T) {
 
 		if i < 3 {
 			if w.Code != http.StatusCreated {
-				t.Errorf("Expected status %d for repo %d, got %d", 
+				t.Errorf("Expected status %d for repo %d, got %d",
 					http.StatusCreated, i, w.Code)
 			}
 		} else {
 			if w.Code != http.StatusServiceUnavailable {
-				t.Errorf("Expected status %d for repo %d (over limit), got %d", 
+				t.Errorf("Expected status %d for repo %d (over limit), got %d",
 					http.StatusServiceUnavailable, i, w.Code)
 			}
 		}

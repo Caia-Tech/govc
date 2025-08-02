@@ -14,9 +14,9 @@ import (
 // TestNewNode tests node creation
 func TestNewNode(t *testing.T) {
 	tests := []struct {
-		name     string
-		config   NodeConfig
-		wantErr  bool
+		name    string
+		config  NodeConfig
+		wantErr bool
 	}{
 		{
 			name: "valid node creation",
@@ -84,7 +84,7 @@ func TestNodeStart(t *testing.T) {
 
 	// Stop node
 	cancel()
-	
+
 	// Wait for shutdown
 	select {
 	case err := <-done:
@@ -145,7 +145,7 @@ func TestNodeAddRepository(t *testing.T) {
 	node.mu.RLock()
 	storedRepo, exists := node.repositories[repoID]
 	node.mu.RUnlock()
-	
+
 	assert.True(t, exists)
 	assert.Equal(t, repo, storedRepo)
 
@@ -209,7 +209,7 @@ func TestNodeGetRepositories(t *testing.T) {
 	// Add multiple repositories
 	repo1 := &govc.Repository{}
 	repo2 := &govc.Repository{}
-	
+
 	err = node.AddRepository("repo1", repo1)
 	require.NoError(t, err)
 	err = node.AddRepository("repo2", repo2)

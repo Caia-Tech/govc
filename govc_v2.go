@@ -57,34 +57,34 @@ func NewQuickStartV2() *QuickStartV2 {
 func NewFileBackedQuickStartV2(path string) (*QuickStartV2, error) {
 	// Setup directories
 	gitDir := path + "/.govc"
-	
+
 	// Create storage backends
 	backend := storage.NewFileBackend(gitDir)
 	store := storage.NewStore(backend)
 	objects := &core.ObjectStoreAdapter{Store: store}
-	
+
 	fileRefStore := refs.NewFileRefStore(gitDir)
 	refManager := refs.NewRefManager(fileRefStore)
 	refStore := &core.RefStoreAdapter{RefManager: refManager, Store: fileRefStore}
-	
+
 	working := core.NewFileWorkingStorage(path)
 	config := core.NewMemoryConfigStore() // Config can still be in memory
-	
+
 	// Create components
 	repo := core.NewCleanRepository(objects, refStore)
 	workspace := core.NewCleanWorkspace(repo, working)
 	cfg := core.NewConfig(config)
 	ops := core.NewOperations(repo, workspace, cfg)
-	
+
 	// Create managers
 	stash := core.NewStashManager(repo, workspace)
 	webhooks := core.NewWebhookManager()
-	
+
 	// Initialize repository
 	if err := ops.Init(); err != nil {
 		return nil, err
 	}
-	
+
 	return &QuickStartV2{
 		Repository: repo,
 		Workspace:  workspace,

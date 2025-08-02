@@ -222,7 +222,7 @@ func TestStashWithUntrackedFiles(t *testing.T) {
 		req := httptest.NewRequest("GET", fmt.Sprintf("/api/v1/repos/%s/status", repoID), nil)
 		w := httptest.NewRecorder()
 		router.ServeHTTP(w, req)
-		
+
 		var statusResp StatusResponse
 		json.Unmarshal(w.Body.Bytes(), &statusResp)
 		t.Logf("Status before stash: staged=%v, modified=%v, untracked=%v", statusResp.Staged, statusResp.Modified, statusResp.Untracked)

@@ -15,17 +15,17 @@ import (
 
 // Performance thresholds to detect regressions
 var performanceThresholds = struct {
-	RepoCreation      time.Duration
-	CommitOperation   time.Duration
-	AuthTokenGen      time.Duration
-	PoolGet           time.Duration
-	MetricsRecord     time.Duration
+	RepoCreation    time.Duration
+	CommitOperation time.Duration
+	AuthTokenGen    time.Duration
+	PoolGet         time.Duration
+	MetricsRecord   time.Duration
 }{
-	RepoCreation:      1 * time.Millisecond,
-	CommitOperation:   2 * time.Millisecond,
-	AuthTokenGen:      5 * time.Millisecond,
-	PoolGet:           500 * time.Microsecond,
-	MetricsRecord:     500 * time.Microsecond,
+	RepoCreation:    1 * time.Millisecond,
+	CommitOperation: 2 * time.Millisecond,
+	AuthTokenGen:    5 * time.Millisecond,
+	PoolGet:         500 * time.Microsecond,
+	MetricsRecord:   500 * time.Microsecond,
 }
 
 func TestPerformanceRegression(t *testing.T) {
@@ -56,7 +56,7 @@ func TestPerformanceRegression(t *testing.T) {
 
 		t.Run("Commit Performance", func(t *testing.T) {
 			repo := govc.New()
-			
+
 			// Warm up
 			for i := 0; i < 10; i++ {
 				tx := repo.Transaction()
@@ -83,7 +83,7 @@ func TestPerformanceRegression(t *testing.T) {
 
 		t.Run("Branch Creation Performance", func(t *testing.T) {
 			repo := govc.New()
-			
+
 			// Add base commit
 			tx := repo.Transaction()
 			tx.Add("base.txt", []byte("base"))
@@ -108,7 +108,7 @@ func TestPerformanceRegression(t *testing.T) {
 		cfg := config.DefaultConfig()
 		jwtAuth := auth.NewJWTAuth(cfg.Auth.JWT.Secret, cfg.Auth.JWT.Issuer, cfg.Auth.JWT.TTL)
 		rbac := auth.NewRBAC()
-		
+
 		// Create test user
 		rbac.CreateUser("perf-user", "Perf User", "perf@test.com", []string{"developer"})
 
@@ -135,7 +135,7 @@ func TestPerformanceRegression(t *testing.T) {
 
 		t.Run("Token Validation", func(t *testing.T) {
 			token, _ := jwtAuth.GenerateToken("perf-user", "perf-user", "perf@test.com", []string{"read"})
-			
+
 			// Warm up
 			for i := 0; i < 10; i++ {
 				jwtAuth.ValidateToken(token)
@@ -288,7 +288,7 @@ func TestMemoryUsage(t *testing.T) {
 			tx.Commit("Test")
 			// repo should be garbage collected
 		}
-		
+
 		// Note: In a real test, we'd use runtime.ReadMemStats to check memory
 		t.Log("Repository memory leak check completed")
 	})
@@ -299,18 +299,18 @@ func TestMemoryUsage(t *testing.T) {
 			MaxIdleTime:     1 * time.Second,
 			CleanupInterval: 500 * time.Millisecond,
 		})
-		
+
 		// Create many repos that should be cleaned up
 		for i := 0; i < 100; i++ {
 			p.Get(fmt.Sprintf("temp-%d", i), ":memory:", true)
 		}
-		
+
 		// Wait for cleanup
 		time.Sleep(2 * time.Second)
-		
+
 		stats := p.Stats()
 		assert.LessOrEqual(t, stats.TotalRepositories, 10, "Pool should enforce max repositories")
-		
+
 		p.Close()
 	})
 }

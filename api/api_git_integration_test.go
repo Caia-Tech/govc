@@ -32,11 +32,11 @@ func TestCompleteGitWorkflow(t *testing.T) {
 	// Step 2: Add initial files
 	t.Run("Add initial files", func(t *testing.T) {
 		files := map[string]string{
-			"README.md":     "# Git Workflow Test\n\nThis is a comprehensive test.",
-			"src/main.go":   "package main\n\nfunc main() {\n\tprintln(\"Hello World\")\n}",
-			"go.mod":        "module git-workflow-test\n\ngo 1.21",
-			"docs/api.md":   "# API Documentation\n\n## Endpoints",
-			".gitignore":    "*.log\n*.tmp\n/build/",
+			"README.md":   "# Git Workflow Test\n\nThis is a comprehensive test.",
+			"src/main.go": "package main\n\nfunc main() {\n\tprintln(\"Hello World\")\n}",
+			"go.mod":      "module git-workflow-test\n\ngo 1.21",
+			"docs/api.md": "# API Documentation\n\n## Endpoints",
+			".gitignore":  "*.log\n*.tmp\n/build/",
 		}
 
 		for path, content := range files {
@@ -148,7 +148,7 @@ func TestCompleteGitWorkflow(t *testing.T) {
 		testFiles := map[string]string{
 			"src/main_test.go":     "package main\n\nimport \"testing\"\n\nfunc TestMain(t *testing.T) {\n\t// Test code here\n}",
 			"tests/integration.go": "package tests\n\n// Integration tests",
-			"Makefile":            "test:\n\tgo test ./...\n\nbuild:\n\tgo build -o app src/main.go",
+			"Makefile":             "test:\n\tgo test ./...\n\nbuild:\n\tgo build -o app src/main.go",
 		}
 
 		for path, content := range testFiles {
@@ -283,7 +283,7 @@ func TestCompleteGitWorkflow(t *testing.T) {
 			t.Skip("No feature commit hash available")
 			return
 		}
-		
+
 		req := httptest.NewRequest("GET", fmt.Sprintf("/api/v1/repos/%s/show/%s", repoID, featureCommitHash), nil)
 		w := httptest.NewRecorder()
 
@@ -370,7 +370,7 @@ func TestCompleteGitWorkflow(t *testing.T) {
 
 	// Track if merge was skipped for later tests
 	var mergeSkipped bool
-	
+
 	// Step 16: Merge feature branch
 	t.Run("Merge feature branch", func(t *testing.T) {
 		body := bytes.NewBufferString(`{"from": "feature/add-tests", "to": "main"}`)
@@ -402,7 +402,7 @@ func TestCompleteGitWorkflow(t *testing.T) {
 			t.Skip("Merge was not performed due to architecture limitations")
 			return
 		}
-		
+
 		// Check Makefile now exists on main
 		req := httptest.NewRequest("GET", fmt.Sprintf("/api/v1/repos/%s/read/Makefile", repoID), nil)
 		w := httptest.NewRecorder()
@@ -766,11 +766,11 @@ func TestFileOperations(t *testing.T) {
 	// Test file creation and reading
 	t.Run("Create and read files", func(t *testing.T) {
 		files := map[string]string{
-			"text.txt":           "Simple text file",
-			"json/data.json":     `{"key": "value", "number": 42}`,
-			"code/main.py":       "#!/usr/bin/env python3\nprint('Hello World')",
-			"docs/README.md":     "# Documentation\n\nThis is documentation.",
-			"config/app.yaml":    "database:\n  host: localhost\n  port: 5432",
+			"text.txt":        "Simple text file",
+			"json/data.json":  `{"key": "value", "number": 42}`,
+			"code/main.py":    "#!/usr/bin/env python3\nprint('Hello World')",
+			"docs/README.md":  "# Documentation\n\nThis is documentation.",
+			"config/app.yaml": "database:\n  host: localhost\n  port: 5432",
 		}
 
 		for path, content := range files {
@@ -892,7 +892,7 @@ func TestFileOperations(t *testing.T) {
 		if w.Code != 404 {
 			t.Error("Removed file should not exist")
 		}
-		
+
 	})
 
 	// Test directory listing
@@ -931,7 +931,7 @@ func TestFileOperations(t *testing.T) {
 			t.Skip("Directory tree not available after commit in current architecture")
 			return
 		}
-		
+
 		for _, expectedDir := range expectedDirs {
 			if !foundDirs[expectedDir] {
 				t.Errorf("Expected directory %s not found", expectedDir)

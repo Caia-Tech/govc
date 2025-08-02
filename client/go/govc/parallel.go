@@ -30,8 +30,8 @@ func (r *Repository) CreateParallelRealities(ctx context.Context, names []string
 		Count     int                `json:"count"`
 	}
 
-	err := r.client.post(ctx, 
-		fmt.Sprintf("/api/v1/repos/%s/parallel-realities", url.PathEscape(r.ID)), 
+	err := r.client.post(ctx,
+		fmt.Sprintf("/api/v1/repos/%s/parallel-realities", url.PathEscape(r.ID)),
 		req, &response)
 
 	return response.Realities, err
@@ -39,18 +39,18 @@ func (r *Repository) CreateParallelRealities(ctx context.Context, names []string
 
 // BenchmarkResult represents performance metrics for a reality
 type BenchmarkResult struct {
-	Reality   string             `json:"reality"`
-	Duration  string             `json:"duration"`
-	Metrics   map[string]float64 `json:"metrics"`
-	Better    bool               `json:"better"`
+	Reality  string             `json:"reality"`
+	Duration string             `json:"duration"`
+	Metrics  map[string]float64 `json:"metrics"`
+	Better   bool               `json:"better"`
 }
 
 // BenchmarkReality runs performance tests on a parallel reality
 func (r *Repository) BenchmarkReality(ctx context.Context, realityName string) (*BenchmarkResult, error) {
 	var result BenchmarkResult
-	err := r.client.post(ctx, 
-		fmt.Sprintf("/api/v1/repos/%s/parallel-realities/%s/benchmark", 
-			url.PathEscape(r.ID), url.PathEscape(realityName)), 
+	err := r.client.post(ctx,
+		fmt.Sprintf("/api/v1/repos/%s/parallel-realities/%s/benchmark",
+			url.PathEscape(r.ID), url.PathEscape(realityName)),
 		nil, &result)
 
 	return &result, err
@@ -59,9 +59,9 @@ func (r *Repository) BenchmarkReality(ctx context.Context, realityName string) (
 // TimeTravel returns a historical snapshot of the repository
 func (r *Repository) TimeTravel(ctx context.Context, timestamp string) (*HistoricalSnapshot, error) {
 	var snapshot HistoricalSnapshot
-	err := r.client.get(ctx, 
-		fmt.Sprintf("/api/v1/repos/%s/time-travel?time=%s", 
-			url.PathEscape(r.ID), url.QueryEscape(timestamp)), 
+	err := r.client.get(ctx,
+		fmt.Sprintf("/api/v1/repos/%s/time-travel?time=%s",
+			url.PathEscape(r.ID), url.QueryEscape(timestamp)),
 		&snapshot)
 
 	return &snapshot, err

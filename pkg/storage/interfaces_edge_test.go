@@ -49,10 +49,10 @@ func TestObjectStoreEdgeCases(t *testing.T) {
 			largeContent[i] = byte(i % 256)
 		}
 		largeBlob := object.NewBlob(largeContent)
-		
+
 		hash, err := store.Put(largeBlob)
 		require.NoError(t, err)
-		
+
 		retrieved, err := store.Get(hash)
 		require.NoError(t, err)
 		assert.Equal(t, largeBlob, retrieved)
@@ -61,7 +61,7 @@ func TestObjectStoreEdgeCases(t *testing.T) {
 	t.Run("List when empty", func(t *testing.T) {
 		emptyStore := NewMemoryObjectStore()
 		defer emptyStore.Close()
-		
+
 		hashes, err := emptyStore.List()
 		require.NoError(t, err)
 		assert.Empty(t, hashes)
@@ -70,7 +70,7 @@ func TestObjectStoreEdgeCases(t *testing.T) {
 	t.Run("Size when empty", func(t *testing.T) {
 		emptyStore := NewMemoryObjectStore()
 		defer emptyStore.Close()
-		
+
 		size, err := emptyStore.Size()
 		require.NoError(t, err)
 		assert.Equal(t, int64(0), size)
@@ -86,7 +86,7 @@ func TestRefStoreEdgeCases(t *testing.T) {
 		// Should fail - empty ref names are invalid
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "reference name cannot be empty")
-		
+
 		_, err = store.GetRef("")
 		// Getting empty ref should also fail
 		assert.Error(t, err)
@@ -103,7 +103,7 @@ func TestRefStoreEdgeCases(t *testing.T) {
 		for _, refName := range specialRefs {
 			err := store.UpdateRef(refName, "hash123")
 			require.NoError(t, err, "Failed to update ref: %s", refName)
-			
+
 			hash, err := store.GetRef(refName)
 			require.NoError(t, err, "Failed to get ref: %s", refName)
 			assert.Equal(t, "hash123", hash)
@@ -112,13 +112,13 @@ func TestRefStoreEdgeCases(t *testing.T) {
 
 	t.Run("Update ref multiple times", func(t *testing.T) {
 		refName := "refs/heads/evolving"
-		
+
 		// Update multiple times
 		for i := 0; i < 10; i++ {
 			hash := string(rune('a' + i))
 			err := store.UpdateRef(refName, hash)
 			require.NoError(t, err)
-			
+
 			retrieved, err := store.GetRef(refName)
 			require.NoError(t, err)
 			assert.Equal(t, hash, retrieved)
@@ -134,7 +134,7 @@ func TestRefStoreEdgeCases(t *testing.T) {
 	t.Run("HEAD not set initially", func(t *testing.T) {
 		freshStore := NewMemoryRefStore()
 		defer freshStore.Close()
-		
+
 		head, err := freshStore.GetHEAD()
 		// HEAD should default to refs/heads/main
 		require.NoError(t, err)
@@ -153,11 +153,11 @@ func TestWorkingStorageEdgeCases(t *testing.T) {
 
 	t.Run("Path operations", func(t *testing.T) {
 		content := []byte("test content")
-		
+
 		// Write and read
 		err := store.Write("file.txt", content)
 		require.NoError(t, err)
-		
+
 		retrieved, err := store.Read("file.txt")
 		require.NoError(t, err)
 		assert.Equal(t, content, retrieved)
@@ -166,10 +166,10 @@ func TestWorkingStorageEdgeCases(t *testing.T) {
 	t.Run("Deep directory structure", func(t *testing.T) {
 		deepPath := "a/b/c/d/e/f/g/h/i/j/k/file.txt"
 		content := []byte("deep file")
-		
+
 		err := store.Write(deepPath, content)
 		require.NoError(t, err)
-		
+
 		retrieved, err := store.Read(deepPath)
 		require.NoError(t, err)
 		assert.Equal(t, content, retrieved)
@@ -179,15 +179,15 @@ func TestWorkingStorageEdgeCases(t *testing.T) {
 		// Create files
 		store.Write("dir/file1.txt", []byte("content1"))
 		store.Write("dir/file2.txt", []byte("content2"))
-		
+
 		// Delete one file
 		err := store.Delete("dir/file1.txt")
 		assert.NoError(t, err)
-		
+
 		// file1 should be gone, file2 should remain
 		_, err = store.Read("dir/file1.txt")
 		assert.Error(t, err)
-		
+
 		content, err := store.Read("dir/file2.txt")
 		require.NoError(t, err)
 		assert.Equal(t, []byte("content2"), content)
@@ -199,7 +199,7 @@ func TestWorkingStorageEdgeCases(t *testing.T) {
 		store.Write("test.txt", []byte("1"))
 		store.Write("test.md", []byte("2"))
 		store.Write("dir/test.txt", []byte("3"))
-		
+
 		files, err := store.List()
 		require.NoError(t, err)
 		assert.Len(t, files, 3)
@@ -212,11 +212,11 @@ func TestWorkingStorageEdgeCases(t *testing.T) {
 		// Add files
 		store.Write("file1.txt", []byte("1"))
 		store.Write("file2.txt", []byte("2"))
-		
+
 		// Clear
 		err := store.Clear()
 		require.NoError(t, err)
-		
+
 		// Should be empty
 		files, err := store.List()
 		require.NoError(t, err)
@@ -253,14 +253,14 @@ func (f *FailingObjectStore) Close() error {
 
 func TestErrorPropagation(t *testing.T) {
 	failStore := &FailingObjectStore{}
-	
+
 	t.Run("Get error", func(t *testing.T) {
 		obj, err := failStore.Get("any")
 		assert.Error(t, err)
 		assert.Nil(t, obj)
 		assert.Contains(t, err.Error(), "get failed")
 	})
-	
+
 	t.Run("Put error", func(t *testing.T) {
 		blob := object.NewBlob([]byte("test"))
 		hash, err := failStore.Put(blob)
@@ -268,21 +268,21 @@ func TestErrorPropagation(t *testing.T) {
 		assert.Empty(t, hash)
 		assert.Contains(t, err.Error(), "put failed")
 	})
-	
+
 	t.Run("List error", func(t *testing.T) {
 		hashes, err := failStore.List()
 		assert.Error(t, err)
 		assert.Nil(t, hashes)
 		assert.Contains(t, err.Error(), "list failed")
 	})
-	
+
 	t.Run("Size error", func(t *testing.T) {
 		size, err := failStore.Size()
 		assert.Error(t, err)
 		assert.Equal(t, int64(0), size)
 		assert.Contains(t, err.Error(), "size failed")
 	})
-	
+
 	t.Run("Close error", func(t *testing.T) {
 		err := failStore.Close()
 		assert.Error(t, err)

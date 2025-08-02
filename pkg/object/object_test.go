@@ -59,7 +59,7 @@ func TestBlob(t *testing.T) {
 
 func TestTree(t *testing.T) {
 	tree := NewTree()
-	
+
 	// Add entries
 	tree.AddEntry("100644", "file1.txt", "95d09f2b10159347eece71399a7e2e907ea3df4f")
 	tree.AddEntry("100755", "script.sh", "e69de29bb2d1d6434b8b29ae775ad8c2e48c5391")
@@ -243,7 +243,7 @@ func TestAuthorString(t *testing.T) {
 
 	str := author.String()
 	expected := "John Doe <john@example.com> 1735750800 -0500"
-	
+
 	if str != expected {
 		t.Errorf("String() = %v, want %v", str, expected)
 	}

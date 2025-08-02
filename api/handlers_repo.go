@@ -5,11 +5,24 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/caiatech/govc/validation"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 )
 
 // createRepo creates a new repository
+// @Summary Create a new repository
+// @Description Creates a new Git repository with the specified configuration
+// @Tags Repository Management
+// @Accept json
+// @Produce json
+// @Param request body CreateRepoRequest true "Repository creation request"
+// @Success 201 {object} RepoResponse "Repository created successfully"
+// @Failure 400 {object} ErrorResponse "Invalid request data"
+// @Failure 409 {object} ErrorResponse "Repository already exists"
+// @Failure 503 {object} ErrorResponse "Maximum repositories reached"
+// @Failure 500 {object} ErrorResponse "Internal server error"
+// @Router /repositories [post]
 func (s *Server) createRepo(c *gin.Context) {
 	var req CreateRepoRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -24,13 +37,22 @@ func (s *Server) createRepo(c *gin.Context) {
 	if req.ID == "" {
 		req.ID = uuid.New().String()
 	}
+	
+	// Validate repository ID
+	if err := validation.ValidateRepositoryID(req.ID); err != nil {
+		c.JSON(http.StatusBadRequest, ErrorResponse{
+			Error: err.Error(),
+			Code:  "INVALID_REPO_ID",
+		})
+		return
+	}
 
 	// Check if repo already exists and get count
 	s.mu.RLock()
 	_, exists := s.repoMetadata[req.ID]
 	repoCount := len(s.repoMetadata)
 	s.mu.RUnlock()
-	
+
 	if exists {
 		c.JSON(http.StatusConflict, ErrorResponse{
 			Error: fmt.Sprintf("repository %s already exists", req.ID),
@@ -95,6 +117,14 @@ func (s *Server) createRepo(c *gin.Context) {
 }
 
 // getRepo returns repository information
+// @Summary Get repository information
+// @Description Retrieves detailed information about a specific repository
+// @Tags Repository Management
+// @Produce json
+// @Param repo_id path string true "Repository ID"
+// @Success 200 {object} RepoResponse "Repository information"
+// @Failure 404 {object} ErrorResponse "Repository not found"
+// @Router /repositories/{repo_id} [get]
 func (s *Server) getRepo(c *gin.Context) {
 	repoID := c.Param("repo_id")
 
@@ -122,11 +152,19 @@ func (s *Server) getRepo(c *gin.Context) {
 }
 
 // deleteRepo deletes a repository
+// @Summary Delete a repository
+// @Description Permanently deletes a repository and all its data
+// @Tags Repository Management
+// @Produce json
+// @Param repo_id path string true "Repository ID"
+// @Success 200 {object} SuccessResponse "Repository deleted successfully"
+// @Failure 404 {object} ErrorResponse "Repository not found"
+// @Router /repositories/{repo_id} [delete]
 func (s *Server) deleteRepo(c *gin.Context) {
 	repoID := c.Param("repo_id")
 
 	s.mu.Lock()
-	
+
 	if _, exists := s.repoMetadata[repoID]; !exists {
 		s.mu.Unlock()
 		c.JSON(http.StatusNotFound, ErrorResponse{
@@ -139,7 +177,7 @@ func (s *Server) deleteRepo(c *gin.Context) {
 	// Remove repository from pool and metadata
 	s.repoPool.Remove(repoID)
 	delete(s.repoMetadata, repoID)
-	
+
 	s.mu.Unlock()
 
 	// Update metrics (outside the lock to avoid deadlock)
@@ -161,6 +199,12 @@ func (s *Server) deleteRepo(c *gin.Context) {
 }
 
 // listRepos lists all repositories
+// @Summary List all repositories
+// @Description Retrieves a list of all repositories with their metadata
+// @Tags Repository Management
+// @Produce json
+// @Success 200 {object} object{repositories=[]RepoResponse,count=int} "List of repositories"
+// @Router /repositories [get]
 func (s *Server) listRepos(c *gin.Context) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()

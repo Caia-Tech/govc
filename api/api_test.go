@@ -26,7 +26,8 @@ func setupTestServer() (*Server, *gin.Engine) {
 	cfg.Metrics.Enabled = true
 	cfg.Pool.MaxRepositories = 50
 	cfg.Development.Debug = true
-	
+	cfg.Development.UseNewArchitecture = false // Use V1 for tests until V2 is complete
+
 	server := NewServer(cfg)
 	router := gin.New()
 	server.RegisterRoutes(router)
@@ -117,7 +118,7 @@ func TestBranchOperations(t *testing.T) {
 
 	// Create a repository first
 	createRepo(t, router, "branch-test-repo")
-	
+
 	// Create an initial commit so branches can be created
 	createInitialCommit(t, router, "branch-test-repo")
 
@@ -306,22 +307,22 @@ func createInitialCommit(t *testing.T, router *gin.Engine, repoID string) {
 	req := httptest.NewRequest("POST", fmt.Sprintf("/api/v1/repos/%s/add", repoID), body)
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
-	
+
 	router.ServeHTTP(w, req)
-	
+
 	// V2 handlers return 201, V1 returns 200
 	if w.Code != http.StatusOK && w.Code != http.StatusCreated {
 		t.Fatalf("Failed to add file: status %d, body: %s", w.Code, w.Body.String())
 	}
-	
+
 	// Commit the file
 	body = bytes.NewBufferString(`{"message": "Initial commit"}`)
 	req = httptest.NewRequest("POST", fmt.Sprintf("/api/v1/repos/%s/commit", repoID), body)
 	req.Header.Set("Content-Type", "application/json")
 	w = httptest.NewRecorder()
-	
+
 	router.ServeHTTP(w, req)
-	
+
 	if w.Code != http.StatusCreated {
 		t.Fatalf("Failed to create commit: status %d, body: %s", w.Code, w.Body.String())
 	}

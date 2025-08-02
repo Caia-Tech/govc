@@ -71,10 +71,10 @@ type MetricsConfig struct {
 
 // StorageConfig contains storage configuration
 type StorageConfig struct {
-	Type         string `yaml:"type"`          // memory, disk, hybrid
-	DiskPath     string `yaml:"disk_path"`     // Path for disk storage
-	MaxMemoryMB  int    `yaml:"max_memory_mb"` // Max memory usage in MB
-	CacheEnabled bool   `yaml:"cache_enabled"`
+	Type         string        `yaml:"type"`          // memory, disk, hybrid
+	DiskPath     string        `yaml:"disk_path"`     // Path for disk storage
+	MaxMemoryMB  int           `yaml:"max_memory_mb"` // Max memory usage in MB
+	CacheEnabled bool          `yaml:"cache_enabled"`
 	CacheTTL     time.Duration `yaml:"cache_ttl"`
 }
 

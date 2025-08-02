@@ -65,7 +65,7 @@ func (a *RefStoreAdapter) ListRefs() (map[string]string, error) {
 	if err != nil {
 		return nil, err
 	}
-	
+
 	result := make(map[string]string)
 	for _, ref := range refs {
 		result[ref.Name] = ref.Hash
@@ -150,6 +150,7 @@ func (m *MemoryObjectStore) Close() error {
 
 // MemoryRefStore is a simple in-memory implementation of RefStore
 type MemoryRefStore struct {
+	mu   sync.RWMutex
 	refs map[string]string
 	head string
 }
@@ -162,6 +163,8 @@ func NewMemoryRefStore() *MemoryRefStore {
 }
 
 func (m *MemoryRefStore) GetRef(name string) (string, error) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
 	hash, ok := m.refs[name]
 	if !ok {
 		return "", fmt.Errorf("ref not found: %s", name)
@@ -170,16 +173,22 @@ func (m *MemoryRefStore) GetRef(name string) (string, error) {
 }
 
 func (m *MemoryRefStore) UpdateRef(name, hash string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	m.refs[name] = hash
 	return nil
 }
 
 func (m *MemoryRefStore) DeleteRef(name string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	delete(m.refs, name)
 	return nil
 }
 
 func (m *MemoryRefStore) ListRefs() (map[string]string, error) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
 	result := make(map[string]string)
 	for k, v := range m.refs {
 		result[k] = v
@@ -188,10 +197,14 @@ func (m *MemoryRefStore) ListRefs() (map[string]string, error) {
 }
 
 func (m *MemoryRefStore) GetHEAD() (string, error) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
 	return m.head, nil
 }
 
 func (m *MemoryRefStore) SetHEAD(ref string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	m.head = ref
 	return nil
 }

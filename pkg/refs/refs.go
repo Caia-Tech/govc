@@ -424,31 +424,31 @@ func (r *RefManager) GetCurrentBranch() (string, error) {
 		memStore.mu.RLock()
 		head := memStore.head
 		memStore.mu.RUnlock()
-		
+
 		if strings.HasPrefix(head, "ref: refs/heads/") {
 			return strings.TrimPrefix(head, "ref: refs/heads/"), nil
 		}
 		return "", fmt.Errorf("HEAD is detached")
 	}
-	
+
 	// For FileRefStore, read HEAD file directly
 	if fileStore, ok := r.store.(*FileRefStore); ok {
 		fileStore.mu.RLock()
 		defer fileStore.mu.RUnlock()
-		
+
 		headPath := filepath.Join(fileStore.path, "HEAD")
 		data, err := os.ReadFile(headPath)
 		if err != nil {
 			return "", fmt.Errorf("failed to read HEAD: %v", err)
 		}
-		
+
 		content := strings.TrimSpace(string(data))
 		if strings.HasPrefix(content, "ref: refs/heads/") {
 			return strings.TrimPrefix(content, "ref: refs/heads/"), nil
 		}
 		return "", fmt.Errorf("HEAD is detached")
 	}
-	
+
 	return "", fmt.Errorf("unknown ref store type")
 }
 

@@ -10,12 +10,12 @@ import (
 
 // HealthResponse represents the health check response
 type HealthResponse struct {
-	Status      string            `json:"status"`
-	Timestamp   time.Time         `json:"timestamp"`
-	Version     string            `json:"version"`
-	Uptime      string            `json:"uptime"`
-	Checks      map[string]Check  `json:"checks"`
-	System      SystemInfo        `json:"system"`
+	Status    string           `json:"status"`
+	Timestamp time.Time        `json:"timestamp"`
+	Version   string           `json:"version"`
+	Uptime    string           `json:"uptime"`
+	Checks    map[string]Check `json:"checks"`
+	System    SystemInfo       `json:"system"`
 }
 
 // Check represents an individual health check
@@ -28,17 +28,17 @@ type Check struct {
 
 // SystemInfo represents system information
 type SystemInfo struct {
-	GoVersion    string `json:"go_version"`
-	NumGoroutines int   `json:"num_goroutines"`
-	MemoryUsage  MemoryInfo `json:"memory"`
+	GoVersion     string     `json:"go_version"`
+	NumGoroutines int        `json:"num_goroutines"`
+	MemoryUsage   MemoryInfo `json:"memory"`
 }
 
 // MemoryInfo represents memory usage information
 type MemoryInfo struct {
-	Allocated   uint64 `json:"allocated_bytes"`
-	TotalAlloc  uint64 `json:"total_allocated_bytes"`
-	System      uint64 `json:"system_bytes"`
-	NumGC       uint32 `json:"num_gc"`
+	Allocated  uint64 `json:"allocated_bytes"`
+	TotalAlloc uint64 `json:"total_allocated_bytes"`
+	System     uint64 `json:"system_bytes"`
+	NumGC      uint32 `json:"num_gc"`
 }
 
 var (
@@ -49,7 +49,7 @@ var (
 // healthCheck handles the main health check endpoint
 func (s *Server) healthCheck(c *gin.Context) {
 	checks := s.runHealthChecks()
-	
+
 	// Determine overall status
 	status := "healthy"
 	for _, check := range checks {
@@ -101,7 +101,7 @@ func (s *Server) liveness(c *gin.Context) {
 // readiness handles the readiness probe (Kubernetes)
 func (s *Server) readiness(c *gin.Context) {
 	checks := s.runHealthChecks()
-	
+
 	// Check if all critical systems are ready
 	ready := true
 	for _, check := range checks {
@@ -113,7 +113,7 @@ func (s *Server) readiness(c *gin.Context) {
 
 	status := "ready"
 	httpStatus := http.StatusOK
-	
+
 	if !ready {
 		status = "not_ready"
 		httpStatus = http.StatusServiceUnavailable
@@ -132,10 +132,10 @@ func (s *Server) runHealthChecks() map[string]Check {
 
 	// Database/Storage check (simulate for now)
 	checks["storage"] = s.checkStorage()
-	
+
 	// Memory usage check
 	checks["memory"] = s.checkMemory()
-	
+
 	// Repository count check
 	checks["repositories"] = s.checkRepositories()
 
@@ -150,15 +150,15 @@ func (s *Server) runHealthChecks() map[string]Check {
 // checkStorage simulates a storage health check
 func (s *Server) checkStorage() Check {
 	start := time.Now()
-	
+
 	// In a real implementation, you would check:
 	// - Disk space availability
 	// - Write permissions
 	// - Database connectivity
-	
+
 	// Simulate check
 	time.Sleep(1 * time.Millisecond)
-	
+
 	return Check{
 		Status:    "healthy",
 		Message:   "Storage is accessible",
@@ -170,23 +170,23 @@ func (s *Server) checkStorage() Check {
 // checkMemory checks memory usage
 func (s *Server) checkMemory() Check {
 	start := time.Now()
-	
+
 	var memStats runtime.MemStats
 	runtime.ReadMemStats(&memStats)
-	
+
 	// Check if memory usage is within acceptable limits
 	// This is a simple check - in production you'd have more sophisticated thresholds
 	const maxMemoryMB = 1024 // 1GB limit
 	allocatedMB := memStats.Alloc / 1024 / 1024
-	
+
 	status := "healthy"
 	message := "Memory usage is normal"
-	
+
 	if allocatedMB > maxMemoryMB {
 		status = "unhealthy"
 		message = "Memory usage is high"
 	}
-	
+
 	return Check{
 		Status:    status,
 		Message:   message,
@@ -198,20 +198,20 @@ func (s *Server) checkMemory() Check {
 // checkRepositories checks the repository management system
 func (s *Server) checkRepositories() Check {
 	start := time.Now()
-	
+
 	s.mu.RLock()
 	repoCount := len(s.repoMetadata)
 	s.mu.RUnlock()
-	
+
 	status := "healthy"
 	message := "Repository system is operational"
-	
+
 	// Check if we're approaching the max repo limit
 	if s.config.Server.MaxRepos > 0 && repoCount > int(float64(s.config.Server.MaxRepos)*0.9) {
 		status = "warning"
 		message = "Repository count is approaching limit"
 	}
-	
+
 	return Check{
 		Status:    status,
 		Message:   message,
@@ -223,7 +223,7 @@ func (s *Server) checkRepositories() Check {
 // checkAuthSystem checks the authentication system
 func (s *Server) checkAuthSystem() Check {
 	start := time.Now()
-	
+
 	// Check if auth components are initialized
 	if s.jwtAuth == nil || s.rbac == nil || s.apiKeyMgr == nil {
 		return Check{
@@ -233,7 +233,7 @@ func (s *Server) checkAuthSystem() Check {
 			Duration:  time.Since(start).String(),
 		}
 	}
-	
+
 	// Try to validate a simple operation (creating a token)
 	_, err := s.jwtAuth.GenerateToken("health-check", "health", "health@test.com", []string{"reader"})
 	if err != nil {
@@ -244,7 +244,7 @@ func (s *Server) checkAuthSystem() Check {
 			Duration:  time.Since(start).String(),
 		}
 	}
-	
+
 	return Check{
 		Status:    "healthy",
 		Message:   "Authentication system is operational",
@@ -252,7 +252,6 @@ func (s *Server) checkAuthSystem() Check {
 		Duration:  time.Since(start).String(),
 	}
 }
-
 
 // version returns version information
 func (s *Server) versionInfo(c *gin.Context) {

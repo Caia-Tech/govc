@@ -22,7 +22,7 @@ type LoadBalancerConfig struct {
 func main() {
 	// Create a memory-first repository for our infrastructure state
 	repo := govc.NewRepository()
-	
+
 	// Initialize with current production config
 	tx := repo.Transaction()
 	tx.Add("lb/config.json", []byte(`{
@@ -50,21 +50,21 @@ func main() {
 		wg.Add(1)
 		go func(cfg LoadBalancerConfig, id int) {
 			defer wg.Done()
-			
+
 			// Create an isolated reality for this test
 			reality := repo.ParallelReality(fmt.Sprintf("test-config-%d", id))
-			
+
 			// Apply the configuration in this reality
 			configJSON := fmt.Sprintf(`{
 				"algorithm": "%s",
 				"max_connections": %d,
 				"health_check": "%s"
 			}`, cfg.Algorithm, cfg.MaxConn, cfg.HealthCheck)
-			
+
 			reality.Apply(map[string][]byte{
 				"lb/config.json": []byte(configJSON),
 			})
-			
+
 			// Simulate performance testing in this reality
 			result := TestResult{
 				Config:     cfg,
@@ -72,7 +72,7 @@ func main() {
 				Latency:    simulateLatency(cfg),
 				ErrorRate:  simulateErrorRate(cfg),
 			}
-			
+
 			results <- result
 		}(config, i)
 	}
@@ -89,16 +89,16 @@ func main() {
 			result.Latency,
 			result.ErrorRate,
 		)
-		
+
 		if result.Score() > best.Score() {
 			best = result
 		}
 	}
 
 	// The winning configuration can now be applied to production
-	fmt.Printf("\nBest configuration: %s with score %.2f\n", 
+	fmt.Printf("\nBest configuration: %s with score %.2f\n",
 		best.Config.Algorithm, best.Score())
-	
+
 	// In a real system, you would:
 	// 1. Create a branch for the winning config
 	// 2. Run additional validation

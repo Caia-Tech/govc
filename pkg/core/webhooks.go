@@ -51,7 +51,7 @@ func (wm *WebhookManager) Register(url string, events []string, secret string) (
 		Secret:      secret,
 		ContentType: "application/json",
 	}
-	
+
 	wm.webhooks[webhook.ID] = webhook
 	return webhook, nil
 }
@@ -88,7 +88,7 @@ func (wm *WebhookManager) Trigger(event string, repoName string, data interface{
 		Timestamp:  time.Now(),
 		Data:       data,
 	}
-	
+
 	for _, webhook := range wm.webhooks {
 		// Check if webhook is subscribed to this event
 		subscribed := false
@@ -98,7 +98,7 @@ func (wm *WebhookManager) Trigger(event string, repoName string, data interface{
 				break
 			}
 		}
-		
+
 		if subscribed {
 			// Send webhook asynchronously
 			go wm.sendWebhook(webhook, payload)
@@ -113,23 +113,23 @@ func (wm *WebhookManager) sendWebhook(webhook *Webhook, payload WebhookPayload) 
 		// Log error
 		return
 	}
-	
+
 	req, err := http.NewRequest("POST", webhook.URL, bytes.NewBuffer(body))
 	if err != nil {
 		// Log error
 		return
 	}
-	
+
 	req.Header.Set("Content-Type", webhook.ContentType)
 	req.Header.Set("X-Govc-Event", payload.Event)
 	req.Header.Set("X-Govc-Delivery", uuid.New().String())
-	
+
 	// Add signature if secret is set
 	if webhook.Secret != "" {
 		signature := wm.calculateSignature(webhook.Secret, body)
 		req.Header.Set("X-Govc-Signature", signature)
 	}
-	
+
 	client := &http.Client{Timeout: 30 * time.Second}
 	resp, err := client.Do(req)
 	if err != nil {
@@ -137,7 +137,7 @@ func (wm *WebhookManager) sendWebhook(webhook *Webhook, payload WebhookPayload) 
 		return
 	}
 	defer resp.Body.Close()
-	
+
 	// Log response status
 }
 

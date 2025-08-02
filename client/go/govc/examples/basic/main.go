@@ -46,9 +46,9 @@ func main() {
 	// Add some files
 	fmt.Println("\nAdding files...")
 	files := map[string]string{
-		"README.md":   "# Example Repository\n\nThis is a demo repository created with govc Go client.",
-		"main.go":     "package main\n\nimport \"fmt\"\n\nfunc main() {\n    fmt.Println(\"Hello, govc!\")\n}",
-		".gitignore":  "*.exe\n*.dll\n*.so\n*.dylib\nvendor/\n",
+		"README.md":  "# Example Repository\n\nThis is a demo repository created with govc Go client.",
+		"main.go":    "package main\n\nimport \"fmt\"\n\nfunc main() {\n    fmt.Println(\"Hello, govc!\")\n}",
+		".gitignore": "*.exe\n*.dll\n*.so\n*.dylib\nvendor/\n",
 	}
 
 	for path, content := range files {

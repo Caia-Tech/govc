@@ -25,7 +25,7 @@ type MockDatabase struct {
 func TestParallelUniverses(t *testing.T) {
 	// Create a memory-first repository
 	repo := govc.NewRepository()
-	
+
 	// Set up initial state
 	tx := repo.Transaction()
 	tx.Add("database.conf", []byte("host=localhost\nport=5432\nreplicas=1"))
@@ -95,18 +95,18 @@ func TestParallelUniverses(t *testing.T) {
 			verify   func(*govc.ParallelReality) error
 		}) {
 			defer wg.Done()
-			
+
 			start := time.Now()
-			
+
 			// Create an isolated reality for this test
 			reality := repo.IsolatedBranch(test.name)
-			
+
 			// Apply test modifications
 			test.modifier(reality)
-			
+
 			// Run verification
 			err := test.verify(reality)
-			
+
 			results <- TestResult{
 				Name:     test.name,
 				Duration: time.Since(start),
@@ -127,7 +127,7 @@ func TestParallelUniverses(t *testing.T) {
 		if result.Error != nil {
 			status = "FAIL"
 		}
-		fmt.Printf("%s: %s (%.2fms)\n", result.Name, status, 
+		fmt.Printf("%s: %s (%.2fms)\n", result.Name, status,
 			float64(result.Duration.Microseconds())/1000)
 	}
 }
@@ -142,16 +142,16 @@ type TestResult struct {
 // BenchmarkParallelRealities shows the performance of parallel testing
 func BenchmarkParallelRealities(b *testing.B) {
 	repo := govc.NewRepository()
-	
+
 	b.ResetTimer()
-	
+
 	for i := 0; i < b.N; i++ {
 		// Create 100 parallel realities
 		realities := make([]*govc.ParallelReality, 100)
 		for j := 0; j < 100; j++ {
 			realities[j] = repo.ParallelReality(fmt.Sprintf("bench-%d-%d", i, j))
 		}
-		
+
 		// Each reality can be modified independently
 		var wg sync.WaitGroup
 		for _, reality := range realities {
@@ -175,7 +175,7 @@ type IntegrationTestSuite struct {
 func (s *IntegrationTestSuite) RunParallel() {
 	tests := []string{
 		"TestUserAuthentication",
-		"TestDataMigration", 
+		"TestDataMigration",
 		"TestAPIEndpoints",
 		"TestCaching",
 		"TestRateLimiting",
@@ -183,26 +183,26 @@ func (s *IntegrationTestSuite) RunParallel() {
 
 	// Traditional approach: tests run sequentially to avoid conflicts
 	// With govc: all tests run simultaneously in different realities
-	
+
 	var wg sync.WaitGroup
 	for _, testName := range tests {
 		wg.Add(1)
 		go func(name string) {
 			defer wg.Done()
-			
+
 			// Each test gets its own reality
 			reality := s.repo.IsolatedBranch(name)
-			
+
 			// Tests can do anything without affecting others:
 			// - Modify configuration files
 			// - Change database schemas
 			// - Alter system state
 			// All changes are isolated to this reality
-			
+
 			fmt.Printf("%s running in reality %s\n", name, reality.Name())
 		}(testName)
 	}
-	
+
 	wg.Wait()
 }
 

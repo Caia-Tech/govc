@@ -23,9 +23,9 @@ func TestNewCluster(t *testing.T) {
 		config ClusterConfig
 	}{
 		{
-			name:  "default config",
-			id:    "cluster1",
-			cname: "Test Cluster",
+			name:   "default config",
+			id:     "cluster1",
+			cname:  "Test Cluster",
 			config: ClusterConfig{},
 		},
 		{
@@ -33,14 +33,14 @@ func TestNewCluster(t *testing.T) {
 			id:    "cluster2",
 			cname: "Custom Cluster",
 			config: ClusterConfig{
-				ReplicationFactor:  5,
-				ShardSize:          2000,
-				ElectionTimeout:    200 * time.Millisecond,
-				HeartbeatInterval:  75 * time.Millisecond,
-				MaxLogEntries:      10000,
-				SnapshotThreshold:  5000,
-				AutoRebalance:      true,
-				ConsistencyLevel:   "strong",
+				ReplicationFactor: 5,
+				ShardSize:         2000,
+				ElectionTimeout:   200 * time.Millisecond,
+				HeartbeatInterval: 75 * time.Millisecond,
+				MaxLogEntries:     10000,
+				SnapshotThreshold: 5000,
+				AutoRebalance:     true,
+				ConsistencyLevel:  "strong",
 			},
 		},
 	}
@@ -226,7 +226,7 @@ func TestGetShardForRepository(t *testing.T) {
 
 	// Test repository mapping
 	tests := []struct {
-		repoID       string
+		repoID        string
 		expectedShard *Shard
 	}{
 		{"apple", shard1},

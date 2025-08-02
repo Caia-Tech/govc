@@ -39,13 +39,13 @@ type AppendEntriesResponse struct {
 
 // SnapshotRequest represents a Raft InstallSnapshot RPC request
 type SnapshotRequest struct {
-	Term             uint64 `json:"term"`
-	LeaderID         string `json:"leader_id"`
+	Term              uint64 `json:"term"`
+	LeaderID          string `json:"leader_id"`
 	LastIncludedIndex uint64 `json:"last_included_index"`
 	LastIncludedTerm  uint64 `json:"last_included_term"`
-	Offset           uint64 `json:"offset"`
-	Data             []byte `json:"data"`
-	Done             bool   `json:"done"`
+	Offset            uint64 `json:"offset"`
+	Data              []byte `json:"data"`
+	Done              bool   `json:"done"`
 }
 
 // SnapshotResponse represents a Raft InstallSnapshot RPC response
@@ -282,7 +282,7 @@ func (n *Node) handleSnapshot(w http.ResponseWriter, r *http.Request) {
 func (n *Node) applyCommittedEntries() {
 	for n.raftState.LastApplied < n.raftState.CommitIndex {
 		n.raftState.LastApplied++
-		
+
 		// Find the entry to apply
 		var entryToApply *LogEntry
 		for i := range n.raftState.Log {

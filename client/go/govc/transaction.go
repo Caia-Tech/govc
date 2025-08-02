@@ -57,9 +57,9 @@ func (tx *Transaction) Add(ctx context.Context, path, content string) error {
 		Message string `json:"message"`
 	}
 
-	return tx.client.post(ctx, 
-		fmt.Sprintf("/api/v1/repos/%s/transactions/%s/add", 
-			url.PathEscape(tx.repoID), url.PathEscape(tx.ID)), 
+	return tx.client.post(ctx,
+		fmt.Sprintf("/api/v1/repos/%s/transactions/%s/add",
+			url.PathEscape(tx.repoID), url.PathEscape(tx.ID)),
 		req, &response)
 }
 
@@ -70,8 +70,8 @@ func (tx *Transaction) Remove(ctx context.Context, path string) error {
 		Message string `json:"message"`
 	}
 
-	return tx.client.delete(ctx, 
-		fmt.Sprintf("/api/v1/repos/%s/transactions/%s/remove/%s", 
+	return tx.client.delete(ctx,
+		fmt.Sprintf("/api/v1/repos/%s/transactions/%s/remove/%s",
 			url.PathEscape(tx.repoID), url.PathEscape(tx.ID), url.PathEscape(path)))
 }
 
@@ -83,9 +83,9 @@ func (tx *Transaction) Validate(ctx context.Context) error {
 		Message string   `json:"message"`
 	}
 
-	err := tx.client.post(ctx, 
-		fmt.Sprintf("/api/v1/repos/%s/transactions/%s/validate", 
-			url.PathEscape(tx.repoID), url.PathEscape(tx.ID)), 
+	err := tx.client.post(ctx,
+		fmt.Sprintf("/api/v1/repos/%s/transactions/%s/validate",
+			url.PathEscape(tx.repoID), url.PathEscape(tx.ID)),
 		nil, &response)
 
 	if err != nil {
@@ -108,9 +108,9 @@ func (tx *Transaction) Commit(ctx context.Context, message string) (*Commit, err
 	}
 
 	var commit Commit
-	err := tx.client.post(ctx, 
-		fmt.Sprintf("/api/v1/repos/%s/transactions/%s/commit", 
-			url.PathEscape(tx.repoID), url.PathEscape(tx.ID)), 
+	err := tx.client.post(ctx,
+		fmt.Sprintf("/api/v1/repos/%s/transactions/%s/commit",
+			url.PathEscape(tx.repoID), url.PathEscape(tx.ID)),
 		req, &commit)
 
 	return &commit, err
@@ -123,18 +123,18 @@ func (tx *Transaction) Rollback(ctx context.Context) error {
 		Message string `json:"message"`
 	}
 
-	return tx.client.post(ctx, 
-		fmt.Sprintf("/api/v1/repos/%s/transactions/%s/rollback", 
-			url.PathEscape(tx.repoID), url.PathEscape(tx.ID)), 
+	return tx.client.post(ctx,
+		fmt.Sprintf("/api/v1/repos/%s/transactions/%s/rollback",
+			url.PathEscape(tx.repoID), url.PathEscape(tx.ID)),
 		nil, &response)
 }
 
 // Status returns the transaction status
 func (tx *Transaction) Status(ctx context.Context) (*TransactionStatus, error) {
 	var status TransactionStatus
-	err := tx.client.get(ctx, 
-		fmt.Sprintf("/api/v1/repos/%s/transactions/%s", 
-			url.PathEscape(tx.repoID), url.PathEscape(tx.ID)), 
+	err := tx.client.get(ctx,
+		fmt.Sprintf("/api/v1/repos/%s/transactions/%s",
+			url.PathEscape(tx.repoID), url.PathEscape(tx.ID)),
 		&status)
 
 	return &status, err

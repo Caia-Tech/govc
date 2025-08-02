@@ -30,7 +30,7 @@ func (s *Server) setupRoutes() {
 	s.router.HandleFunc("/{repo}/info/refs", s.handleInfoRefs).Methods("GET")
 	s.router.HandleFunc("/{repo}/git-upload-pack", s.handleUploadPack).Methods("POST")
 	s.router.HandleFunc("/{repo}/git-receive-pack", s.handleReceivePack).Methods("POST")
-	
+
 	s.router.HandleFunc("/api/status", s.handleAPIStatus).Methods("GET")
 	s.router.HandleFunc("/api/branches", s.handleAPIBranches).Methods("GET")
 	s.router.HandleFunc("/api/branches", s.handleAPICreateBranch).Methods("POST")
@@ -47,7 +47,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleInfoRefs(w http.ResponseWriter, r *http.Request) {
 	service := r.URL.Query().Get("service")
-	
+
 	if service == "" {
 		s.handleDumbInfoRefs(w, r)
 		return
@@ -89,7 +89,7 @@ func (s *Server) handleDumbInfoRefs(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "text/plain")
-	
+
 	for _, branch := range branches {
 		fmt.Fprintf(w, "%s\t%s\n", branch.Hash, branch.Name)
 	}
@@ -103,7 +103,7 @@ func (s *Server) handleUploadPack(w http.ResponseWriter, r *http.Request) {
 	}
 
 	encoding := r.Header.Get("Content-Encoding")
-	
+
 	if encoding == "gzip" {
 		// In a full implementation, we would decompress and process the request
 		gzReader, err := gzip.NewReader(r.Body)
@@ -158,7 +158,7 @@ func (s *Server) handleAPIBranches(w http.ResponseWriter, r *http.Request) {
 	}
 
 	currentBranch, _ := s.repo.CurrentBranch()
-	
+
 	branchInfos := make([]BranchInfo, 0, len(branches))
 	for _, branch := range branches {
 		name := strings.TrimPrefix(branch.Name, "refs/heads/")
@@ -197,7 +197,7 @@ func (s *Server) handleAPICreateBranch(w http.ResponseWriter, r *http.Request) {
 
 	w.WriteHeader(http.StatusCreated)
 	json.NewEncoder(w).Encode(map[string]string{
-		"name": req.Name,
+		"name":   req.Name,
 		"status": "created",
 	})
 }
@@ -337,7 +337,7 @@ func (s *Server) handleAPIMerge(w http.ResponseWriter, r *http.Request) {
 		if strings.Contains(err.Error(), "conflicts") {
 			w.WriteHeader(http.StatusConflict)
 			json.NewEncoder(w).Encode(map[string]string{
-				"error": err.Error(),
+				"error":  err.Error(),
 				"status": "conflict",
 			})
 			return
@@ -373,7 +373,7 @@ func parsePacketLine(data []byte) ([]byte, []byte) {
 
 	var length int
 	fmt.Sscanf(string(data[:4]), "%04x", &length)
-	
+
 	if length == 0 {
 		return []byte{}, data[4:]
 	}
@@ -389,7 +389,7 @@ func formatPacketLine(data []byte) []byte {
 	if len(data) == 0 {
 		return []byte("0000")
 	}
-	
+
 	length := len(data) + 4
 	return []byte(fmt.Sprintf("%04x%s", length, data))
 }
@@ -404,7 +404,7 @@ func NewGitProtocolHandler(repo *govc.Repository) *GitProtocolHandler {
 
 func (h *GitProtocolHandler) handleWants(wants []string) ([]object.Object, error) {
 	objects := make([]object.Object, 0)
-	
+
 	for _, want := range wants {
 		obj, err := h.repo.GetObject(want)
 		if err != nil {
@@ -412,19 +412,19 @@ func (h *GitProtocolHandler) handleWants(wants []string) ([]object.Object, error
 		}
 		objects = append(objects, obj)
 	}
-	
+
 	return objects, nil
 }
 
 func (h *GitProtocolHandler) handleHaves(haves []string) map[string]bool {
 	hasMap := make(map[string]bool)
-	
+
 	for _, have := range haves {
 		if h.repo.HasObject(have) {
 			hasMap[have] = true
 		}
 	}
-	
+
 	return hasMap
 }
 

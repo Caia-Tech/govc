@@ -37,7 +37,7 @@ func NewGitExporter(govcRepo *govc.Repository, exportPath string) *GitExporter {
 		exportPath: exportPath,
 		progress: ExportProgress{
 			CurrentPhase: "Initializing",
-			Errors:      []error{},
+			Errors:       []error{},
 		},
 		objectMap: make(map[string]string),
 	}
@@ -191,24 +191,24 @@ func (ge *GitExporter) exportCommit(commit *govc.Commit) error {
 	// Build commit object content
 	var content bytes.Buffer
 	content.WriteString(fmt.Sprintf("tree %s\n", treeHash))
-	
+
 	// Add parent commits (simplified - govc doesn't expose parent relationships directly)
 	// In a full implementation, we would need to track commit relationships
 	// For now, we'll skip parent relationships to make it compile
 
 	// Add author
 	authorTime := commit.Author.Time.Unix()
-	content.WriteString(fmt.Sprintf("author %s <%s> %d +0000\n", 
-		commit.Author.Name, 
-		commit.Author.Email, 
+	content.WriteString(fmt.Sprintf("author %s <%s> %d +0000\n",
+		commit.Author.Name,
+		commit.Author.Email,
 		authorTime))
-	
+
 	// Add committer (same as author for simplicity)
-	content.WriteString(fmt.Sprintf("committer %s <%s> %d +0000\n", 
-		commit.Author.Name, 
-		commit.Author.Email, 
+	content.WriteString(fmt.Sprintf("committer %s <%s> %d +0000\n",
+		commit.Author.Name,
+		commit.Author.Email,
 		authorTime))
-	
+
 	// Add commit message
 	content.WriteString("\n")
 	content.WriteString(commit.Message)
@@ -232,7 +232,7 @@ func (ge *GitExporter) exportTree(commit *govc.Commit) (string, error) {
 
 	// Group files by directory
 	treeMap := make(map[string][]TreeEntry)
-	
+
 	for _, filePath := range files {
 		// Get file content
 		content, err := ge.repo.ReadFile(filePath)
@@ -245,16 +245,16 @@ func (ge *GitExporter) exportTree(commit *govc.Commit) (string, error) {
 
 		// Determine file mode (simplified)
 		mode := "100644" // Regular file
-		
+
 		// Split path into directory and filename
 		dir := filepath.Dir(filePath)
 		filename := filepath.Base(filePath)
-		
+
 		// Normalize directory path
 		if dir == "." {
 			dir = ""
 		}
-		
+
 		treeMap[dir] = append(treeMap[dir], TreeEntry{
 			Mode: mode,
 			Name: filename,
@@ -264,49 +264,49 @@ func (ge *GitExporter) exportTree(commit *govc.Commit) (string, error) {
 
 	// Build trees from deepest to shallowest
 	treeHashes := make(map[string]string)
-	
+
 	// Sort directories by depth (deepest first)
 	dirs := make([]string, 0, len(treeMap))
 	for dir := range treeMap {
 		dirs = append(dirs, dir)
 	}
-	
+
 	// Sort by depth (number of path separators)
 	sort.Slice(dirs, func(i, j int) bool {
 		return strings.Count(dirs[i], string(filepath.Separator)) > strings.Count(dirs[j], string(filepath.Separator))
 	})
-	
+
 	for _, dir := range dirs {
 		var treeContent bytes.Buffer
 		entries := treeMap[dir]
-		
+
 		// Sort entries by name
 		sort.Slice(entries, func(i, j int) bool {
 			return entries[i].Name < entries[j].Name
 		})
-		
+
 		for _, entry := range entries {
 			// Write tree entry
 			entryLine := fmt.Sprintf("%s %s\x00", entry.Mode, entry.Name)
 			treeContent.WriteString(entryLine)
-			
+
 			// Write hash as binary
 			hashBytes, _ := hex.DecodeString(entry.Hash)
 			treeContent.Write(hashBytes)
 		}
-		
+
 		// Add subdirectory trees
 		for subdir, hash := range treeHashes {
 			if filepath.Dir(subdir) == dir && subdir != dir {
 				subdirName := filepath.Base(subdir)
 				entryLine := fmt.Sprintf("40000 %s\x00", subdirName)
 				treeContent.WriteString(entryLine)
-				
+
 				hashBytes, _ := hex.DecodeString(hash)
 				treeContent.Write(hashBytes)
 			}
 		}
-		
+
 		treeHash := ge.writeObject("tree", treeContent.Bytes())
 		treeHashes[dir] = treeHash
 	}
@@ -315,7 +315,7 @@ func (ge *GitExporter) exportTree(commit *govc.Commit) (string, error) {
 	if rootHash, ok := treeHashes[""]; ok {
 		return rootHash, nil
 	}
-	
+
 	// If no root tree, create empty tree
 	return ge.writeObject("tree", []byte{}), nil
 }
@@ -354,15 +354,15 @@ func (ge *GitExporter) exportTags() error {
 		if err != nil {
 			continue
 		}
-		
+
 		// Find the Git hash for the current commit
 		if gitHash, ok := ge.objectMap[currentCommit.Hash()]; ok {
 			// Create lightweight tag (direct reference to commit)
-			tagPath := filepath.Join(ge.exportPath, ".git", "refs", "tags", tagName) 
+			tagPath := filepath.Join(ge.exportPath, ".git", "refs", "tags", tagName)
 			if err := os.MkdirAll(filepath.Dir(tagPath), 0755); err != nil {
 				return fmt.Errorf("failed to create tag directory: %w", err)
 			}
-			
+
 			if err := os.WriteFile(tagPath, []byte(gitHash+"\n"), 0644); err != nil {
 				return fmt.Errorf("failed to write tag %s: %w", tagName, err)
 			}
@@ -441,14 +441,14 @@ func (ge *GitExporter) writeGitFile(path, content string) error {
 // Simplified version without govc.TagInfo dependency
 func (ge *GitExporter) createAnnotatedTag(tagName, targetHash, message string) string {
 	var content bytes.Buffer
-	
+
 	content.WriteString(fmt.Sprintf("object %s\n", targetHash))
 	content.WriteString("type commit\n")
 	content.WriteString(fmt.Sprintf("tag %s\n", tagName))
-	
+
 	// Add simple tagger info
 	content.WriteString("tagger govc-exporter <govc@localhost> 1640995200 +0000\n")
-	
+
 	// Add tag message
 	content.WriteString("\n")
 	if message != "" {
@@ -459,7 +459,7 @@ func (ge *GitExporter) createAnnotatedTag(tagName, targetHash, message string) s
 	} else {
 		content.WriteString("Tag created by govc exporter\n")
 	}
-	
+
 	return ge.writeObject("tag", content.Bytes())
 }
 

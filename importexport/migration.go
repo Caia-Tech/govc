@@ -24,14 +24,14 @@ type MigrationManager struct {
 
 // MigrationProgress tracks migration progress
 type MigrationProgress struct {
-	CurrentPhase    string
-	TotalSteps      int
-	CompletedSteps  int
-	Repositories    int
-	CurrentRepo     string
-	Errors          []error
-	StartTime       time.Time
-	EstimatedTime   time.Duration
+	CurrentPhase   string
+	TotalSteps     int
+	CompletedSteps int
+	Repositories   int
+	CurrentRepo    string
+	Errors         []error
+	StartTime      time.Time
+	EstimatedTime  time.Duration
 }
 
 // GitHubRepo represents a GitHub repository
@@ -87,7 +87,7 @@ func NewMigrationManager(govcRepo *govc.Repository) *MigrationManager {
 // Migrate performs migration from specified source
 func (mm *MigrationManager) Migrate(ctx context.Context, opts MigrationOptions) error {
 	mm.progress.CurrentPhase = "Starting migration"
-	
+
 	switch strings.ToLower(opts.Source) {
 	case "github":
 		return mm.migrateFromGitHub(ctx, opts)
@@ -113,7 +113,7 @@ func (mm *MigrationManager) GetProgress() MigrationProgress {
 
 func (mm *MigrationManager) migrateFromGitHub(ctx context.Context, opts MigrationOptions) error {
 	mm.progress.CurrentPhase = "Fetching GitHub repositories"
-	
+
 	// Get list of repositories
 	repos, err := mm.getGitHubRepos(ctx, opts)
 	if err != nil {
@@ -127,7 +127,7 @@ func (mm *MigrationManager) migrateFromGitHub(ctx context.Context, opts Migratio
 	for i, repo := range repos {
 		mm.progress.CurrentRepo = repo.FullName
 		mm.progress.CurrentPhase = fmt.Sprintf("Migrating %s (%d/%d)", repo.FullName, i+1, len(repos))
-		
+
 		if opts.DryRun {
 			fmt.Printf("Would migrate: %s\n", repo.FullName)
 		} else {
@@ -135,9 +135,9 @@ func (mm *MigrationManager) migrateFromGitHub(ctx context.Context, opts Migratio
 				mm.progress.Errors = append(mm.progress.Errors, fmt.Errorf("failed to migrate %s: %w", repo.FullName, err))
 			}
 		}
-		
+
 		mm.progress.CompletedSteps++
-		
+
 		// Check for cancellation
 		select {
 		case <-ctx.Done():
@@ -212,7 +212,7 @@ func (mm *MigrationManager) getGitHubRepos(ctx context.Context, opts MigrationOp
 
 func (mm *MigrationManager) migrateFromGitLab(ctx context.Context, opts MigrationOptions) error {
 	mm.progress.CurrentPhase = "Fetching GitLab projects"
-	
+
 	// Similar implementation for GitLab
 	projects, err := mm.getGitLabProjects(ctx, opts)
 	if err != nil {
@@ -225,7 +225,7 @@ func (mm *MigrationManager) migrateFromGitLab(ctx context.Context, opts Migratio
 	for i, project := range projects {
 		mm.progress.CurrentRepo = project.Path
 		mm.progress.CurrentPhase = fmt.Sprintf("Migrating %s (%d/%d)", project.Path, i+1, len(projects))
-		
+
 		if opts.DryRun {
 			fmt.Printf("Would migrate: %s\n", project.Path)
 		} else {
@@ -233,9 +233,9 @@ func (mm *MigrationManager) migrateFromGitLab(ctx context.Context, opts Migratio
 				mm.progress.Errors = append(mm.progress.Errors, fmt.Errorf("failed to migrate %s: %w", project.Path, err))
 			}
 		}
-		
+
 		mm.progress.CompletedSteps++
-		
+
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
@@ -307,7 +307,7 @@ func (mm *MigrationManager) migrateRepository(ctx context.Context, cloneURL, nam
 	// Create temporary directory for this repo
 	repoDir := filepath.Join(mm.tempDir, name)
 	os.RemoveAll(repoDir) // Clean up any previous attempts
-	
+
 	// Clone the repository
 	if err := mm.cloneRepo(ctx, cloneURL, repoDir); err != nil {
 		return fmt.Errorf("failed to clone repository: %w", err)
@@ -333,7 +333,7 @@ func (mm *MigrationManager) cloneRepo(ctx context.Context, cloneURL, destDir str
 	cmd := exec.CommandContext(ctx, "git", "clone", "--mirror", cloneURL, destDir)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
-	
+
 	return cmd.Run()
 }
 
@@ -350,15 +350,15 @@ type BatchMigrationConfig struct {
 func (mm *MigrationManager) MigrateBatch(ctx context.Context, config BatchMigrationConfig, opts MigrationOptions) error {
 	// Implementation for batch migration with parallel processing
 	// This would use goroutines and channels for concurrent migration
-	
+
 	semaphore := make(chan struct{}, config.Parallel)
 	errChan := make(chan error, len(config.Repositories))
-	
+
 	for _, repo := range config.Repositories {
 		go func(repoName string) {
-			semaphore <- struct{}{} // Acquire
+			semaphore <- struct{}{}        // Acquire
 			defer func() { <-semaphore }() // Release
-			
+
 			// Migrate individual repository
 			if err := mm.migrateRepository(ctx, fmt.Sprintf("https://github.com/%s.git", repoName), repoName, ""); err != nil {
 				errChan <- fmt.Errorf("failed to migrate %s: %w", repoName, err)
@@ -367,7 +367,7 @@ func (mm *MigrationManager) MigrateBatch(ctx context.Context, config BatchMigrat
 			}
 		}(repo)
 	}
-	
+
 	// Collect results
 	var errors []error
 	for i := 0; i < len(config.Repositories); i++ {
@@ -375,11 +375,11 @@ func (mm *MigrationManager) MigrateBatch(ctx context.Context, config BatchMigrat
 			errors = append(errors, err)
 		}
 	}
-	
+
 	if len(errors) > 0 {
 		return fmt.Errorf("migration completed with %d errors", len(errors))
 	}
-	
+
 	return nil
 }
 

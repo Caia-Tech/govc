@@ -37,7 +37,7 @@ func TestRefManagerAdapter(t *testing.T) {
 		// First create the branch
 		err := adapter.UpdateRef("refs/heads/main", "abc123")
 		require.NoError(t, err)
-		
+
 		// Set HEAD to a branch
 		err = adapter.SetHEAD("refs/heads/main")
 		require.NoError(t, err)
@@ -65,7 +65,7 @@ func TestRefManagerAdapter(t *testing.T) {
 		refs, err := adapter.ListRefs()
 		require.NoError(t, err)
 		assert.Greater(t, len(refs), 0)
-		
+
 		// Check if our refs are in the list
 		assert.Equal(t, "aaa111", refs["refs/heads/main"])
 		assert.Equal(t, "bbb222", refs["refs/heads/feature"])

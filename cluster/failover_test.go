@@ -322,7 +322,7 @@ func TestShardMigration(t *testing.T) {
 // TestFailoverCooldown tests failover cooldown period
 func TestFailoverCooldown(t *testing.T) {
 	cluster, _ := NewCluster("test-cluster", "Test Cluster", ClusterConfig{}, t.TempDir())
-	
+
 	fm := NewFailoverManager(cluster, FailoverPolicy{
 		MaxFailoversPerMinute: 2,
 		CooldownPeriod:        1 * time.Minute,
@@ -438,7 +438,7 @@ func TestFailoverHistory(t *testing.T) {
 	// Get history
 	history := fm.GetFailoverHistory()
 	assert.Len(t, history, 3)
-	
+
 	// Verify events are copied (not references)
 	history[0].ID = "modified"
 	assert.Equal(t, "event-1", fm.eventLog[0].ID)
@@ -487,7 +487,7 @@ func TestConcurrentFailoverOperations(t *testing.T) {
 	// Start failover manager
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	
+
 	go fm.Start(ctx)
 
 	// Run concurrent operations

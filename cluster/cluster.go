@@ -13,31 +13,31 @@ import (
 
 // Cluster represents a govc distributed cluster
 type Cluster struct {
-	ID          string             `json:"id"`
-	Name        string             `json:"name"`
-	Nodes       map[string]*Node   `json:"nodes"`
-	Shards      map[string]*Shard  `json:"shards"`
-	Config      ClusterConfig      `json:"config"`
-	State       ClusterState       `json:"state"`
-	CreatedAt   time.Time          `json:"created_at"`
-	UpdatedAt   time.Time          `json:"updated_at"`
-	
+	ID        string            `json:"id"`
+	Name      string            `json:"name"`
+	Nodes     map[string]*Node  `json:"nodes"`
+	Shards    map[string]*Shard `json:"shards"`
+	Config    ClusterConfig     `json:"config"`
+	State     ClusterState      `json:"state"`
+	CreatedAt time.Time         `json:"created_at"`
+	UpdatedAt time.Time         `json:"updated_at"`
+
 	// Internal state
-	localNode   *Node        `json:"-"`
-	dataDir     string       `json:"-"`
-	mu          sync.RWMutex `json:"-"`
+	localNode *Node        `json:"-"`
+	dataDir   string       `json:"-"`
+	mu        sync.RWMutex `json:"-"`
 }
 
 // ClusterConfig contains cluster-wide configuration
 type ClusterConfig struct {
-	ReplicationFactor   int           `yaml:"replication_factor"`
-	ShardSize          int           `yaml:"shard_size"`
-	ElectionTimeout    time.Duration `yaml:"election_timeout"`
-	HeartbeatInterval  time.Duration `yaml:"heartbeat_interval"`
-	MaxLogEntries      int           `yaml:"max_log_entries"`
-	SnapshotThreshold  int           `yaml:"snapshot_threshold"`
-	AutoRebalance      bool          `yaml:"auto_rebalance"`
-	ConsistencyLevel   string        `yaml:"consistency_level"`
+	ReplicationFactor int           `yaml:"replication_factor"`
+	ShardSize         int           `yaml:"shard_size"`
+	ElectionTimeout   time.Duration `yaml:"election_timeout"`
+	HeartbeatInterval time.Duration `yaml:"heartbeat_interval"`
+	MaxLogEntries     int           `yaml:"max_log_entries"`
+	SnapshotThreshold int           `yaml:"snapshot_threshold"`
+	AutoRebalance     bool          `yaml:"auto_rebalance"`
+	ConsistencyLevel  string        `yaml:"consistency_level"`
 }
 
 // ClusterState represents the overall state of the cluster
@@ -53,14 +53,14 @@ const (
 
 // clusterState represents the serializable cluster state
 type clusterState struct {
-	ID        string                    `json:"id"`
-	Name      string                    `json:"name"`
-	Config    ClusterConfig             `json:"config"`
-	State     ClusterState              `json:"state"`
-	CreatedAt time.Time                 `json:"created_at"`
-	UpdatedAt time.Time                 `json:"updated_at"`
-	Nodes     map[string]*nodeState     `json:"nodes"`
-	Shards    map[string]*shardState    `json:"shards"`
+	ID        string                 `json:"id"`
+	Name      string                 `json:"name"`
+	Config    ClusterConfig          `json:"config"`
+	State     ClusterState           `json:"state"`
+	CreatedAt time.Time              `json:"created_at"`
+	UpdatedAt time.Time              `json:"updated_at"`
+	Nodes     map[string]*nodeState  `json:"nodes"`
+	Shards    map[string]*shardState `json:"shards"`
 }
 
 // nodeState represents the serializable node state
@@ -71,26 +71,26 @@ type nodeState struct {
 	LastSeen time.Time `json:"last_seen"`
 }
 
-// shardState represents the serializable shard state  
+// shardState represents the serializable shard state
 type shardState struct {
-	ID           string         `json:"id"`
-	KeyRange     ShardKeyRange  `json:"key_range"`
-	PrimaryNode  string         `json:"primary_node"`
-	ReplicaNodes []string       `json:"replica_nodes"`
-	State        ShardState     `json:"state"`
+	ID           string        `json:"id"`
+	KeyRange     ShardKeyRange `json:"key_range"`
+	PrimaryNode  string        `json:"primary_node"`
+	ReplicaNodes []string      `json:"replica_nodes"`
+	State        ShardState    `json:"state"`
 }
 
 // Shard represents a data shard in the cluster
 type Shard struct {
-	ID           string             `json:"id"`
-	KeyRange     ShardKeyRange      `json:"key_range"`
-	PrimaryNode  string             `json:"primary_node"`
-	ReplicaNodes []string           `json:"replica_nodes"`
-	State        ShardState         `json:"state"`
-	Repositories map[string]bool    `json:"repositories"`
-	Size         int64              `json:"size"`
-	LastAccessed time.Time          `json:"last_accessed"`
-	CreatedAt    time.Time          `json:"created_at"`
+	ID           string          `json:"id"`
+	KeyRange     ShardKeyRange   `json:"key_range"`
+	PrimaryNode  string          `json:"primary_node"`
+	ReplicaNodes []string        `json:"replica_nodes"`
+	State        ShardState      `json:"state"`
+	Repositories map[string]bool `json:"repositories"`
+	Size         int64           `json:"size"`
+	LastAccessed time.Time       `json:"last_accessed"`
+	CreatedAt    time.Time       `json:"created_at"`
 }
 
 // ShardKeyRange defines the key range for a shard
@@ -111,24 +111,24 @@ const (
 
 // ClusterEvent represents events that occur in the cluster
 type ClusterEvent struct {
-	Type      ClusterEventType   `json:"type"`
-	NodeID    string             `json:"node_id"`
-	ShardID   string             `json:"shard_id"`
+	Type      ClusterEventType       `json:"type"`
+	NodeID    string                 `json:"node_id"`
+	ShardID   string                 `json:"shard_id"`
 	Data      map[string]interface{} `json:"data"`
-	Timestamp time.Time          `json:"timestamp"`
+	Timestamp time.Time              `json:"timestamp"`
 }
 
 // ClusterEventType defines types of cluster events
 type ClusterEventType string
 
 const (
-	EventNodeJoined       ClusterEventType = "node_joined"
-	EventNodeLeft         ClusterEventType = "node_left"
-	EventNodeFailed       ClusterEventType = "node_failed"
-	EventShardMoved       ClusterEventType = "shard_moved"
-	EventRebalanceStarted ClusterEventType = "rebalance_started"
+	EventNodeJoined        ClusterEventType = "node_joined"
+	EventNodeLeft          ClusterEventType = "node_left"
+	EventNodeFailed        ClusterEventType = "node_failed"
+	EventShardMoved        ClusterEventType = "shard_moved"
+	EventRebalanceStarted  ClusterEventType = "rebalance_started"
 	EventRebalanceComplete ClusterEventType = "rebalance_complete"
-	EventLeaderElected    ClusterEventType = "leader_elected"
+	EventLeaderElected     ClusterEventType = "leader_elected"
 )
 
 // NewCluster creates a new cluster
@@ -258,7 +258,7 @@ func (c *Cluster) CreateShard(keyRange ShardKeyRange) (*Shard, error) {
 	defer c.mu.Unlock()
 
 	shardID := generateShardID(keyRange)
-	
+
 	// Find nodes for the shard
 	primaryNode, replicaNodes := c.selectNodesForShard()
 	if primaryNode == "" {
@@ -424,7 +424,7 @@ func (c *Cluster) migrateNodeShards(nodeID string) error {
 func (c *Cluster) selectNodesForShard() (primary string, replicas []string) {
 	// Simple selection: round-robin for now
 	// In production, this would consider node load, capacity, etc.
-	
+
 	nodeIDs := make([]string, 0, len(c.Nodes))
 	for nodeID := range c.Nodes {
 		nodeIDs = append(nodeIDs, nodeID)
@@ -435,7 +435,7 @@ func (c *Cluster) selectNodesForShard() (primary string, replicas []string) {
 	}
 
 	primary = nodeIDs[0]
-	
+
 	replicaCount := c.Config.ReplicationFactor - 1
 	if replicaCount > len(nodeIDs)-1 {
 		replicaCount = len(nodeIDs) - 1
@@ -466,7 +466,7 @@ func (c *Cluster) calculateKeyRange(key string) ShardKeyRange {
 	// In production, this would be more sophisticated
 	start := string(key[0])
 	end := string(key[0] + 1)
-	
+
 	return ShardKeyRange{
 		Start: start,
 		End:   end,
@@ -478,9 +478,9 @@ func (c *Cluster) loadState() error {
 	if c.dataDir == "" {
 		return nil
 	}
-	
+
 	statePath := filepath.Join(c.dataDir, "cluster-state.json")
-	
+
 	data, err := os.ReadFile(statePath)
 	if os.IsNotExist(err) {
 		return nil // No existing state
@@ -494,7 +494,7 @@ func (c *Cluster) loadState() error {
 	if err := json.Unmarshal(data, &state); err != nil {
 		return fmt.Errorf("failed to unmarshal cluster state: %w", err)
 	}
-	
+
 	// Restore cluster fields
 	c.ID = state.ID
 	c.Name = state.Name
@@ -502,10 +502,10 @@ func (c *Cluster) loadState() error {
 	c.State = state.State
 	c.CreatedAt = state.CreatedAt
 	c.UpdatedAt = state.UpdatedAt
-	
+
 	// Note: Nodes and shards need to be reconstructed when nodes join
 	// This just stores the metadata for reference
-	
+
 	return nil
 }
 
@@ -515,10 +515,10 @@ func (c *Cluster) saveState() error {
 	if c.dataDir == "" {
 		return nil
 	}
-	
+
 	c.mu.RLock()
 	defer c.mu.RUnlock()
-	
+
 	// Create a serializable version of the cluster state
 	state := &clusterState{
 		ID:        c.ID,
@@ -530,7 +530,7 @@ func (c *Cluster) saveState() error {
 		Nodes:     make(map[string]*nodeState),
 		Shards:    make(map[string]*shardState),
 	}
-	
+
 	// Convert nodes to serializable format
 	for id, node := range c.Nodes {
 		state.Nodes[id] = &nodeState{
@@ -540,7 +540,7 @@ func (c *Cluster) saveState() error {
 			LastSeen: node.LastSeen,
 		}
 	}
-	
+
 	// Convert shards to serializable format
 	for id, shard := range c.Shards {
 		state.Shards[id] = &shardState{
@@ -551,27 +551,27 @@ func (c *Cluster) saveState() error {
 			State:        shard.State,
 		}
 	}
-	
+
 	// Create the state file path
 	statePath := filepath.Join(c.dataDir, "cluster-state.json")
-	
+
 	// Marshal to JSON
 	data, err := json.MarshalIndent(state, "", "  ")
 	if err != nil {
 		return fmt.Errorf("failed to marshal cluster state: %w", err)
 	}
-	
+
 	// Write atomically by writing to temp file first
 	tempPath := statePath + ".tmp"
 	if err := os.WriteFile(tempPath, data, 0644); err != nil {
 		return fmt.Errorf("failed to write cluster state: %w", err)
 	}
-	
+
 	// Rename to final location
 	if err := os.Rename(tempPath, statePath); err != nil {
 		return fmt.Errorf("failed to save cluster state: %w", err)
 	}
-	
+
 	return nil
 }
 

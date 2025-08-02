@@ -339,7 +339,7 @@ func TestShardReplication(t *testing.T) {
 	// Should have queued tasks for both repositories
 	taskCount := 0
 	timeout := time.After(100 * time.Millisecond)
-	
+
 Loop:
 	for {
 		select {
@@ -463,7 +463,7 @@ func TestConcurrentReplication(t *testing.T) {
 					fmt.Sprintf("node%d", (nodeIdx+1)%10),
 					fmt.Sprintf("node%d", (nodeIdx+2)%10),
 				}
-				
+
 				if err := rm.ReplicateRepository(repoID, fmt.Sprintf("node%d", nodeIdx), targetNodes, strategy); err != nil {
 					errors <- err
 				}

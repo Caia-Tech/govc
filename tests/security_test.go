@@ -28,9 +28,9 @@ func TestSecurityVulnerabilities(t *testing.T) {
 		server.RegisterRoutes(router)
 
 		tests := []struct {
-			name        string
-			headers     map[string]string
-			expectCode  int
+			name       string
+			headers    map[string]string
+			expectCode int
 		}{
 			{
 				name:       "No Auth Header",
@@ -124,7 +124,7 @@ func TestSecurityVulnerabilities(t *testing.T) {
 
 				// Should either return 404 or 400, but never 200 with system file content
 				assert.NotEqual(t, http.StatusOK, w.Code)
-				
+
 				// Ensure no system file content is leaked
 				body := w.Body.String()
 				assert.NotContains(t, body, "root:")
@@ -217,7 +217,7 @@ func TestSecurityVulnerabilities(t *testing.T) {
 			// Note: Real rate limiting would be implemented in middleware
 			// This test verifies the server doesn't crash under load
 			done := make(chan bool)
-			
+
 			go func() {
 				for i := 0; i < 1000; i++ {
 					req := httptest.NewRequest("GET", "/api/v1/health", nil)
@@ -263,7 +263,7 @@ func TestSecurityVulnerabilities(t *testing.T) {
 			if len(parts) == 3 {
 				// Modify payload
 				tamperedToken := parts[0] + "." + parts[1] + "modified" + "." + parts[2]
-				
+
 				_, err = jwtAuth.ValidateToken(tamperedToken)
 				assert.Error(t, err)
 			}
@@ -303,7 +303,7 @@ func TestSecurityVulnerabilities(t *testing.T) {
 			// User shouldn't be able to assign admin role to themselves
 			err := rbac.AssignRole("regular", "admin")
 			// This might succeed depending on implementation, but check permissions
-			
+
 			hasAdmin := rbac.HasPermission("regular", auth.PermissionSystemAdmin)
 			if err == nil {
 				// If role assignment succeeded, verify it actually grants admin
@@ -369,7 +369,7 @@ func TestSecurityVulnerabilities(t *testing.T) {
 				w := httptest.NewRecorder()
 				router.ServeHTTP(w, req)
 
-				assert.Equal(t, http.StatusNotFound, w.Code, 
+				assert.Equal(t, http.StatusNotFound, w.Code,
 					"Debug endpoint should not be exposed: %s", endpoint)
 			}
 		})

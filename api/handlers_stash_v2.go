@@ -10,7 +10,7 @@ import (
 // createStashV2 creates a stash using new architecture
 func (s *Server) createStashV2(c *gin.Context) {
 	repoID := c.Param("repo_id")
-	
+
 	var req StashRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, ErrorResponse{
@@ -42,7 +42,7 @@ func (s *Server) createStashV2(c *gin.Context) {
 	// Get author info from config
 	author, _ := components.Config.Get("user.name")
 	email, _ := components.Config.Get("user.email")
-	
+
 	// Get file list
 	files := make([]string, 0)
 	for path := range stash.Changes {
@@ -56,7 +56,7 @@ func (s *Server) createStashV2(c *gin.Context) {
 	for path := range stash.Untracked {
 		files = append(files, path)
 	}
-	
+
 	c.JSON(http.StatusCreated, StashResponse{
 		ID:        stash.ID,
 		Message:   stash.Message,
@@ -70,7 +70,7 @@ func (s *Server) createStashV2(c *gin.Context) {
 // listStashesV2 lists all stashes using new architecture
 func (s *Server) listStashesV2(c *gin.Context) {
 	repoID := c.Param("repo_id")
-	
+
 	components, err := s.getRepositoryComponents(repoID)
 	if err != nil {
 		c.JSON(http.StatusNotFound, ErrorResponse{
@@ -82,11 +82,11 @@ func (s *Server) listStashesV2(c *gin.Context) {
 
 	// List stashes
 	stashes := components.Stash.List()
-	
+
 	// Get author info from config
 	author, _ := components.Config.Get("user.name")
 	email, _ := components.Config.Get("user.email")
-	
+
 	// Convert to response format
 	stashList := make([]StashResponse, len(stashes))
 	for i, stash := range stashes {
@@ -100,7 +100,7 @@ func (s *Server) listStashesV2(c *gin.Context) {
 				files = append(files, path)
 			}
 		}
-		
+
 		stashList[i] = StashResponse{
 			ID:        stash.ID,
 			Message:   stash.Message,
@@ -121,7 +121,7 @@ func (s *Server) listStashesV2(c *gin.Context) {
 func (s *Server) getStashV2(c *gin.Context) {
 	repoID := c.Param("repo_id")
 	stashID := c.Param("stash_id")
-	
+
 	components, err := s.getRepositoryComponents(repoID)
 	if err != nil {
 		c.JSON(http.StatusNotFound, ErrorResponse{
@@ -144,7 +144,7 @@ func (s *Server) getStashV2(c *gin.Context) {
 	// Get author info from config
 	author, _ := components.Config.Get("user.name")
 	email, _ := components.Config.Get("user.email")
-	
+
 	// Get file list
 	files := make([]string, 0)
 	for path := range stash.Changes {
@@ -173,11 +173,11 @@ func (s *Server) getStashV2(c *gin.Context) {
 func (s *Server) applyStashV2(c *gin.Context) {
 	repoID := c.Param("repo_id")
 	stashID := c.Param("stash_id")
-	
+
 	var req StashApplyRequest
 	// Drop is optional, default to false
 	c.ShouldBindJSON(&req)
-	
+
 	components, err := s.getRepositoryComponents(repoID)
 	if err != nil {
 		c.JSON(http.StatusNotFound, ErrorResponse{
@@ -193,7 +193,7 @@ func (s *Server) applyStashV2(c *gin.Context) {
 	} else {
 		err = components.Stash.Apply(stashID)
 	}
-	
+
 	if err != nil {
 		c.JSON(http.StatusConflict, ErrorResponse{
 			Error: fmt.Sprintf("failed to apply stash: %v", err),
@@ -216,7 +216,7 @@ func (s *Server) applyStashV2(c *gin.Context) {
 func (s *Server) dropStashV2(c *gin.Context) {
 	repoID := c.Param("repo_id")
 	stashID := c.Param("stash_id")
-	
+
 	components, err := s.getRepositoryComponents(repoID)
 	if err != nil {
 		c.JSON(http.StatusNotFound, ErrorResponse{

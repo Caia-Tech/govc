@@ -16,7 +16,7 @@ import (
 func (s *Server) readFile(c *gin.Context) {
 	repoID := c.Param("repo_id")
 	filePath := c.Param("path")
-	
+
 	// Clean the path
 	filePath = strings.TrimPrefix(filePath, "/")
 	if filePath == "" {
@@ -38,7 +38,7 @@ func (s *Server) readFile(c *gin.Context) {
 
 	// Check for ref query parameter (commit hash or branch name)
 	ref := c.Query("ref")
-	
+
 	// If ref is specified, we need to read from that specific commit/branch
 	if ref != "" {
 		// Try to checkout the ref temporarily
@@ -47,7 +47,7 @@ func (s *Server) readFile(c *gin.Context) {
 			// Restore original branch
 			repo.Checkout(currentBranch)
 		}()
-		
+
 		if err := repo.Checkout(ref); err != nil {
 			c.JSON(http.StatusNotFound, ErrorResponse{
 				Error: fmt.Sprintf("ref '%s' not found", ref),
@@ -124,7 +124,7 @@ func (s *Server) writeFile(c *gin.Context) {
 func (s *Server) listTree(c *gin.Context) {
 	repoID := c.Param("repo_id")
 	dirPath := c.Param("path")
-	
+
 	// Clean the path
 	dirPath = strings.TrimPrefix(dirPath, "/")
 	if dirPath == "" {
@@ -142,7 +142,7 @@ func (s *Server) listTree(c *gin.Context) {
 
 	// Check if recursive listing is requested
 	recursive := c.Query("recursive") == "true"
-	
+
 	// Get all files in the repository
 	allFiles, err := repo.ListFiles()
 	if err != nil {
@@ -156,7 +156,7 @@ func (s *Server) listTree(c *gin.Context) {
 	// Filter files based on directory path
 	entries := make([]TreeEntry, 0)
 	seenDirs := make(map[string]bool)
-	
+
 	for _, file := range allFiles {
 		// Skip if not in the requested directory
 		if dirPath != "." {
@@ -164,16 +164,16 @@ func (s *Server) listTree(c *gin.Context) {
 				continue
 			}
 		}
-		
+
 		// Get relative path from the directory
 		relPath := file
 		if dirPath != "." {
 			relPath = strings.TrimPrefix(file, dirPath+"/")
 		}
-		
+
 		// Split the path
 		parts := strings.Split(relPath, "/")
-		
+
 		if !recursive && len(parts) > 1 {
 			// Only show immediate children
 			dirName := parts[0]
@@ -181,7 +181,7 @@ func (s *Server) listTree(c *gin.Context) {
 			if dirPath == "." {
 				dirFullPath = dirName
 			}
-			
+
 			if !seenDirs[dirFullPath] {
 				seenDirs[dirFullPath] = true
 				entries = append(entries, TreeEntry{
@@ -217,7 +217,7 @@ func (s *Server) listTree(c *gin.Context) {
 func (s *Server) removeFile(c *gin.Context) {
 	repoID := c.Param("repo_id")
 	filePath := c.Param("path")
-	
+
 	// Clean the path
 	filePath = strings.TrimPrefix(filePath, "/")
 	if filePath == "" {
@@ -258,7 +258,7 @@ func (s *Server) removeFile(c *gin.Context) {
 // moveFile moves or renames a file
 func (s *Server) moveFile(c *gin.Context) {
 	repoID := c.Param("repo_id")
-	
+
 	repo, err := s.getRepository(repoID)
 	if err != nil {
 		c.JSON(http.StatusNotFound, ErrorResponse{
@@ -296,7 +296,7 @@ func (s *Server) moveFile(c *gin.Context) {
 		})
 		return
 	}
-	
+
 	// Add the new file to staging
 	if err := repo.Add(req.To); err != nil {
 		c.JSON(http.StatusInternalServerError, ErrorResponse{

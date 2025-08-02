@@ -72,11 +72,11 @@ type Logger struct {
 
 // Config represents logger configuration
 type Config struct {
-	Level       LogLevel
-	Output      io.Writer
-	Component   string
+	Level        LogLevel
+	Output       io.Writer
+	Component    string
 	EnableCaller bool
-	TimeFormat  string
+	TimeFormat   string
 }
 
 // NewLogger creates a new structured logger
@@ -84,7 +84,7 @@ func NewLogger(config Config) *Logger {
 	if config.Output == nil {
 		config.Output = os.Stdout
 	}
-	
+
 	if config.TimeFormat == "" {
 		config.TimeFormat = time.RFC3339
 	}
@@ -147,9 +147,12 @@ func (l *Logger) WithFields(fields map[string]interface{}) *Logger {
 
 // WithComponent sets the component for this logger
 func (l *Logger) WithComponent(component string) *Logger {
-	newLogger := *l
-	newLogger.component = component
-	return &newLogger
+	return &Logger{
+		level:     l.level,
+		output:    l.output,
+		component: component,
+		fields:    l.fields,
+	}
 }
 
 // Debug logs a debug message
@@ -213,22 +216,22 @@ func (l *Logger) Fatalf(format string, args ...interface{}) {
 // LogOperation logs the start and end of an operation with duration
 func (l *Logger) LogOperation(operation string, fn func() error) error {
 	start := time.Now()
-	
+
 	l.WithField("operation", operation).Info("Operation started")
-	
+
 	err := fn()
 	duration := time.Since(start).Milliseconds()
-	
+
 	logger := l.WithFields(map[string]interface{}{
-		"operation": operation,
+		"operation":   operation,
 		"duration_ms": duration,
 	})
-	
+
 	if err != nil {
 		logger.WithField("error", err.Error()).Error("Operation failed")
 		return err
 	}
-	
+
 	logger.Info("Operation completed")
 	return nil
 }
@@ -277,56 +280,56 @@ func (l *Logger) formatEntry(entry LogEntry) string {
 	// Simple JSON formatting (in production, you'd use encoding/json)
 	timestamp := entry.Timestamp.Format(time.RFC3339)
 	level := entry.Level.String()
-	
+
 	var parts []string
 	parts = append(parts, fmt.Sprintf(`"timestamp":"%s"`, timestamp))
 	parts = append(parts, fmt.Sprintf(`"level":"%s"`, level))
 	parts = append(parts, fmt.Sprintf(`"message":"%s"`, escapeJSON(entry.Message)))
-	
+
 	if entry.Component != "" {
 		parts = append(parts, fmt.Sprintf(`"component":"%s"`, entry.Component))
 	}
-	
+
 	if entry.Caller != "" {
 		parts = append(parts, fmt.Sprintf(`"caller":"%s"`, entry.Caller))
 	}
-	
+
 	if entry.RequestID != "" {
 		parts = append(parts, fmt.Sprintf(`"request_id":"%s"`, entry.RequestID))
 	}
-	
+
 	if entry.UserID != "" {
 		parts = append(parts, fmt.Sprintf(`"user_id":"%s"`, entry.UserID))
 	}
-	
+
 	if entry.Operation != "" {
 		parts = append(parts, fmt.Sprintf(`"operation":"%s"`, entry.Operation))
 	}
-	
+
 	if entry.Duration != nil {
 		parts = append(parts, fmt.Sprintf(`"duration_ms":%d`, *entry.Duration))
 	}
-	
+
 	if entry.Error != "" {
 		parts = append(parts, fmt.Sprintf(`"error":"%s"`, escapeJSON(entry.Error)))
 	}
-	
+
 	if entry.HTTPMethod != "" {
 		parts = append(parts, fmt.Sprintf(`"http_method":"%s"`, entry.HTTPMethod))
 	}
-	
+
 	if entry.HTTPPath != "" {
 		parts = append(parts, fmt.Sprintf(`"http_path":"%s"`, entry.HTTPPath))
 	}
-	
+
 	if entry.HTTPStatus != 0 {
 		parts = append(parts, fmt.Sprintf(`"http_status":%d`, entry.HTTPStatus))
 	}
-	
+
 	if entry.HTTPLatency != nil {
 		parts = append(parts, fmt.Sprintf(`"http_latency_ms":%d`, *entry.HTTPLatency))
 	}
-	
+
 	// Add custom fields
 	if len(entry.Fields) > 0 {
 		var fieldParts []string
@@ -348,7 +351,7 @@ func (l *Logger) formatEntry(entry LogEntry) string {
 			parts = append(parts, strings.Join(fieldParts, ","))
 		}
 	}
-	
+
 	return "{" + strings.Join(parts, ",") + "}"
 }
 
@@ -359,7 +362,7 @@ func getCaller() string {
 	if !ok {
 		return ""
 	}
-	
+
 	// Get just the filename, not the full path
 	filename := filepath.Base(file)
 	return fmt.Sprintf("%s:%d", filename, line)
@@ -442,18 +445,18 @@ func GinLogger(logger *Logger) gin.HandlerFunc {
 		start := time.Now()
 		path := c.Request.URL.Path
 		method := c.Request.Method
-		
+
 		// Generate request ID
 		requestID := generateRequestID()
 		c.Set("request_id", requestID)
-		
+
 		// Process request
 		c.Next()
-		
+
 		// Calculate latency
 		latency := time.Since(start).Milliseconds()
 		status := c.Writer.Status()
-		
+
 		// Get user ID if available
 		userID := ""
 		if user, exists := c.Get("user"); exists {
@@ -466,27 +469,27 @@ func GinLogger(logger *Logger) gin.HandlerFunc {
 				}
 			}
 		}
-		
+
 		// Log the request
 		logFields := map[string]interface{}{
-			"request_id":     requestID,
-			"http_method":    method,
-			"http_path":      path,
-			"http_status":    status,
+			"request_id":      requestID,
+			"http_method":     method,
+			"http_path":       path,
+			"http_status":     status,
 			"http_latency_ms": latency,
 		}
-		
+
 		if userID != "" {
 			logFields["user_id"] = userID
 		}
-		
+
 		logLevel := InfoLevel
 		if status >= 400 && status < 500 {
 			logLevel = WarnLevel
 		} else if status >= 500 {
 			logLevel = ErrorLevel
 		}
-		
+
 		logger.WithFields(logFields).log(logLevel, "HTTP request processed", nil)
 	}
 }

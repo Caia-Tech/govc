@@ -31,7 +31,7 @@ func NewJWTAuth(secret, issuer string, ttl time.Duration) *JWTAuth {
 		// Generate a random secret if none provided (for development)
 		secret = generateRandomSecret()
 	}
-	
+
 	if ttl == 0 {
 		ttl = 24 * time.Hour // Default 24 hours
 	}
@@ -46,7 +46,7 @@ func NewJWTAuth(secret, issuer string, ttl time.Duration) *JWTAuth {
 // GenerateToken creates a new JWT token for a user
 func (j *JWTAuth) GenerateToken(userID, username, email string, permissions []string) (string, error) {
 	now := time.Now()
-	
+
 	claims := Claims{
 		UserID:      userID,
 		Username:    username,

@@ -202,7 +202,7 @@ func TestStore(t *testing.T) {
 	t.Run("store and retrieve tree", func(t *testing.T) {
 		tree := object.NewTree()
 		tree.AddEntry("100644", "file.txt", "abc123")
-		
+
 		hash, err := store.StoreTree(tree)
 		if err != nil {
 			t.Fatalf("StoreTree() error = %v", err)
@@ -226,7 +226,7 @@ func TestStore(t *testing.T) {
 			Time:  time.Now(),
 		}
 		commit := object.NewCommit("tree123", author, "Test commit")
-		
+
 		hash, err := store.StoreCommit(commit)
 		if err != nil {
 			t.Fatalf("StoreCommit() error = %v", err)
@@ -265,7 +265,7 @@ func TestStore(t *testing.T) {
 
 		// Clear the cache to force backend read
 		cachedStore.cache = NewMemoryBackend()
-		
+
 		// Now read - should hit backend
 		_, err = cachedStore.GetObject(hash)
 		if err != nil {
@@ -274,7 +274,7 @@ func TestStore(t *testing.T) {
 		if trackingBackend.readCount[hash] != 1 {
 			t.Errorf("Backend read count = %d, want 1", trackingBackend.readCount[hash])
 		}
-		
+
 		// Third read - should hit cache
 		_, err = cachedStore.GetObject(hash)
 		if err != nil {
@@ -348,7 +348,7 @@ func BenchmarkMemoryBackendWrite(b *testing.B) {
 func BenchmarkMemoryBackendRead(b *testing.B) {
 	backend := NewMemoryBackend()
 	data := bytes.Repeat([]byte("benchmark"), 100)
-	
+
 	// Pre-populate
 	for i := 0; i < 1000; i++ {
 		hash := fmt.Sprintf("hash%d", i)
@@ -365,7 +365,7 @@ func BenchmarkMemoryBackendRead(b *testing.B) {
 func BenchmarkStoreCaching(b *testing.B) {
 	backend := NewMemoryBackend()
 	store := NewStore(backend)
-	
+
 	// Store one object
 	hash, _ := store.StoreBlob([]byte("benchmark data"))
 
@@ -407,7 +407,7 @@ func TestMemoryFirstPerformance(t *testing.T) {
 	// Memory should be significantly faster
 	t.Logf("Memory backend: %v", memDuration)
 	t.Logf("File backend: %v", fileDuration)
-	
+
 	// Memory operations should be at least 10x faster
 	if memDuration > fileDuration/10 {
 		t.Logf("Memory backend not significantly faster than file backend")

@@ -9,6 +9,15 @@ import (
 )
 
 // listBranches returns all branches
+// @Summary List all branches
+// @Description Retrieves a list of all branches in the repository
+// @Tags Git Operations
+// @Produce json
+// @Param repo_id path string true "Repository ID"
+// @Success 200 {object} object{branches=[]BranchResponse,current=string,count=int} "List of branches"
+// @Failure 404 {object} ErrorResponse "Repository not found"
+// @Failure 500 {object} ErrorResponse "Internal server error"
+// @Router /repositories/{repo_id}/branches [get]
 func (s *Server) listBranches(c *gin.Context) {
 	repoID := c.Param("repo_id")
 	repo, err := s.getRepository(repoID)
@@ -50,6 +59,19 @@ func (s *Server) listBranches(c *gin.Context) {
 }
 
 // createBranch creates a new branch
+// @Summary Create a new branch
+// @Description Creates a new branch from the current or specified branch
+// @Tags Git Operations
+// @Accept json
+// @Produce json
+// @Param repo_id path string true "Repository ID"
+// @Param request body CreateBranchRequest true "Branch creation request"
+// @Success 201 {object} SuccessResponse "Branch created successfully"
+// @Failure 400 {object} ErrorResponse "Invalid request data"
+// @Failure 404 {object} ErrorResponse "Repository or source branch not found"
+// @Failure 409 {object} ErrorResponse "Branch already exists"
+// @Failure 500 {object} ErrorResponse "Internal server error"
+// @Router /repositories/{repo_id}/branches [post]
 func (s *Server) createBranch(c *gin.Context) {
 	repoID := c.Param("repo_id")
 	repo, err := s.getRepository(repoID)
@@ -81,7 +103,7 @@ func (s *Server) createBranch(c *gin.Context) {
 			})
 			return
 		}
-		
+
 		branchExists := false
 		for _, branch := range branches {
 			if branch.Name == req.From {
@@ -89,7 +111,7 @@ func (s *Server) createBranch(c *gin.Context) {
 				break
 			}
 		}
-		
+
 		if !branchExists {
 			c.JSON(http.StatusNotFound, ErrorResponse{
 				Error: fmt.Sprintf("source branch '%s' not found", req.From),
@@ -97,7 +119,7 @@ func (s *Server) createBranch(c *gin.Context) {
 			})
 			return
 		}
-		
+
 		if err := repo.Checkout(req.From); err != nil {
 			c.JSON(http.StatusBadRequest, ErrorResponse{
 				Error: fmt.Sprintf("failed to checkout source branch %s: %v", req.From, err),
@@ -116,7 +138,7 @@ func (s *Server) createBranch(c *gin.Context) {
 		})
 		return
 	}
-	
+
 	for _, branch := range branches {
 		branchName := strings.TrimPrefix(branch.Name, "refs/heads/")
 		if branchName == req.Name {
@@ -127,7 +149,7 @@ func (s *Server) createBranch(c *gin.Context) {
 			return
 		}
 	}
-	
+
 	// Create the branch
 	if err := repo.Branch(req.Name).Create(); err != nil {
 		c.JSON(http.StatusInternalServerError, ErrorResponse{
@@ -148,6 +170,17 @@ func (s *Server) createBranch(c *gin.Context) {
 }
 
 // deleteBranch deletes a branch
+// @Summary Delete a branch
+// @Description Permanently deletes a branch (cannot delete current branch)
+// @Tags Git Operations
+// @Produce json
+// @Param repo_id path string true "Repository ID"
+// @Param branch path string true "Branch name"
+// @Success 200 {object} SuccessResponse "Branch deleted successfully"
+// @Failure 400 {object} ErrorResponse "Cannot delete current branch"
+// @Failure 404 {object} ErrorResponse "Repository not found"
+// @Failure 500 {object} ErrorResponse "Internal server error"
+// @Router /repositories/{repo_id}/branches/{branch} [delete]
 func (s *Server) deleteBranch(c *gin.Context) {
 	repoID := c.Param("repo_id")
 	branchName := c.Param("branch")
@@ -187,6 +220,18 @@ func (s *Server) deleteBranch(c *gin.Context) {
 }
 
 // checkout switches to a different branch
+// @Summary Checkout a branch
+// @Description Switches the working directory to a different branch
+// @Tags Git Operations
+// @Accept json
+// @Produce json
+// @Param repo_id path string true "Repository ID"
+// @Param request body CheckoutRequest true "Checkout request"
+// @Success 200 {object} SuccessResponse "Branch checked out successfully"
+// @Failure 400 {object} ErrorResponse "Invalid request data"
+// @Failure 404 {object} ErrorResponse "Repository not found"
+// @Failure 500 {object} ErrorResponse "Internal server error"
+// @Router /repositories/{repo_id}/checkout [post]
 func (s *Server) checkout(c *gin.Context) {
 	repoID := c.Param("repo_id")
 	repo, err := s.getRepository(repoID)
@@ -226,6 +271,19 @@ func (s *Server) checkout(c *gin.Context) {
 }
 
 // merge merges one branch into another
+// @Summary Merge branches
+// @Description Merges one branch into another branch
+// @Tags Git Operations
+// @Accept json
+// @Produce json
+// @Param repo_id path string true "Repository ID"
+// @Param request body MergeRequest true "Merge request"
+// @Success 200 {object} SuccessResponse "Branches merged successfully"
+// @Failure 400 {object} ErrorResponse "Invalid request data"
+// @Failure 404 {object} ErrorResponse "Repository not found"
+// @Failure 409 {object} ErrorResponse "Merge conflict"
+// @Failure 500 {object} ErrorResponse "Internal server error"
+// @Router /repositories/{repo_id}/merge [post]
 func (s *Server) merge(c *gin.Context) {
 	repoID := c.Param("repo_id")
 	repo, err := s.getRepository(repoID)

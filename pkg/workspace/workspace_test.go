@@ -48,10 +48,10 @@ func TestWorkingDirectory(t *testing.T) {
 	// Test Clear
 	wd.WriteFile("file1.txt", []byte("content1"))
 	wd.WriteFile("file2.txt", []byte("content2"))
-	
+
 	err = wd.Clear()
 	require.NoError(t, err)
-	
+
 	files, _ = wd.ListFiles()
 	assert.Len(t, files, 0)
 }
@@ -106,7 +106,7 @@ func TestWorkspace(t *testing.T) {
 	// Verify working directory was populated
 	currentWd, err := ws.GetCurrentWorkingDirectory()
 	require.NoError(t, err)
-	
+
 	content, err := currentWd.ReadFile("test.txt")
 	require.NoError(t, err)
 	assert.Equal(t, []byte("test file content"), content)
@@ -131,7 +131,7 @@ func TestWorkspace(t *testing.T) {
 	// Verify feature branch has the same content
 	featureWd, err := ws.GetCurrentWorkingDirectory()
 	require.NoError(t, err)
-	
+
 	content, err = featureWd.ReadFile("test.txt")
 	require.NoError(t, err)
 	assert.Equal(t, []byte("test file content"), content)

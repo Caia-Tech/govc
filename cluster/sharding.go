@@ -32,21 +32,21 @@ type ConsistentHashRing struct {
 
 // ShardRebalancer handles automatic rebalancing of shards
 type ShardRebalancer struct {
-	enabled         bool
-	threshold       float64 // Imbalance threshold (0.0-1.0)
-	cooldownPeriod  time.Duration
-	lastRebalance   time.Time
-	rebalanceQueue  chan RebalanceTask
-	mu              sync.RWMutex
+	enabled        bool
+	threshold      float64 // Imbalance threshold (0.0-1.0)
+	cooldownPeriod time.Duration
+	lastRebalance  time.Time
+	rebalanceQueue chan RebalanceTask
+	mu             sync.RWMutex
 }
 
 // MigrationQueue manages shard migration operations
 type MigrationQueue struct {
-	pending    []MigrationTask
-	active     map[string]*MigrationTask
-	completed  []MigrationTask
-	maxActive  int
-	mu         sync.RWMutex
+	pending   []MigrationTask
+	active    map[string]*MigrationTask
+	completed []MigrationTask
+	maxActive int
+	mu        sync.RWMutex
 }
 
 // RebalanceTask represents a rebalancing operation
@@ -62,44 +62,44 @@ type RebalanceTask struct {
 
 // MigrationTask represents a shard migration operation
 type MigrationTask struct {
-	ID             string            `json:"id"`
-	ShardID        string            `json:"shard_id"`
-	SourceNode     string            `json:"source_node"`
-	TargetNode     string            `json:"target_node"`
-	Repositories   []string          `json:"repositories"`
-	State          MigrationState    `json:"state"`
-	Progress       int               `json:"progress"`
-	Error          string            `json:"error"`
-	StartedAt      time.Time         `json:"started_at"`
-	CompletedAt    time.Time         `json:"completed_at"`
-	Metadata       map[string]string `json:"metadata"`
+	ID           string            `json:"id"`
+	ShardID      string            `json:"shard_id"`
+	SourceNode   string            `json:"source_node"`
+	TargetNode   string            `json:"target_node"`
+	Repositories []string          `json:"repositories"`
+	State        MigrationState    `json:"state"`
+	Progress     int               `json:"progress"`
+	Error        string            `json:"error"`
+	StartedAt    time.Time         `json:"started_at"`
+	CompletedAt  time.Time         `json:"completed_at"`
+	Metadata     map[string]string `json:"metadata"`
 }
 
 // MigrationState represents the state of a migration task
 type MigrationState string
 
 const (
-	MigrationStatePending    MigrationState = "pending"
-	MigrationStateActive     MigrationState = "active"
-	MigrationStateCompleted  MigrationState = "completed"
-	MigrationStateFailed     MigrationState = "failed"
-	MigrationStateCancelled  MigrationState = "cancelled"
+	MigrationStatePending   MigrationState = "pending"
+	MigrationStateActive    MigrationState = "active"
+	MigrationStateCompleted MigrationState = "completed"
+	MigrationStateFailed    MigrationState = "failed"
+	MigrationStateCancelled MigrationState = "cancelled"
 )
 
 // ShardMetrics contains metrics for shard distribution
 type ShardMetrics struct {
-	TotalShards      int                    `json:"total_shards"`
-	ShardsPerNode    map[string]int         `json:"shards_per_node"`
-	RepositoriesPerShard map[string]int     `json:"repositories_per_shard"`
-	LoadBalance      float64                `json:"load_balance"`
-	Imbalance        float64                `json:"imbalance"`
-	HotSpots         []string               `json:"hot_spots"`
+	TotalShards          int            `json:"total_shards"`
+	ShardsPerNode        map[string]int `json:"shards_per_node"`
+	RepositoriesPerShard map[string]int `json:"repositories_per_shard"`
+	LoadBalance          float64        `json:"load_balance"`
+	Imbalance            float64        `json:"imbalance"`
+	HotSpots             []string       `json:"hot_spots"`
 }
 
 // NewShardingManager creates a new sharding manager
 func NewShardingManager(cluster *Cluster) *ShardingManager {
 	hashRing := NewConsistentHashRing(160) // 160 virtual nodes per physical node
-	
+
 	rebalancer := &ShardRebalancer{
 		enabled:        true,
 		threshold:      0.3, // 30% imbalance threshold
@@ -155,7 +155,7 @@ func (chr *ConsistentHashRing) AddNode(nodeID string) {
 	chr.updateSortedNodes()
 }
 
-// RemoveNode removes a node from the hash ring  
+// RemoveNode removes a node from the hash ring
 func (chr *ConsistentHashRing) RemoveNode(nodeID string) {
 	chr.mu.Lock()
 	defer chr.mu.Unlock()
@@ -193,14 +193,14 @@ func (chr *ConsistentHashRing) GetNodes(key string, count int) []string {
 
 	hash := chr.hash(key)
 	idx := chr.search(hash)
-	
+
 	nodes := make([]string, 0, count)
 	seen := make(map[string]bool)
-	
+
 	for i := 0; i < len(chr.sortedNodes) && len(nodes) < count; i++ {
 		nodeIdx := (idx + i) % len(chr.sortedNodes)
 		nodeID := chr.nodes[chr.sortedNodes[nodeIdx]]
-		
+
 		if !seen[nodeID] {
 			nodes = append(nodes, nodeID)
 			seen[nodeID] = true
@@ -221,11 +221,11 @@ func (chr *ConsistentHashRing) search(hash uint32) int {
 	idx := sort.Search(len(chr.sortedNodes), func(i int) bool {
 		return chr.sortedNodes[i] >= hash
 	})
-	
+
 	if idx == len(chr.sortedNodes) {
 		idx = 0
 	}
-	
+
 	return idx
 }
 
@@ -258,7 +258,7 @@ func (sm *ShardingManager) GetShardForRepository(repoID string) *Shard {
 		// Create new shard
 		keyRange := sm.calculateKeyRange(repoID)
 		replicaNodes := sm.hashRing.GetNodes(repoID, sm.cluster.Config.ReplicationFactor)
-		
+
 		// Remove primary node from replicas
 		replicas := make([]string, 0)
 		for _, node := range replicaNodes {
@@ -326,7 +326,7 @@ func (sm *ShardingManager) DistributeRepository(repoID string, repo *govc.Reposi
 func (sm *ShardingManager) replicateToNode(node *Node, repoID string, repo *govc.Repository) {
 	node.mu.Lock()
 	defer node.mu.Unlock()
-	
+
 	// In a full implementation, this would handle async replication
 	// For now, we'll just add it to the node's repository map
 	node.repositories[repoID] = repo
@@ -405,11 +405,11 @@ func (sm *ShardingManager) checkRebalanceNeeded() {
 	}
 
 	metrics := sm.CalculateShardMetrics()
-	
+
 	// Check if imbalance exceeds threshold
 	if metrics.Imbalance > sm.rebalancer.threshold {
 		sm.rebalancer.lastRebalance = time.Now()
-		
+
 		// Generate rebalance tasks
 		tasks := sm.generateRebalanceTasks(metrics)
 		for _, task := range tasks {
@@ -437,7 +437,7 @@ func (sm *ShardingManager) generateRebalanceTasks(metrics ShardMetrics) []Rebala
 
 	// Find overloaded and underloaded nodes
 	avgShards := float64(metrics.TotalShards) / float64(len(metrics.ShardsPerNode))
-	
+
 	overloaded := make([]string, 0)
 	underloaded := make([]string, 0)
 
@@ -493,7 +493,7 @@ func (sm *ShardingManager) processPendingMigrations() {
 		}
 
 		task := sm.migrationQueue.pending[i]
-		
+
 		// Move from pending to active
 		sm.migrationQueue.pending = append(sm.migrationQueue.pending[:i], sm.migrationQueue.pending[i+1:]...)
 		task.State = MigrationStateActive
@@ -610,7 +610,7 @@ func (sm *ShardingManager) CalculateShardMetrics() ShardMetrics {
 
 		avg := float64(total) / float64(len(metrics.ShardsPerNode))
 		metrics.LoadBalance = avg
-		
+
 		if min > 0 {
 			metrics.Imbalance = float64(max-min) / float64(min)
 		}
@@ -668,9 +668,9 @@ func (sm *ShardingManager) GetMigrationStatus() map[string]interface{} {
 	defer sm.migrationQueue.mu.RUnlock()
 
 	return map[string]interface{}{
-		"pending":   len(sm.migrationQueue.pending),
-		"active":    len(sm.migrationQueue.active),
-		"completed": len(sm.migrationQueue.completed),
+		"pending":    len(sm.migrationQueue.pending),
+		"active":     len(sm.migrationQueue.active),
+		"completed":  len(sm.migrationQueue.completed),
 		"max_active": sm.migrationQueue.maxActive,
 	}
 }

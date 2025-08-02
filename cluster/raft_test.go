@@ -298,7 +298,7 @@ func TestRequestVoteLogic(t *testing.T) {
 			// Set up node state
 			node.raftState.CurrentTerm = tt.currentTerm
 			node.raftState.VotedFor = tt.votedFor
-			
+
 			// Set up log
 			node.raftState.Log = nil
 			if tt.lastLogIndex > 0 {
@@ -319,7 +319,7 @@ func TestRequestVoteLogic(t *testing.T) {
 			}
 
 			voteGranted := node.processVoteRequest(req)
-			
+
 			assert.Equal(t, tt.expectVote, voteGranted)
 			assert.Equal(t, tt.expectTerm, node.raftState.CurrentTerm)
 		})
@@ -411,7 +411,7 @@ func TestAppendEntriesLogic(t *testing.T) {
 			}
 
 			success := node.processAppendEntries(req)
-			
+
 			assert.Equal(t, tt.expectSuccess, success)
 			assert.Equal(t, tt.expectLogLen, len(node.raftState.Log))
 		})

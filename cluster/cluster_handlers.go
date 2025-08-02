@@ -10,19 +10,19 @@ import (
 
 // JoinRequest represents a request to join the cluster
 type JoinRequest struct {
-	NodeID   string `json:"node_id"`
-	Address  string `json:"address"`
-	Port     int    `json:"port"`
-	Version  string `json:"version"`
+	NodeID  string `json:"node_id"`
+	Address string `json:"address"`
+	Port    int    `json:"port"`
+	Version string `json:"version"`
 }
 
 // JoinResponse represents a response to a join request
 type JoinResponse struct {
-	Success    bool     `json:"success"`
-	Message    string   `json:"message"`
-	LeaderID   string   `json:"leader_id"`
-	ClusterID  string   `json:"cluster_id"`
-	Nodes      []string `json:"nodes"`
+	Success   bool     `json:"success"`
+	Message   string   `json:"message"`
+	LeaderID  string   `json:"leader_id"`
+	ClusterID string   `json:"cluster_id"`
+	Nodes     []string `json:"nodes"`
 }
 
 // LeaveRequest represents a request to leave the cluster
@@ -39,16 +39,16 @@ type LeaveResponse struct {
 
 // StatusResponse represents cluster status information
 type StatusResponse struct {
-	NodeID        string    `json:"node_id"`
-	State         NodeState `json:"state"`
-	IsLeader      bool      `json:"is_leader"`
-	LeaderID      string    `json:"leader_id"`
-	Term          uint64    `json:"term"`
-	CommitIndex   uint64    `json:"commit_index"`
-	LastApplied   uint64    `json:"last_applied"`
-	LogLength     int       `json:"log_length"`
-	ClusterSize   int       `json:"cluster_size"`
-	ConnectedNodes []string `json:"connected_nodes"`
+	NodeID         string    `json:"node_id"`
+	State          NodeState `json:"state"`
+	IsLeader       bool      `json:"is_leader"`
+	LeaderID       string    `json:"leader_id"`
+	Term           uint64    `json:"term"`
+	CommitIndex    uint64    `json:"commit_index"`
+	LastApplied    uint64    `json:"last_applied"`
+	LogLength      int       `json:"log_length"`
+	ClusterSize    int       `json:"cluster_size"`
+	ConnectedNodes []string  `json:"connected_nodes"`
 }
 
 // RepositoryOperation represents a repository operation
@@ -135,7 +135,7 @@ func (n *Node) handleJoin(w http.ResponseWriter, r *http.Request) {
 	response.Message = "Node successfully joined cluster"
 	response.LeaderID = n.ID
 	response.ClusterID = n.cluster.GetID()
-	
+
 	// Get list of all nodes
 	nodes := make([]string, 0)
 	if n.cluster != nil {
@@ -254,7 +254,7 @@ func (n *Node) handleRepositoryOperation(w http.ResponseWriter, r *http.Request)
 
 	repoID := pathParts[0]
 	operation := "read" // Default operation
-	
+
 	if len(pathParts) > 1 {
 		operation = pathParts[1]
 	}
@@ -287,7 +287,7 @@ func (n *Node) handleRepositoryRead(w http.ResponseWriter, r *http.Request, repo
 
 	// Extract the specific operation from query parameters
 	operation := r.URL.Query().Get("operation")
-	
+
 	switch operation {
 	case "status":
 		status, err := repo.Status()

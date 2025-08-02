@@ -29,10 +29,10 @@ func TestCreateRepo(t *testing.T) {
 		}
 
 		repo := Repository{
-			ID:           req.ID,
-			Path:         "/tmp/test-repo",
+			ID:            req.ID,
+			Path:          "/tmp/test-repo",
 			CurrentBranch: "main",
-			CreatedAt:    time.Now(),
+			CreatedAt:     time.Now(),
 		}
 
 		w.WriteHeader(http.StatusCreated)
@@ -57,7 +57,7 @@ func TestCreateRepo(t *testing.T) {
 func TestRepositoryOperations(t *testing.T) {
 	// Create a mock server with multiple endpoints
 	mux := http.NewServeMux()
-	
+
 	// Add file endpoint
 	mux.HandleFunc("/api/v1/repos/test-repo/add", func(w http.ResponseWriter, r *http.Request) {
 		var req struct {
@@ -209,7 +209,7 @@ func TestBranchOperations(t *testing.T) {
 				From string `json:"from"`
 			}
 			json.NewDecoder(r.Body).Decode(&req)
-			
+
 			w.WriteHeader(http.StatusCreated)
 			json.NewEncoder(w).Encode(struct {
 				Status  string `json:"status"`
@@ -227,7 +227,7 @@ func TestBranchOperations(t *testing.T) {
 			Branch string `json:"branch"`
 		}
 		json.NewDecoder(r.Body).Decode(&req)
-		
+
 		json.NewEncoder(w).Encode(struct {
 			Status  string `json:"status"`
 			Message string `json:"message"`

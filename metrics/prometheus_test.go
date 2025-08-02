@@ -12,35 +12,35 @@ import (
 
 func TestNewPrometheusMetrics(t *testing.T) {
 	metrics := NewPrometheusMetrics()
-	
+
 	if metrics == nil {
 		t.Fatal("NewPrometheusMetrics returned nil")
 	}
-	
+
 	if metrics.httpRequests == nil {
 		t.Error("httpRequests map not initialized")
 	}
-	
+
 	if metrics.httpDuration == nil {
 		t.Error("httpDuration map not initialized")
 	}
-	
+
 	if metrics.startTime.IsZero() {
 		t.Error("startTime should be set")
 	}
-	
+
 	if metrics.lastMetricsUpdate.IsZero() {
 		t.Error("lastMetricsUpdate should be set")
 	}
-	
+
 	if metrics.httpInFlight != 0 {
 		t.Errorf("Expected httpInFlight to be 0, got %d", metrics.httpInFlight)
 	}
-	
+
 	if metrics.repositoryCount != 0 {
 		t.Errorf("Expected repositoryCount to be 0, got %d", metrics.repositoryCount)
 	}
-	
+
 	if metrics.transactionCount != 0 {
 		t.Errorf("Expected transactionCount to be 0, got %d", metrics.transactionCount)
 	}
@@ -48,7 +48,7 @@ func TestNewPrometheusMetrics(t *testing.T) {
 
 func TestRecordHTTPRequest(t *testing.T) {
 	metrics := NewPrometheusMetrics()
-	
+
 	testCases := []struct {
 		name     string
 		method   string
@@ -85,16 +85,16 @@ func TestRecordHTTPRequest(t *testing.T) {
 			duration: 50 * time.Millisecond,
 		},
 	}
-	
+
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			initialTime := metrics.lastMetricsUpdate
 			time.Sleep(1 * time.Millisecond) // Ensure time difference
-			
+
 			metrics.RecordHTTPRequest(tc.method, tc.path, tc.status, tc.duration)
-			
+
 			// Check that request was recorded (we'll verify exact counts later)
-			
+
 			// Check HTTP duration
 			pathKey := tc.method + ":" + tc.path
 			metrics.mu.RLock()
@@ -102,27 +102,27 @@ func TestRecordHTTPRequest(t *testing.T) {
 				t.Errorf("Duration not recorded for path key %s", pathKey)
 			}
 			metrics.mu.RUnlock()
-			
+
 			// Check that lastMetricsUpdate was updated
 			if !metrics.lastMetricsUpdate.After(initialTime) {
 				t.Error("lastMetricsUpdate should have been updated")
 			}
 		})
 	}
-	
+
 	// Test multiple requests to same endpoint
 	metrics.RecordHTTPRequest("GET", "/api/test", 200, 100*time.Millisecond)
 	metrics.RecordHTTPRequest("GET", "/api/test", 200, 150*time.Millisecond)
-	
+
 	metrics.mu.RLock()
 	count := metrics.httpRequests["GET:200"]
 	duration := metrics.httpDuration["GET:/api/test"]
 	metrics.mu.RUnlock()
-	
+
 	if count < 2 { // Should be at least 2 from the test cases above
 		t.Errorf("Expected at least 2 GET:200 requests, got %d", count)
 	}
-	
+
 	if duration < 0.25 { // Should be at least 250ms from the two calls above
 		t.Errorf("Expected duration >= 0.25 seconds, got %f", duration)
 	}
@@ -130,29 +130,29 @@ func TestRecordHTTPRequest(t *testing.T) {
 
 func TestHTTPInFlightMetrics(t *testing.T) {
 	metrics := NewPrometheusMetrics()
-	
+
 	// Test increment
 	metrics.IncHTTPInFlight()
 	if metrics.httpInFlight != 1 {
 		t.Errorf("Expected httpInFlight to be 1, got %d", metrics.httpInFlight)
 	}
-	
+
 	metrics.IncHTTPInFlight()
 	if metrics.httpInFlight != 2 {
 		t.Errorf("Expected httpInFlight to be 2, got %d", metrics.httpInFlight)
 	}
-	
+
 	// Test decrement
 	metrics.DecHTTPInFlight()
 	if metrics.httpInFlight != 1 {
 		t.Errorf("Expected httpInFlight to be 1 after decrement, got %d", metrics.httpInFlight)
 	}
-	
+
 	metrics.DecHTTPInFlight()
 	if metrics.httpInFlight != 0 {
 		t.Errorf("Expected httpInFlight to be 0 after decrement, got %d", metrics.httpInFlight)
 	}
-	
+
 	// Test decrement below zero
 	metrics.DecHTTPInFlight()
 	if metrics.httpInFlight != -1 {
@@ -162,7 +162,7 @@ func TestHTTPInFlightMetrics(t *testing.T) {
 
 func TestSetRepositoryCount(t *testing.T) {
 	metrics := NewPrometheusMetrics()
-	
+
 	testCases := []struct {
 		name  string
 		count int64
@@ -172,18 +172,18 @@ func TestSetRepositoryCount(t *testing.T) {
 		{name: "large count", count: 999999},
 		{name: "update count", count: 10},
 	}
-	
+
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			initialTime := metrics.lastMetricsUpdate
 			time.Sleep(1 * time.Millisecond)
-			
+
 			metrics.SetRepositoryCount(tc.count)
-			
+
 			if metrics.repositoryCount != tc.count {
 				t.Errorf("Expected repositoryCount to be %d, got %d", tc.count, metrics.repositoryCount)
 			}
-			
+
 			if !metrics.lastMetricsUpdate.After(initialTime) {
 				t.Error("lastMetricsUpdate should have been updated")
 			}
@@ -193,7 +193,7 @@ func TestSetRepositoryCount(t *testing.T) {
 
 func TestSetTransactionCount(t *testing.T) {
 	metrics := NewPrometheusMetrics()
-	
+
 	testCases := []struct {
 		name  string
 		count int64
@@ -203,18 +203,18 @@ func TestSetTransactionCount(t *testing.T) {
 		{name: "large count", count: 888888},
 		{name: "update count", count: 5},
 	}
-	
+
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			initialTime := metrics.lastMetricsUpdate
 			time.Sleep(1 * time.Millisecond)
-			
+
 			metrics.SetTransactionCount(tc.count)
-			
+
 			if metrics.transactionCount != tc.count {
 				t.Errorf("Expected transactionCount to be %d, got %d", tc.count, metrics.transactionCount)
 			}
-			
+
 			if !metrics.lastMetricsUpdate.After(initialTime) {
 				t.Error("lastMetricsUpdate should have been updated")
 			}
@@ -224,7 +224,7 @@ func TestSetTransactionCount(t *testing.T) {
 
 func TestGenerateMetrics(t *testing.T) {
 	metrics := NewPrometheusMetrics()
-	
+
 	// Add some test data
 	metrics.RecordHTTPRequest("GET", "/api/v1/repos", 200, 100*time.Millisecond)
 	metrics.RecordHTTPRequest("POST", "/api/v1/repos/test", 201, 250*time.Millisecond)
@@ -233,9 +233,9 @@ func TestGenerateMetrics(t *testing.T) {
 	metrics.IncHTTPInFlight()
 	metrics.SetRepositoryCount(42)
 	metrics.SetTransactionCount(7)
-	
+
 	output := metrics.generateMetrics()
-	
+
 	// Check that output contains expected metrics
 	expectedMetrics := []string{
 		"# HELP govc_http_requests_total",
@@ -260,18 +260,18 @@ func TestGenerateMetrics(t *testing.T) {
 		"# HELP go_goroutines",
 		"# HELP govc_last_metrics_update_timestamp_seconds",
 	}
-	
+
 	for _, expected := range expectedMetrics {
 		if !strings.Contains(output, expected) {
 			t.Errorf("Expected output to contain '%s'", expected)
 		}
 	}
-	
+
 	// Check that output is properly formatted (ends with newline)
 	if !strings.HasSuffix(output, "\n") {
 		t.Error("Metrics output should end with newline")
 	}
-	
+
 	// Check that there are no empty metric names
 	lines := strings.Split(output, "\n")
 	for _, line := range lines {
@@ -286,41 +286,41 @@ func TestGenerateMetrics(t *testing.T) {
 
 func TestPrometheusHandler(t *testing.T) {
 	metrics := NewPrometheusMetrics()
-	
+
 	// Add some test data
 	metrics.RecordHTTPRequest("GET", "/test", 200, 50*time.Millisecond)
 	metrics.SetRepositoryCount(10)
-	
+
 	// Create test router
 	gin.SetMode(gin.TestMode)
 	router := gin.New()
 	router.GET("/metrics", metrics.PrometheusHandler())
-	
+
 	// Make request
 	req := httptest.NewRequest("GET", "/metrics", nil)
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
-	
+
 	// Check response
 	if w.Code != http.StatusOK {
 		t.Errorf("Expected status 200, got %d", w.Code)
 	}
-	
+
 	contentType := w.Header().Get("Content-Type")
 	expectedContentType := "text/plain; version=0.0.4; charset=utf-8"
 	if contentType != expectedContentType {
 		t.Errorf("Expected Content-Type '%s', got '%s'", expectedContentType, contentType)
 	}
-	
+
 	body := w.Body.String()
 	if !strings.Contains(body, "govc_repositories_total 10") {
 		t.Error("Response should contain repository count metric")
 	}
-	
+
 	if !strings.Contains(body, "# HELP") {
 		t.Error("Response should contain metric help text")
 	}
-	
+
 	if !strings.Contains(body, "# TYPE") {
 		t.Error("Response should contain metric type information")
 	}
@@ -329,38 +329,38 @@ func TestPrometheusHandler(t *testing.T) {
 func TestGinMiddleware(t *testing.T) {
 	metrics := NewPrometheusMetrics()
 	gin.SetMode(gin.TestMode)
-	
+
 	router := gin.New()
 	router.Use(metrics.GinMiddleware())
-	
+
 	// Add test routes
 	router.GET("/test", func(c *gin.Context) {
 		time.Sleep(10 * time.Millisecond) // Simulate some processing time
 		c.JSON(http.StatusOK, gin.H{"message": "test"})
 	})
-	
+
 	router.POST("/error", func(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "bad request"})
 	})
-	
+
 	// Test successful GET request
 	req := httptest.NewRequest("GET", "/test", nil)
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
-	
+
 	if w.Code != http.StatusOK {
 		t.Errorf("Expected status 200, got %d", w.Code)
 	}
-	
+
 	// Test error POST request
 	req = httptest.NewRequest("POST", "/error", nil)
 	w = httptest.NewRecorder()
 	router.ServeHTTP(w, req)
-	
+
 	if w.Code != http.StatusBadRequest {
 		t.Errorf("Expected status 400, got %d", w.Code)
 	}
-	
+
 	// Check that metrics were recorded
 	metrics.mu.RLock()
 	getRequests := metrics.httpRequests["GET:200"]
@@ -369,23 +369,23 @@ func TestGinMiddleware(t *testing.T) {
 	postDuration := metrics.httpDuration["POST:/error"]
 	inFlight := metrics.httpInFlight
 	metrics.mu.RUnlock()
-	
+
 	if getRequests != 1 {
 		t.Errorf("Expected 1 GET:200 request, got %d", getRequests)
 	}
-	
+
 	if postRequests != 1 {
 		t.Errorf("Expected 1 POST:400 request, got %d", postRequests)
 	}
-	
+
 	if getDuration == 0 {
 		t.Error("Expected non-zero duration for GET request")
 	}
-	
+
 	if postDuration == 0 {
 		t.Error("Expected non-zero duration for POST request")
 	}
-	
+
 	if inFlight != 0 {
 		t.Errorf("Expected 0 in-flight requests after completion, got %d", inFlight)
 	}
@@ -393,9 +393,9 @@ func TestGinMiddleware(t *testing.T) {
 
 func TestConcurrentMetrics(t *testing.T) {
 	metrics := NewPrometheusMetrics()
-	
+
 	done := make(chan bool, 100)
-	
+
 	// Concurrent HTTP request recording
 	for i := 0; i < 50; i++ {
 		go func(id int) {
@@ -403,7 +403,7 @@ func TestConcurrentMetrics(t *testing.T) {
 			done <- true
 		}(i)
 	}
-	
+
 	// Concurrent in-flight increment/decrement
 	for i := 0; i < 50; i++ {
 		go func() {
@@ -413,26 +413,26 @@ func TestConcurrentMetrics(t *testing.T) {
 			done <- true
 		}()
 	}
-	
+
 	// Wait for all goroutines
 	for i := 0; i < 100; i++ {
 		<-done
 	}
-	
+
 	// Check final state
 	metrics.mu.RLock()
 	requestCount := metrics.httpRequests["GET:200"]
 	inFlight := metrics.httpInFlight
 	metrics.mu.RUnlock()
-	
+
 	if requestCount != 50 {
 		t.Errorf("Expected 50 requests, got %d", requestCount)
 	}
-	
+
 	if inFlight != 0 {
 		t.Errorf("Expected 0 in-flight requests, got %d", inFlight)
 	}
-	
+
 	// Test concurrent metrics generation
 	for i := 0; i < 10; i++ {
 		go func() {
@@ -443,7 +443,7 @@ func TestConcurrentMetrics(t *testing.T) {
 			done <- true
 		}()
 	}
-	
+
 	// Wait for metrics generation
 	for i := 0; i < 10; i++ {
 		<-done
@@ -462,7 +462,7 @@ func TestHelperFunctions(t *testing.T) {
 		{"", []string{""}},
 		{"GET:200:extra", []string{"GET", "200:extra"}},
 	}
-	
+
 	for _, tc := range testCases {
 		result := splitMethodStatus(tc.input)
 		if len(result) != len(tc.expected) {
@@ -475,7 +475,7 @@ func TestHelperFunctions(t *testing.T) {
 			}
 		}
 	}
-	
+
 	// Test splitMethodPath
 	pathTestCases := []struct {
 		input    string
@@ -485,7 +485,7 @@ func TestHelperFunctions(t *testing.T) {
 		{"POST:/api/v1/repos/test/commits", []string{"POST", "/api/v1/repos/test/commits"}},
 		{"DELETE", []string{"DELETE"}},
 	}
-	
+
 	for _, tc := range pathTestCases {
 		result := splitMethodPath(tc.input)
 		if len(result) != len(tc.expected) {
@@ -498,7 +498,7 @@ func TestHelperFunctions(t *testing.T) {
 			}
 		}
 	}
-	
+
 	// Test sanitizePrometheusLabel
 	sanitizeTestCases := []struct {
 		input    string
@@ -511,14 +511,14 @@ func TestHelperFunctions(t *testing.T) {
 		{"/simple/path", "/simple/path"},
 		{"/api/v1/repos", "/api/v1/repos"},
 	}
-	
+
 	for _, tc := range sanitizeTestCases {
 		result := sanitizePrometheusLabel(tc.input)
 		if result != tc.expected {
 			t.Errorf("sanitizePrometheusLabel(%s): expected '%s', got '%s'", tc.input, tc.expected, result)
 		}
 	}
-	
+
 	// Test formatFloat
 	floatTests := []struct {
 		input    float64
@@ -529,14 +529,14 @@ func TestHelperFunctions(t *testing.T) {
 		{42.0, "42"},
 		{0.123456789, "0.123456789"},
 	}
-	
+
 	for _, tc := range floatTests {
 		result := formatFloat(tc.input)
 		if result != tc.expected {
 			t.Errorf("formatFloat(%f): expected '%s', got '%s'", tc.input, tc.expected, result)
 		}
 	}
-	
+
 	// Test joinMetrics
 	metrics := []string{"metric1", "metric2", "metric3"}
 	result := joinMetrics(metrics)
@@ -544,7 +544,7 @@ func TestHelperFunctions(t *testing.T) {
 	if result != expected {
 		t.Errorf("joinMetrics: expected '%s', got '%s'", expected, result)
 	}
-	
+
 	// Test empty slice
 	emptyResult := joinMetrics([]string{})
 	if emptyResult != "\n" {
@@ -554,7 +554,7 @@ func TestHelperFunctions(t *testing.T) {
 
 func BenchmarkRecordHTTPRequest(b *testing.B) {
 	metrics := NewPrometheusMetrics()
-	
+
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		metrics.RecordHTTPRequest("GET", "/api/test", 200, 100*time.Millisecond)
@@ -563,7 +563,7 @@ func BenchmarkRecordHTTPRequest(b *testing.B) {
 
 func BenchmarkGenerateMetrics(b *testing.B) {
 	metrics := NewPrometheusMetrics()
-	
+
 	// Add some test data
 	for i := 0; i < 100; i++ {
 		metrics.RecordHTTPRequest("GET", "/test", 200, time.Duration(i)*time.Millisecond)
@@ -571,7 +571,7 @@ func BenchmarkGenerateMetrics(b *testing.B) {
 	}
 	metrics.SetRepositoryCount(1000)
 	metrics.SetTransactionCount(50)
-	
+
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		_ = metrics.generateMetrics()
@@ -581,15 +581,15 @@ func BenchmarkGenerateMetrics(b *testing.B) {
 func BenchmarkGinMiddleware(b *testing.B) {
 	metrics := NewPrometheusMetrics()
 	gin.SetMode(gin.TestMode)
-	
+
 	router := gin.New()
 	router.Use(metrics.GinMiddleware())
 	router.GET("/test", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"status": "ok"})
 	})
-	
+
 	req := httptest.NewRequest("GET", "/test", nil)
-	
+
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		w := httptest.NewRecorder()
@@ -599,7 +599,7 @@ func BenchmarkGinMiddleware(b *testing.B) {
 
 func BenchmarkConcurrentInFlight(b *testing.B) {
 	metrics := NewPrometheusMetrics()
-	
+
 	b.ResetTimer()
 	b.RunParallel(func(pb *testing.PB) {
 		for pb.Next() {
