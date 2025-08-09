@@ -1,0 +1,10 @@
+module myproject
+
+go 1.21
+
+require (
+    github.com/caiatech/govc v0.1.0
+)
+
+// For local development, you can use replace directive:
+// replace github.com/caiatech/govc => ../../
