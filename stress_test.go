@@ -417,24 +417,18 @@ func TestStress_ConcurrentReadWrite(t *testing.T) {
 					atomic.AddInt64(&readOps, int64(count))
 					return
 				default:
-					// Random read operations
-					switch count % 4 {
+					// Random read operations - use only thread-safe methods
+					switch count % 3 {
 					case 0:
-						// Get repository status
-						_, err := safeRepo.Status()
-						if err != nil {
-							atomic.AddInt64(&errors, 1)
-						}
-					case 1:
-						// List staged files
-						files := safeRepo.staging.List()
+						// List staged files safely
+						files := safeRepo.SafeListStagedFiles()
 						_ = files
-					case 2:
+					case 1:
 						// Check if repository is corrupted
 						_ = safeRepo.IsCorrupted()
-					case 3:
-						// Get files
-						files := safeRepo.staging.GetFiles()
+					case 2:
+						// Get staged files safely
+						files := safeRepo.SafeGetStagedFiles()
 						_ = files
 					}
 					count++

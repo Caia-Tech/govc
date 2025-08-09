@@ -553,3 +553,27 @@ func (rm *RepositoryManager) RemoveRepository(name string) error {
 
 	return nil
 }
+
+// SafeGetStagedFiles returns a thread-safe copy of staged files
+func (csr *ConcurrentSafeRepository) SafeGetStagedFiles() map[string]string {
+	csr.globalMutex.RLock()
+	defer csr.globalMutex.RUnlock()
+	
+	if csr.Repository.staging == nil {
+		return make(map[string]string)
+	}
+	
+	return csr.Repository.staging.GetFiles()
+}
+
+// SafeListStagedFiles returns a thread-safe list of staged file paths
+func (csr *ConcurrentSafeRepository) SafeListStagedFiles() []string {
+	csr.globalMutex.RLock()
+	defer csr.globalMutex.RUnlock()
+	
+	if csr.Repository.staging == nil {
+		return []string{}
+	}
+	
+	return csr.Repository.staging.List()
+}
