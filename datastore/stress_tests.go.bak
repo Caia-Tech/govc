@@ -1,0 +1,321 @@
+package datastore
+
+import (
+	"context"
+	"crypto/rand"
+	"fmt"
+	"runtime"
+	"sync"
+	"sync/atomic"
+	"testing"
+	"time"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+)
+
+// StressTestConfig defines parameters for stress testing
+type StressTestConfig struct {
+	Duration           time.Duration
+	NumWorkers         int
+	OperationsPerSec   int
+	MaxObjectSize      int
+	MinObjectSize      int
+	ReadWriteRatio     float64 // 0.0 = all writes, 1.0 = all reads
+	TransactionPercent float64 // percentage of operations in transactions
+}
+
+// DefaultStressConfig returns default stress test configuration
+func DefaultStressConfig() StressTestConfig {
+	return StressTestConfig{
+		Duration:           30 * time.Second,
+		NumWorkers:         runtime.NumCPU() * 2,
+		OperationsPerSec:   100,
+		MaxObjectSize:      1024 * 1024, // 1MB
+		MinObjectSize:      100,
+		ReadWriteRatio:     0.7, // 70% reads, 30% writes
+		TransactionPercent: 0.2, // 20% of operations in transactions
+	}
+}
+
+// StressTestMetrics tracks stress test results
+type StressTestMetrics struct {
+	TotalOperations   int64
+	SuccessfulOps     int64
+	FailedOps         int64
+	ReadOps           int64
+	WriteOps          int64
+	DeleteOps         int64
+	TransactionOps    int64
+	AverageLatency    time.Duration
+	MaxLatency        time.Duration
+	MinLatency        time.Duration
+	MemoryUsagePeak   int64
+	ErrorsByType      map[string]int64
+	ThroughputOpsPerSec float64
+}
+
+// StressTestSuite runs comprehensive stress tests
+func StressTestSuite(t *testing.T, store DataStore, config StressTestConfig) *StressTestMetrics {
+	ctx, cancel := context.WithTimeout(context.Background(), config.Duration)
+	defer cancel()
+
+	metrics := &StressTestMetrics{
+		ErrorsByType: make(map[string]int64),
+		MinLatency:   time.Hour, // Start with high value
+	}
+
+	// Pre-populate with some data for read operations
+	initialData := make([]string, 1000)
+	for i := 0; i < 1000; i++ {
+		hash := fmt.Sprintf("stress-initial-%04d", i)
+		data := generateRandomDataForStress(config.MinObjectSize)
+		err := store.ObjectStore().PutObject(hash, data)
+		require.NoError(t, err)
+		initialData[i] = hash
+	}
+
+	var wg sync.WaitGroup
+	startTime := time.Now()
+
+	// Launch worker goroutines
+	for i := 0; i < config.NumWorkers; i++ {
+		wg.Add(1)
+		go func(workerID int) {
+			defer wg.Done()
+			runStressWorker(ctx, store, workerID, config, metrics, initialData)
+		}(i)
+	}
+
+	// Monitor memory usage
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		monitorMemoryUsage(ctx, metrics)
+	}()
+
+	wg.Wait()
+
+	// Calculate final metrics
+	totalTime := time.Since(startTime)
+	metrics.ThroughputOpsPerSec = float64(metrics.TotalOperations) / totalTime.Seconds()
+
+	if metrics.TotalOperations > 0 {
+		metrics.AverageLatency = time.Duration(int64(totalTime) / metrics.TotalOperations)
+	}
+
+	return metrics
+}
+
+// runStressWorker executes operations for a single worker
+func runStressWorker(ctx context.Context, store DataStore, workerID int, config StressTestConfig, metrics *StressTestMetrics, initialData []string) {
+	opCounter := 0
+	ticker := time.NewTicker(time.Second / time.Duration(config.OperationsPerSec/config.NumWorkers))
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			startTime := time.Now()
+			
+			// Decide operation type
+			var err error
+			useTransaction := rand.Float64() < config.TransactionPercent
+			
+			if useTransaction {
+				err = executeTransactionalOperation(ctx, store, workerID, opCounter, config, initialData)
+				atomic.AddInt64(&metrics.TransactionOps, 1)
+			} else {
+				err = executeSingleOperation(store, workerID, opCounter, config, initialData)
+			}
+			
+			// Record metrics
+			latency := time.Since(startTime)
+			atomic.AddInt64(&metrics.TotalOperations, 1)
+			
+			if err != nil {
+				atomic.AddInt64(&metrics.FailedOps, 1)
+				errorType := fmt.Sprintf("%T", err)
+				atomic.AddInt64(&metrics.ErrorsByType[errorType], 1)
+			} else {
+				atomic.AddInt64(&metrics.SuccessfulOps, 1)
+			}
+			
+			// Update latency metrics (atomic operations for thread safety)
+			updateLatencyMetrics(metrics, latency)
+			
+			opCounter++
+		}
+	}
+}
+
+// executeTransactionalOperation performs operations within a transaction
+func executeTransactionalOperation(ctx context.Context, store DataStore, workerID, opCounter int, config StressTestConfig, initialData []string) error {
+	tx, err := store.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("begin transaction: %w", err)
+	}
+	
+	// Randomly decide to commit or rollback (90% commit, 10% rollback)
+	shouldCommit := rand.Float64() < 0.9
+	
+	defer func() {
+		if shouldCommit {
+			tx.Commit()
+		} else {
+			tx.Rollback()
+		}
+	}()
+	
+	// Perform multiple operations in transaction
+	numOps := 1 + rand.Intn(5) // 1-5 operations per transaction
+	for i := 0; i < numOps; i++ {
+		if rand.Float64() < config.ReadWriteRatio {
+			// Read operation
+			hash := initialData[rand.Intn(len(initialData))]
+			_, err := tx.GetObject(hash)
+			if err != nil && err != ErrNotFound {
+				return fmt.Errorf("tx read: %w", err)
+			}
+		} else {
+			// Write operation
+			hash := fmt.Sprintf("stress-tx-%d-%d-%d", workerID, opCounter, i)
+			data := generateRandomDataForStress(config.MinObjectSize + rand.Intn(config.MaxObjectSize-config.MinObjectSize))
+			err := tx.PutObject(hash, data)
+			if err != nil {
+				return fmt.Errorf("tx write: %w", err)
+			}
+		}
+	}
+	
+	return nil
+}
+
+// executeSingleOperation performs a single operation
+func executeSingleOperation(store DataStore, workerID, opCounter int, config StressTestConfig, initialData []string) error {
+	if rand.Float64() < config.ReadWriteRatio {
+		// Read operation
+		hash := initialData[rand.Intn(len(initialData))]
+		_, err := store.ObjectStore().GetObject(hash)
+		if err != nil && err != ErrNotFound {
+			return fmt.Errorf("read: %w", err)
+		}
+		// Note: We don't increment read counter here due to complexity with atomic operations
+	} else {
+		// Write or delete operation
+		if rand.Float64() < 0.8 { // 80% writes, 20% deletes
+			// Write operation
+			hash := fmt.Sprintf("stress-single-%d-%d", workerID, opCounter)
+			data := generateRandomDataForStress(config.MinObjectSize + rand.Intn(config.MaxObjectSize-config.MinObjectSize))
+			err := store.ObjectStore().PutObject(hash, data)
+			if err != nil {
+				return fmt.Errorf("write: %w", err)
+			}
+		} else {
+			// Delete operation (try to delete from initial data)
+			if len(initialData) > 0 {
+				hash := initialData[rand.Intn(len(initialData))]
+				err := store.ObjectStore().DeleteObject(hash)
+				if err != nil && err != ErrNotFound {
+					return fmt.Errorf("delete: %w", err)
+				}
+			}
+		}
+	}
+	return nil
+}
+
+// generateRandomDataForStress creates random byte data of specified size
+func generateRandomDataForStress(size int) []byte {
+	data := make([]byte, size)
+	rand.Read(data)
+	return data
+}
+
+// updateLatencyMetrics safely updates latency metrics
+func updateLatencyMetrics(metrics *StressTestMetrics, latency time.Duration) {
+	// Simple atomic updates for min/max latency
+	for {
+		current := atomic.LoadInt64((*int64)(&metrics.MaxLatency))
+		if latency <= time.Duration(current) {
+			break
+		}
+		if atomic.CompareAndSwapInt64((*int64)(&metrics.MaxLatency), current, int64(latency)) {
+			break
+		}
+	}
+	
+	for {
+		current := atomic.LoadInt64((*int64)(&metrics.MinLatency))
+		if latency >= time.Duration(current) {
+			break
+		}
+		if atomic.CompareAndSwapInt64((*int64)(&metrics.MinLatency), current, int64(latency)) {
+			break
+		}
+	}
+}
+
+// monitorMemoryUsage tracks memory usage during stress test
+func monitorMemoryUsage(ctx context.Context, metrics *StressTestMetrics) {
+	ticker := time.NewTicker(time.Second)
+	defer ticker.Stop()
+	
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			var m runtime.MemStats
+			runtime.ReadMemStats(&m)
+			
+			if int64(m.Alloc) > metrics.MemoryUsagePeak {
+				atomic.StoreInt64(&metrics.MemoryUsagePeak, int64(m.Alloc))
+			}
+		}
+	}
+}
+
+// ValidateStressTestResults checks if stress test results are acceptable
+func ValidateStressTestResults(t *testing.T, metrics *StressTestMetrics, config StressTestConfig) {
+	t.Logf("Stress Test Results:")
+	t.Logf("  Total Operations: %d", metrics.TotalOperations)
+	t.Logf("  Successful: %d (%.2f%%)", metrics.SuccessfulOps, 
+		float64(metrics.SuccessfulOps)/float64(metrics.TotalOperations)*100)
+	t.Logf("  Failed: %d (%.2f%%)", metrics.FailedOps,
+		float64(metrics.FailedOps)/float64(metrics.TotalOperations)*100)
+	t.Logf("  Throughput: %.2f ops/sec", metrics.ThroughputOpsPerSec)
+	t.Logf("  Latency - Min: %v, Max: %v, Avg: %v", 
+		metrics.MinLatency, metrics.MaxLatency, metrics.AverageLatency)
+	t.Logf("  Peak Memory Usage: %d MB", metrics.MemoryUsagePeak/(1024*1024))
+	t.Logf("  Transaction Operations: %d", metrics.TransactionOps)
+	
+	if len(metrics.ErrorsByType) > 0 {
+		t.Logf("  Errors by type:")
+		for errorType, count := range metrics.ErrorsByType {
+			t.Logf("    %s: %d", errorType, count)
+		}
+	}
+	
+	// Assertions for acceptable performance
+	assert.Greater(t, metrics.TotalOperations, int64(0), "Should have performed operations")
+	
+	// Success rate should be at least 95%
+	successRate := float64(metrics.SuccessfulOps) / float64(metrics.TotalOperations)
+	assert.GreaterOrEqual(t, successRate, 0.95, "Success rate should be at least 95%%")
+	
+	// Throughput should meet minimum expectations
+	minThroughput := float64(config.OperationsPerSec) * 0.5 // At least 50% of target
+	assert.GreaterOrEqual(t, metrics.ThroughputOpsPerSec, minThroughput, 
+		"Throughput should be at least 50%% of target")
+	
+	// Average latency should be reasonable (less than 100ms for most operations)
+	assert.Less(t, metrics.AverageLatency, 100*time.Millisecond, 
+		"Average latency should be less than 100ms")
+	
+	// Memory usage should be bounded (less than 1GB for test)
+	assert.Less(t, metrics.MemoryUsagePeak, int64(1024*1024*1024), 
+		"Memory usage should be bounded to reasonable limits")
+}

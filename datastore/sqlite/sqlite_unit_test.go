@@ -1,0 +1,542 @@
+package sqlite
+
+import (
+	"context"
+	"os"
+	"path/filepath"
+	"testing"
+	"time"
+
+	"github.com/caiatech/govc/datastore"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+)
+
+func TestSQLiteStore_MigrationAndSchema(t *testing.T) {
+	tempDir := t.TempDir()
+	dbPath := filepath.Join(tempDir, "migration_test.db")
+	
+	config := datastore.Config{
+		Type:       datastore.TypeSQLite,
+		Connection: dbPath,
+	}
+	
+	store, err := New(config)
+	require.NoError(t, err)
+	
+	err = store.Initialize(config)
+	require.NoError(t, err)
+	defer store.Close()
+
+	t.Run("SchemaExists", func(t *testing.T) {
+		// Check that tables were created
+		var count int
+		err := store.db.QueryRow(`
+			SELECT COUNT(*) FROM sqlite_master 
+			WHERE type='table' AND name IN ('objects', 'repositories', 'users', 'refs', 'audit_events', 'config')
+		`).Scan(&count)
+		assert.NoError(t, err)
+		assert.Equal(t, 6, count)
+	})
+
+	t.Run("IndexesExist", func(t *testing.T) {
+		// Check that indexes were created
+		var count int
+		err := store.db.QueryRow(`
+			SELECT COUNT(*) FROM sqlite_master 
+			WHERE type='index' AND name LIKE 'idx_%'
+		`).Scan(&count)
+		assert.NoError(t, err)
+		assert.Greater(t, count, 0)
+	})
+
+	t.Run("MigrationVersion", func(t *testing.T) {
+		// Check migration version was recorded
+		var version int
+		var description string
+		err := store.db.QueryRow(`
+			SELECT version, description FROM migrations ORDER BY version DESC LIMIT 1
+		`).Scan(&version, &description)
+		assert.NoError(t, err)
+		assert.Greater(t, version, 0)
+		assert.NotEmpty(t, description)
+	})
+}
+
+func TestSQLiteStore_DatabaseErrors(t *testing.T) {
+	t.Run("InvalidPath", func(t *testing.T) {
+		config := datastore.Config{
+			Type:       datastore.TypeSQLite,
+			Connection: "/invalid/path/that/does/not/exist/test.db",
+		}
+		
+		store, err := New(config)
+		require.NoError(t, err)
+		
+		err = store.Initialize(config)
+		assert.Error(t, err)
+	})
+
+	t.Run("ReadOnlyDatabase", func(t *testing.T) {
+		tempDir := t.TempDir()
+		dbPath := filepath.Join(tempDir, "readonly_test.db")
+		
+		// Create database first
+		config := datastore.Config{
+			Type:       datastore.TypeSQLite,
+			Connection: dbPath,
+		}
+		
+		store, err := New(config)
+		require.NoError(t, err)
+		
+		err = store.Initialize(config)
+		require.NoError(t, err)
+		
+		// Add some data
+		err = store.ObjectStore().PutObject("test", []byte("data"))
+		assert.NoError(t, err)
+		
+		store.Close()
+		
+		// Make file read-only
+		err = os.Chmod(dbPath, 0444)
+		require.NoError(t, err)
+		
+		// Try to open again - should work for reads
+		store2, err := New(config)
+		require.NoError(t, err)
+		
+		err = store2.Initialize(config)
+		// This might succeed or fail depending on SQLite behavior
+		if err == nil {
+			defer store2.Close()
+			
+			// Should be able to read
+			data, err := store2.GetObject("test")
+			assert.NoError(t, err)
+			assert.Equal(t, []byte("data"), data)
+			
+			// Write should fail
+			err = store2.PutObject("write-test", []byte("should fail"))
+			assert.Error(t, err)
+		}
+		
+		// Restore permissions for cleanup
+		os.Chmod(dbPath, 0644)
+	})
+
+	t.Run("CorruptedDatabase", func(t *testing.T) {
+		tempDir := t.TempDir()
+		dbPath := filepath.Join(tempDir, "corrupt_test.db")
+		
+		// Create a file with invalid SQLite content
+		err := os.WriteFile(dbPath, []byte("This is not a valid SQLite database"), 0644)
+		require.NoError(t, err)
+		
+		config := datastore.Config{
+			Type:       datastore.TypeSQLite,
+			Connection: dbPath,
+		}
+		
+		store, err := New(config)
+		require.NoError(t, err)
+		
+		err = store.Initialize(config)
+		assert.Error(t, err)
+	})
+}
+
+func TestSQLiteStore_EdgeCases(t *testing.T) {
+	tempDir := t.TempDir()
+	dbPath := filepath.Join(tempDir, "edge_cases_test.db")
+	
+	config := datastore.Config{
+		Type:       datastore.TypeSQLite,
+		Connection: dbPath,
+	}
+	
+	store, err := New(config)
+	require.NoError(t, err)
+	
+	err = store.Initialize(config)
+	require.NoError(t, err)
+	defer store.Close()
+
+	t.Run("SQLInjectionPrevention", func(t *testing.T) {
+		// Test with potential SQL injection strings
+		maliciousData := []string{
+			"'; DROP TABLE objects; --",
+			"' OR 1=1 --",
+			"\x00\x01\x02\x03",
+			"Robert'); DROP TABLE students;--",
+		}
+		
+		for i, hash := range maliciousData {
+			safeHash := "inject-test-" + string(rune('a'+i))
+			
+			err := store.ObjectStore().PutObject(safeHash, []byte(hash))
+			assert.NoError(t, err, "Failed to store data %d", i)
+			
+			data, err := store.ObjectStore().GetObject(safeHash)
+			assert.NoError(t, err, "Failed to retrieve data %d", i)
+			assert.Equal(t, []byte(hash), data, "Data mismatch for %d", i)
+		}
+		
+		// Verify tables still exist
+		var count int
+		err := store.db.QueryRow("SELECT COUNT(*) FROM objects").Scan(&count)
+		assert.NoError(t, err)
+		assert.GreaterOrEqual(t, count, len(maliciousData))
+	})
+
+	t.Run("UnicodeHandling", func(t *testing.T) {
+		unicodeData := map[string][]byte{
+			"emoji":    []byte("🚀🌟💻🔥"),
+			"chinese":  []byte("你好世界"),
+			"arabic":   []byte("مرحبا بالعالم"),
+			"mixed":    []byte("Hello 🌍 世界 مرحبا"),
+			"unicode0": []byte("\u0000\u0001\u0002"),
+		}
+		
+		for hash, data := range unicodeData {
+			err := store.ObjectStore().PutObject(hash, data)
+			assert.NoError(t, err, "Failed to store unicode data for %s", hash)
+			
+			retrieved, err := store.ObjectStore().GetObject(hash)
+			assert.NoError(t, err, "Failed to retrieve unicode data for %s", hash)
+			assert.Equal(t, data, retrieved, "Unicode data mismatch for %s", hash)
+		}
+	})
+
+	t.Run("LargeDataHandling", func(t *testing.T) {
+		// Test with various sizes
+		sizes := []int{
+			1024,        // 1KB
+			1024 * 1024, // 1MB
+			5 * 1024 * 1024, // 5MB
+		}
+		
+		for _, size := range sizes {
+			data := make([]byte, size)
+			for i := range data {
+				data[i] = byte(i % 256)
+			}
+			
+			hash := "large-data-" + string(rune('0'+size/1024/1024))
+			
+			err := store.ObjectStore().PutObject(hash, data)
+			assert.NoError(t, err, "Failed to store %dMB data", size/1024/1024)
+			
+			retrieved, err := store.ObjectStore().GetObject(hash)
+			assert.NoError(t, err, "Failed to retrieve %dMB data", size/1024/1024)
+			assert.Equal(t, data, retrieved, "Large data mismatch for %dMB", size/1024/1024)
+			
+			// Test size
+			objSize, err := store.ObjectStore().GetObjectSize(hash)
+			assert.NoError(t, err)
+			assert.Equal(t, int64(size), objSize)
+		}
+	})
+
+	t.Run("ConcurrentOperations", func(t *testing.T) {
+		// SQLite handles concurrent reads well, but writes are serialized
+		const numWorkers = 10
+		const opsPerWorker = 100
+		
+		done := make(chan bool, numWorkers)
+		errors := make(chan error, numWorkers*opsPerWorker)
+		
+		for worker := 0; worker < numWorkers; worker++ {
+			go func(workerID int) {
+				defer func() { done <- true }()
+				
+				for op := 0; op < opsPerWorker; op++ {
+					hash := "concurrent-" + string(rune('a'+workerID)) + "-" + string(rune('0'+op))
+					data := []byte("worker-" + string(rune('0'+workerID)) + "-op-" + string(rune('0'+op)))
+					
+					// Write
+					if err := store.ObjectStore().PutObject(hash, data); err != nil {
+						errors <- err
+						return
+					}
+					
+					// Read
+					if retrieved, err := store.ObjectStore().GetObject(hash); err != nil {
+						errors <- err
+						return
+					} else if string(retrieved) != string(data) {
+						errors <- assert.AnError
+						return
+					}
+					
+					// Delete every other object
+					if op%2 == 0 {
+						if err := store.ObjectStore().DeleteObject(hash); err != nil {
+							errors <- err
+							return
+						}
+					}
+				}
+			}(worker)
+		}
+		
+		// Wait for all workers
+		for i := 0; i < numWorkers; i++ {
+			<-done
+		}
+		
+		close(errors)
+		for err := range errors {
+			assert.NoError(t, err)
+		}
+	})
+}
+
+func TestSQLiteStore_TransactionEdgeCases(t *testing.T) {
+	tempDir := t.TempDir()
+	dbPath := filepath.Join(tempDir, "tx_edge_cases_test.db")
+	
+	config := datastore.Config{
+		Type:       datastore.TypeSQLite,
+		Connection: dbPath,
+	}
+	
+	store, err := New(config)
+	require.NoError(t, err)
+	
+	err = store.Initialize(config)
+	require.NoError(t, err)
+	defer store.Close()
+
+	ctx := context.Background()
+
+	t.Run("NestedTransactions", func(t *testing.T) {
+		// SQLite doesn't support nested transactions, but we should handle it gracefully
+		tx1, err := store.BeginTx(ctx, nil)
+		require.NoError(t, err)
+		
+		// Try to begin another transaction
+		tx2, err := store.BeginTx(ctx, nil)
+		// This might succeed or fail depending on implementation
+		if err == nil {
+			// If it succeeds, both should work independently
+			err = tx1.PutObject("nested1", []byte("data1"))
+			assert.NoError(t, err)
+			
+			err = tx2.PutObject("nested2", []byte("data2"))
+			assert.NoError(t, err)
+			
+			err = tx1.Commit()
+			assert.NoError(t, err)
+			
+			err = tx2.Commit()
+			assert.NoError(t, err)
+		} else {
+			// If nested transactions aren't supported, just commit the first
+			err = tx1.Commit()
+			assert.NoError(t, err)
+		}
+	})
+
+	t.Run("TransactionTimeout", func(t *testing.T) {
+		// Create a transaction with a very short timeout
+		shortCtx, cancel := context.WithTimeout(ctx, 1*time.Microsecond)
+		defer cancel()
+		
+		// This might fail due to timeout
+		tx, err := store.BeginTx(shortCtx, nil)
+		if err == nil {
+			// If transaction started, operations might timeout
+			err = tx.PutObject("timeout-test", []byte("data"))
+			// Don't assert on error here as it's timing dependent
+			
+			tx.Rollback() // Always rollback to clean up
+		}
+	})
+
+	t.Run("TransactionWithLargeOperations", func(t *testing.T) {
+		tx, err := store.BeginTx(ctx, nil)
+		require.NoError(t, err)
+		
+		// Perform many operations in a single transaction
+		const numOps = 1000
+		for i := 0; i < numOps; i++ {
+			hash := "bulk-tx-" + string(rune('0'+i%10)) + string(rune('a'+i/10%26))
+			data := []byte("bulk operation data " + string(rune('0'+i%10)))
+			
+			err = tx.PutObject(hash, data)
+			assert.NoError(t, err, "Failed operation %d", i)
+		}
+		
+		err = tx.Commit()
+		assert.NoError(t, err)
+		
+		// Verify all operations succeeded
+		for i := 0; i < numOps; i++ {
+			hash := "bulk-tx-" + string(rune('0'+i%10)) + string(rune('a'+i/10%26))
+			exists, err := store.ObjectStore().HasObject(hash)
+			assert.NoError(t, err)
+			assert.True(t, exists, "Object %s should exist after bulk transaction", hash)
+		}
+	})
+}
+
+func TestSQLiteStore_PerformanceCharacteristics(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping performance test in short mode")
+	}
+	
+	tempDir := t.TempDir()
+	dbPath := filepath.Join(tempDir, "perf_test.db")
+	
+	config := datastore.Config{
+		Type:       datastore.TypeSQLite,
+		Connection: dbPath,
+	}
+	
+	store, err := New(config)
+	require.NoError(t, err)
+	
+	err = store.Initialize(config)
+	require.NoError(t, err)
+	defer store.Close()
+
+	t.Run("BulkInsertPerformance", func(t *testing.T) {
+		const numObjects = 10000
+		
+		start := time.Now()
+		
+		// Batch insert
+		objects := make(map[string][]byte)
+		for i := 0; i < numObjects; i++ {
+			hash := "perf-test-" + string(rune('a'+i%26)) + string(rune('0'+i/26%10))
+			data := []byte("performance test data " + string(rune('0'+i%100)))
+			objects[hash] = data
+		}
+		
+		err := store.ObjectStore().PutObjects(objects)
+		assert.NoError(t, err)
+		
+		elapsed := time.Since(start)
+		t.Logf("Bulk insert of %d objects took %v (%.2f ops/sec)", 
+			numObjects, elapsed, float64(numObjects)/elapsed.Seconds())
+		
+		// Verify count
+		count, err := store.ObjectStore().CountObjects()
+		assert.NoError(t, err)
+		assert.GreaterOrEqual(t, count, int64(numObjects))
+	})
+
+	t.Run("ReadPerformance", func(t *testing.T) {
+		// Add test data
+		testData := make(map[string][]byte)
+		for i := 0; i < 1000; i++ {
+			hash := "read-perf-" + string(rune('a'+i%26))
+			data := []byte("read performance test " + string(rune('0'+i%10)))
+			testData[hash] = data
+		}
+		
+		err := store.ObjectStore().PutObjects(testData)
+		require.NoError(t, err)
+		
+		// Measure read performance
+		start := time.Now()
+		const numReads = 10000
+		
+		hashes := make([]string, 0, len(testData))
+		for hash := range testData {
+			hashes = append(hashes, hash)
+		}
+		
+		for i := 0; i < numReads; i++ {
+			hash := hashes[i%len(hashes)]
+			_, err := store.ObjectStore().GetObject(hash)
+			assert.NoError(t, err)
+		}
+		
+		elapsed := time.Since(start)
+		t.Logf("Read %d objects took %v (%.2f reads/sec)", 
+			numReads, elapsed, float64(numReads)/elapsed.Seconds())
+	})
+}
+
+func TestSQLiteStore_Recovery(t *testing.T) {
+	tempDir := t.TempDir()
+	dbPath := filepath.Join(tempDir, "recovery_test.db")
+	
+	config := datastore.Config{
+		Type:       datastore.TypeSQLite,
+		Connection: dbPath,
+	}
+
+	t.Run("RecoverFromIncompleteTransaction", func(t *testing.T) {
+		// Create store and add data
+		store1, err := New(config)
+		require.NoError(t, err)
+		
+		err = store1.Initialize(config)
+		require.NoError(t, err)
+		
+		// Add some data
+		err = store1.PutObject("recovery-test-1", []byte("data1"))
+		require.NoError(t, err)
+		
+		// Start transaction but don't commit
+		ctx := context.Background()
+		tx, err := store1.BeginTx(ctx, nil)
+		require.NoError(t, err)
+		
+		err = tx.PutObject("recovery-test-tx", []byte("transaction data"))
+		require.NoError(t, err)
+		
+		// Close store without committing transaction (simulates crash)
+		store1.Close()
+		
+		// Open store again
+		store2, err := New(config)
+		require.NoError(t, err)
+		
+		err = store2.Initialize(config)
+		require.NoError(t, err)
+		defer store2.Close()
+		
+		// Committed data should be there
+		data, err := store2.GetObject("recovery-test-1")
+		assert.NoError(t, err)
+		assert.Equal(t, []byte("data1"), data)
+		
+		// Uncommitted transaction data should not be there
+		_, err = store2.GetObject("recovery-test-tx")
+		assert.ErrorIs(t, err, datastore.ErrNotFound)
+	})
+
+	t.Run("WALModeRecovery", func(t *testing.T) {
+		// This test verifies WAL mode behavior
+		store, err := New(config)
+		require.NoError(t, err)
+		
+		err = store.Initialize(config)
+		require.NoError(t, err)
+		defer store.Close()
+		
+		// Verify WAL mode is enabled
+		var journalMode string
+		err = store.db.QueryRow("PRAGMA journal_mode").Scan(&journalMode)
+		assert.NoError(t, err)
+		assert.Equal(t, "wal", journalMode)
+		
+		// Add data to create WAL file
+		for i := 0; i < 100; i++ {
+			hash := "wal-test-" + string(rune('a'+i%26))
+			data := []byte("wal mode test data " + string(rune('0'+i%10)))
+			err = store.ObjectStore().PutObject(hash, data)
+			assert.NoError(t, err)
+		}
+		
+		// Force checkpoint to ensure WAL is written
+		var wal, checkpointed int
+		err = store.db.QueryRow("PRAGMA wal_checkpoint(FULL)").Scan(&wal, &checkpointed)
+		assert.NoError(t, err)
+	})
+}

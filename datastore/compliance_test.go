@@ -1,0 +1,821 @@
+// Package datastore provides compliance tests for all datastore implementations.
+// This ensures all adapters correctly implement the DataStore interface.
+package datastore
+
+import (
+	"context"
+	"fmt"
+	"sync"
+	"testing"
+	"time"
+
+	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+)
+
+// ComplianceTestSuite runs compliance tests on a DataStore implementation
+type ComplianceTestSuite struct {
+	Store    DataStore
+	Config   Config
+	Cleanup  func()
+}
+
+// RunComplianceTests runs all compliance tests on a datastore
+func RunComplianceTests(t *testing.T, suite ComplianceTestSuite) {
+	defer func() {
+		if suite.Cleanup != nil {
+			suite.Cleanup()
+		}
+	}()
+	
+	// Run test suites
+	t.Run("ObjectStore", func(t *testing.T) {
+		testObjectStoreCompliance(t, suite.Store.ObjectStore())
+	})
+	
+	t.Run("MetadataStore", func(t *testing.T) {
+		testMetadataStoreCompliance(t, suite.Store.MetadataStore())
+	})
+	
+	t.Run("Transactions", func(t *testing.T) {
+		testTransactionCompliance(t, suite.Store)
+	})
+	
+	t.Run("Concurrency", func(t *testing.T) {
+		testConcurrencyCompliance(t, suite.Store)
+	})
+	
+	t.Run("HealthAndMetrics", func(t *testing.T) {
+		testHealthAndMetricsCompliance(t, suite.Store)
+	})
+}
+
+// testObjectStoreCompliance tests ObjectStore interface compliance
+func testObjectStoreCompliance(t *testing.T, store ObjectStore) {
+	// Generate unique test data
+	prefix := fmt.Sprintf("compliance-%s-", uuid.New().String()[:8])
+	
+	t.Run("SingleObjectLifecycle", func(t *testing.T) {
+		hash := prefix + "single"
+		data := []byte("compliance test data")
+		
+		// Object should not exist initially
+		exists, err := store.HasObject(hash)
+		assert.NoError(t, err)
+		assert.False(t, exists)
+		
+		// Put object
+		err = store.PutObject(hash, data)
+		assert.NoError(t, err)
+		
+		// Object should exist now
+		exists, err = store.HasObject(hash)
+		assert.NoError(t, err)
+		assert.True(t, exists)
+		
+		// Get object
+		retrieved, err := store.GetObject(hash)
+		assert.NoError(t, err)
+		assert.Equal(t, data, retrieved)
+		
+		// Get object size
+		size, err := store.GetObjectSize(hash)
+		assert.NoError(t, err)
+		assert.Equal(t, int64(len(data)), size)
+		
+		// Idempotent put should succeed
+		err = store.PutObject(hash, data)
+		assert.NoError(t, err)
+		
+		// Delete object
+		err = store.DeleteObject(hash)
+		assert.NoError(t, err)
+		
+		// Object should not exist after deletion
+		exists, err = store.HasObject(hash)
+		assert.NoError(t, err)
+		assert.False(t, exists)
+		
+		// Get non-existent object should return ErrNotFound
+		_, err = store.GetObject(hash)
+		assert.ErrorIs(t, err, ErrNotFound)
+		
+		// Delete non-existent object should return ErrNotFound
+		err = store.DeleteObject(hash)
+		assert.ErrorIs(t, err, ErrNotFound)
+	})
+	
+	t.Run("BatchOperations", func(t *testing.T) {
+		objects := make(map[string][]byte)
+		hashes := make([]string, 5)
+		
+		for i := 0; i < 5; i++ {
+			hash := fmt.Sprintf("%sbatch-%d", prefix, i)
+			data := []byte(fmt.Sprintf("batch data %d", i))
+			objects[hash] = data
+			hashes[i] = hash
+		}
+		
+		// Put multiple objects
+		err := store.PutObjects(objects)
+		assert.NoError(t, err)
+		
+		// Get multiple objects
+		retrieved, err := store.GetObjects(hashes)
+		assert.NoError(t, err)
+		assert.Equal(t, objects, retrieved)
+		
+		// Get partial objects (some exist, some don't)
+		partialHashes := append(hashes[:3], prefix+"nonexistent")
+		partial, err := store.GetObjects(partialHashes)
+		assert.NoError(t, err)
+		assert.Len(t, partial, 3) // Only existing objects returned
+		
+		// Delete multiple objects
+		err = store.DeleteObjects(hashes)
+		assert.NoError(t, err)
+		
+		// Verify deletion
+		for _, hash := range hashes {
+			exists, err := store.HasObject(hash)
+			assert.NoError(t, err)
+			assert.False(t, exists)
+		}
+		
+		// Empty batch operations should succeed
+		err = store.PutObjects(map[string][]byte{})
+		assert.NoError(t, err)
+		
+		err = store.DeleteObjects([]string{})
+		assert.NoError(t, err)
+		
+		result, err := store.GetObjects([]string{})
+		assert.NoError(t, err)
+		assert.Empty(t, result)
+	})
+	
+	t.Run("ListAndIterate", func(t *testing.T) {
+		// Create test objects with common prefix
+		listPrefix := prefix + "list-"
+		testObjects := make(map[string][]byte)
+		
+		for i := 0; i < 10; i++ {
+			hash := fmt.Sprintf("%s%02d", listPrefix, i)
+			data := []byte(fmt.Sprintf("list data %d", i))
+			testObjects[hash] = data
+		}
+		
+		// Put objects
+		err := store.PutObjects(testObjects)
+		require.NoError(t, err)
+		defer func() {
+			hashes := make([]string, 0, len(testObjects))
+			for h := range testObjects {
+				hashes = append(hashes, h)
+			}
+			store.DeleteObjects(hashes)
+		}()
+		
+		// List with prefix
+		listed, err := store.ListObjects(listPrefix, 0)
+		assert.NoError(t, err)
+		assert.Len(t, listed, 10)
+		
+		// List with limit
+		limited, err := store.ListObjects(listPrefix, 5)
+		assert.NoError(t, err)
+		assert.Len(t, limited, 5)
+		
+		// Iterate objects
+		visited := make(map[string][]byte)
+		err = store.IterateObjects(listPrefix, func(hash string, data []byte) error {
+			visited[hash] = data
+			return nil
+		})
+		assert.NoError(t, err)
+		assert.Equal(t, testObjects, visited)
+		
+		// Iterate with early termination
+		count := 0
+		stopErr := fmt.Errorf("stop iteration")
+		err = store.IterateObjects(listPrefix, func(hash string, data []byte) error {
+			count++
+			if count >= 3 {
+				return stopErr
+			}
+			return nil
+		})
+		assert.ErrorIs(t, err, stopErr)
+		assert.Equal(t, 3, count)
+	})
+	
+	t.Run("Statistics", func(t *testing.T) {
+		// Get initial counts
+		initialCount, err := store.CountObjects()
+		assert.NoError(t, err)
+		
+		initialSize, err := store.GetStorageSize()
+		assert.NoError(t, err)
+		
+		// Add test objects
+		testData := map[string][]byte{
+			prefix + "stat1": []byte("statistics test 1"),
+			prefix + "stat2": []byte("statistics test 2"),
+		}
+		
+		err = store.PutObjects(testData)
+		require.NoError(t, err)
+		defer func() {
+			for h := range testData {
+				store.DeleteObject(h)
+			}
+		}()
+		
+		// Count should increase
+		newCount, err := store.CountObjects()
+		assert.NoError(t, err)
+		assert.Greater(t, newCount, initialCount)
+		
+		// Storage size should increase
+		newSize, err := store.GetStorageSize()
+		assert.NoError(t, err)
+		assert.Greater(t, newSize, initialSize)
+	})
+}
+
+// testMetadataStoreCompliance tests MetadataStore interface compliance
+func testMetadataStoreCompliance(t *testing.T, store MetadataStore) {
+	// Generate unique test data
+	prefix := fmt.Sprintf("comp-%s", uuid.New().String()[:8])
+	
+	t.Run("Repository", func(t *testing.T) {
+		repo := &Repository{
+			ID:          uuid.New().String(),
+			Name:        prefix + "-repo",
+			Description: "Compliance test repository",
+			Path:        "/compliance/test",
+			IsPrivate:   false,
+			Metadata:    map[string]interface{}{"test": "compliance"},
+			Size:        1024,
+			CommitCount: 10,
+			BranchCount: 3,
+			CreatedAt:   time.Now(),
+			UpdatedAt:   time.Now(),
+		}
+		
+		// Save repository
+		err := store.SaveRepository(repo)
+		assert.NoError(t, err)
+		
+		// Get repository
+		retrieved, err := store.GetRepository(repo.ID)
+		assert.NoError(t, err)
+		assert.Equal(t, repo.Name, retrieved.Name)
+		assert.Equal(t, repo.Description, retrieved.Description)
+		
+		// Update repository
+		err = store.UpdateRepository(repo.ID, map[string]interface{}{
+			"description": "Updated description",
+			"is_private":  true,
+		})
+		assert.NoError(t, err)
+		
+		// Verify update
+		updated, err := store.GetRepository(repo.ID)
+		assert.NoError(t, err)
+		assert.Equal(t, "Updated description", updated.Description)
+		assert.True(t, updated.IsPrivate)
+		
+		// List repositories
+		repos, err := store.ListRepositories(RepositoryFilter{
+			Limit: 10,
+		})
+		assert.NoError(t, err)
+		assert.NotEmpty(t, repos)
+		
+		// Delete repository
+		err = store.DeleteRepository(repo.ID)
+		assert.NoError(t, err)
+		
+		// Get deleted repository should return ErrNotFound
+		_, err = store.GetRepository(repo.ID)
+		assert.ErrorIs(t, err, ErrNotFound)
+		
+		// Delete non-existent repository should return ErrNotFound
+		err = store.DeleteRepository(repo.ID)
+		assert.ErrorIs(t, err, ErrNotFound)
+	})
+	
+	t.Run("User", func(t *testing.T) {
+		now := time.Now()
+		user := &User{
+			ID:          uuid.New().String(),
+			Username:    prefix + "-user",
+			Email:       prefix + "@compliance.test",
+			FullName:    "Compliance Test User",
+			IsActive:    true,
+			IsAdmin:     false,
+			Metadata:    map[string]interface{}{"test": "compliance"},
+			CreatedAt:   now,
+			UpdatedAt:   now,
+			LastLoginAt: &now,
+		}
+		
+		// Save user
+		err := store.SaveUser(user)
+		assert.NoError(t, err)
+		
+		// Get user by ID
+		retrieved, err := store.GetUser(user.ID)
+		assert.NoError(t, err)
+		assert.Equal(t, user.Username, retrieved.Username)
+		assert.Equal(t, user.Email, retrieved.Email)
+		
+		// Get user by username
+		byUsername, err := store.GetUserByUsername(user.Username)
+		assert.NoError(t, err)
+		assert.Equal(t, user.ID, byUsername.ID)
+		
+		// Update user
+		err = store.UpdateUser(user.ID, map[string]interface{}{
+			"email":    prefix + "-new@compliance.test",
+			"is_admin": true,
+		})
+		assert.NoError(t, err)
+		
+		// List users
+		_, err = store.ListUsers(UserFilter{
+			Limit: 10,
+		})
+		assert.NoError(t, err)
+		// May contain other users, just check it's not erroring
+		
+		// Delete user
+		err = store.DeleteUser(user.ID)
+		assert.NoError(t, err)
+		
+		// Get deleted user should return ErrNotFound
+		_, err = store.GetUser(user.ID)
+		assert.ErrorIs(t, err, ErrNotFound)
+		
+		_, err = store.GetUserByUsername(user.Username)
+		assert.ErrorIs(t, err, ErrNotFound)
+	})
+	
+	t.Run("Reference", func(t *testing.T) {
+		// Create a repository first
+		repo := &Repository{
+			ID:        uuid.New().String(),
+			Name:      prefix + "-ref-repo",
+			CreatedAt: time.Now(),
+			UpdatedAt: time.Now(),
+		}
+		
+		err := store.SaveRepository(repo)
+		require.NoError(t, err)
+		defer store.DeleteRepository(repo.ID)
+		
+		ref := &Reference{
+			Name:      "refs/heads/" + prefix,
+			Hash:      "abc123def456",
+			Type:      RefTypeBranch,
+			UpdatedAt: time.Now(),
+			UpdatedBy: "compliance-test",
+		}
+		
+		// Save reference
+		err = store.SaveRef(repo.ID, ref)
+		assert.NoError(t, err)
+		
+		// Get reference
+		retrieved, err := store.GetRef(repo.ID, ref.Name)
+		assert.NoError(t, err)
+		assert.Equal(t, ref.Hash, retrieved.Hash)
+		assert.Equal(t, ref.Type, retrieved.Type)
+		
+		// Update reference
+		err = store.UpdateRef(repo.ID, ref.Name, "newhash789")
+		assert.NoError(t, err)
+		
+		// List references
+		refs, err := store.ListRefs(repo.ID, RefTypeBranch)
+		assert.NoError(t, err)
+		// Check that our ref is in the list
+		found := false
+		for _, r := range refs {
+			if r.Name == ref.Name {
+				found = true
+				assert.Equal(t, "newhash789", r.Hash)
+				break
+			}
+		}
+		assert.True(t, found, "Reference not found in list")
+		
+		// Delete reference
+		err = store.DeleteRef(repo.ID, ref.Name)
+		assert.NoError(t, err)
+		
+		// Get deleted reference should return ErrNotFound
+		_, err = store.GetRef(repo.ID, ref.Name)
+		assert.ErrorIs(t, err, ErrNotFound)
+	})
+	
+	t.Run("Configuration", func(t *testing.T) {
+		key := prefix + ".config.key"
+		value := "compliance test value"
+		
+		// Set config
+		err := store.SetConfig(key, value)
+		assert.NoError(t, err)
+		
+		// Get config
+		retrieved, err := store.GetConfig(key)
+		assert.NoError(t, err)
+		assert.Equal(t, value, retrieved)
+		
+		// Update config
+		newValue := "updated value"
+		err = store.SetConfig(key, newValue)
+		assert.NoError(t, err)
+		
+		retrieved, err = store.GetConfig(key)
+		assert.NoError(t, err)
+		assert.Equal(t, newValue, retrieved)
+		
+		// Get all config
+		allConfig, err := store.GetAllConfig()
+		assert.NoError(t, err)
+		assert.Contains(t, allConfig, key)
+		assert.Equal(t, newValue, allConfig[key])
+		
+		// Delete config
+		err = store.DeleteConfig(key)
+		assert.NoError(t, err)
+		
+		// Get deleted config should return ErrNotFound
+		_, err = store.GetConfig(key)
+		assert.ErrorIs(t, err, ErrNotFound)
+		
+		// Delete non-existent config should return ErrNotFound
+		err = store.DeleteConfig(key)
+		assert.ErrorIs(t, err, ErrNotFound)
+	})
+	
+	t.Run("AuditEvents", func(t *testing.T) {
+		event := &AuditEvent{
+			ID:         uuid.New().String(),
+			Timestamp:  time.Now(),
+			UserID:     "compliance-user",
+			Username:   prefix + "-user",
+			Action:     "compliance_test",
+			Resource:   "test_resource",
+			ResourceID: "resource123",
+			Details:    map[string]interface{}{"test": "compliance"},
+			IPAddress:  "127.0.0.1",
+			UserAgent:  "compliance-test-agent",
+			Success:    true,
+			ErrorMsg:   "",
+		}
+		
+		// Log event
+		err := store.LogEvent(event)
+		assert.NoError(t, err)
+		
+		// Query events
+		events, err := store.QueryEvents(EventFilter{
+			UserID: "compliance-user",
+			Limit:  10,
+		})
+		assert.NoError(t, err)
+		// Check our event is in the results
+		found := false
+		for _, e := range events {
+			if e.ID == event.ID {
+				found = true
+				assert.Equal(t, event.Action, e.Action)
+				break
+			}
+		}
+		assert.True(t, found, "Event not found in query results")
+		
+		// Count events
+		count, err := store.CountEvents(EventFilter{
+			UserID: "compliance-user",
+		})
+		assert.NoError(t, err)
+		assert.Greater(t, count, int64(0))
+	})
+}
+
+// testTransactionCompliance tests transaction compliance
+func testTransactionCompliance(t *testing.T, store DataStore) {
+	ctx := context.Background()
+	prefix := fmt.Sprintf("tx-%s-", uuid.New().String()[:8])
+	
+	t.Run("CommitTransaction", func(t *testing.T) {
+		tx, err := store.BeginTx(ctx, nil)
+		require.NoError(t, err)
+		
+		// Perform operations in transaction
+		hash := prefix + "commit"
+		data := []byte("transaction commit test")
+		
+		err = tx.PutObject(hash, data)
+		assert.NoError(t, err)
+		
+		// Data should be visible in transaction
+		retrieved, err := tx.GetObject(hash)
+		assert.NoError(t, err)
+		assert.Equal(t, data, retrieved)
+		
+		// Commit transaction
+		err = tx.Commit()
+		assert.NoError(t, err)
+		
+		// Data should be persisted
+		exists, err := store.HasObject(hash)
+		assert.NoError(t, err)
+		assert.True(t, exists)
+		
+		// Clean up
+		store.DeleteObject(hash)
+	})
+	
+	t.Run("RollbackTransaction", func(t *testing.T) {
+		tx, err := store.BeginTx(ctx, nil)
+		require.NoError(t, err)
+		
+		// Perform operations in transaction
+		hash := prefix + "rollback"
+		data := []byte("transaction rollback test")
+		
+		err = tx.PutObject(hash, data)
+		assert.NoError(t, err)
+		
+		// Rollback transaction
+		err = tx.Rollback()
+		assert.NoError(t, err)
+		
+		// Data should not be persisted
+		exists, err := store.HasObject(hash)
+		assert.NoError(t, err)
+		assert.False(t, exists)
+	})
+	
+	t.Run("ReadOnlyTransaction", func(t *testing.T) {
+		// Add test data
+		hash := prefix + "readonly"
+		data := []byte("readonly test data")
+		err := store.PutObject(hash, data)
+		require.NoError(t, err)
+		defer store.DeleteObject(hash)
+		
+		// Begin read-only transaction
+		tx, err := store.BeginTx(ctx, &TxOptions{
+			ReadOnly: true,
+		})
+		require.NoError(t, err)
+		
+		// Read should work
+		retrieved, err := tx.GetObject(hash)
+		assert.NoError(t, err)
+		assert.Equal(t, data, retrieved)
+		
+		// Write operations may fail in read-only transaction
+		// This is implementation-specific
+		
+		// Commit should work for read-only
+		err = tx.Commit()
+		assert.NoError(t, err)
+	})
+	
+	t.Run("IsolationLevels", func(t *testing.T) {
+		// Test different isolation levels
+		isolationLevels := []IsolationLevel{
+			IsolationReadCommitted,
+			IsolationRepeatableRead,
+			IsolationSerializable,
+		}
+		
+		for _, isolation := range isolationLevels {
+			t.Run(fmt.Sprintf("Isolation_%d", isolation), func(t *testing.T) {
+				tx, err := store.BeginTx(ctx, &TxOptions{
+					Isolation: isolation,
+				})
+				
+				// Some stores may not support all isolation levels
+				if err != nil {
+					t.Skipf("Isolation level %d not supported: %v", isolation, err)
+				}
+				
+				// Basic operation should work
+				hash := fmt.Sprintf("%sisolation-%d", prefix, isolation)
+				err = tx.PutObject(hash, []byte("test"))
+				assert.NoError(t, err)
+				
+				err = tx.Rollback()
+				assert.NoError(t, err)
+			})
+		}
+	})
+}
+
+// testConcurrencyCompliance tests concurrent operations
+func testConcurrencyCompliance(t *testing.T, store DataStore) {
+	prefix := fmt.Sprintf("conc-%s-", uuid.New().String()[:8])
+	
+	t.Run("ConcurrentWrites", func(t *testing.T) {
+		var wg sync.WaitGroup
+		errors := make(chan error, 10)
+		
+		// Launch concurrent writers
+		for i := 0; i < 10; i++ {
+			wg.Add(1)
+			go func(id int) {
+				defer wg.Done()
+				
+				hash := fmt.Sprintf("%swriter-%d", prefix, id)
+				data := []byte(fmt.Sprintf("concurrent data %d", id))
+				
+				if err := store.PutObject(hash, data); err != nil {
+					errors <- err
+				}
+			}(i)
+		}
+		
+		wg.Wait()
+		close(errors)
+		
+		// Check for errors
+		for err := range errors {
+			assert.NoError(t, err)
+		}
+		
+		// Verify all objects were written
+		for i := 0; i < 10; i++ {
+			hash := fmt.Sprintf("%swriter-%d", prefix, i)
+			exists, err := store.HasObject(hash)
+			assert.NoError(t, err)
+			assert.True(t, exists)
+			
+			// Clean up
+			store.DeleteObject(hash)
+		}
+	})
+	
+	t.Run("ConcurrentReads", func(t *testing.T) {
+		// Create test object
+		hash := prefix + "read"
+		data := []byte("concurrent read test")
+		err := store.PutObject(hash, data)
+		require.NoError(t, err)
+		defer store.DeleteObject(hash)
+		
+		var wg sync.WaitGroup
+		errors := make(chan error, 10)
+		
+		// Launch concurrent readers
+		for i := 0; i < 10; i++ {
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				
+				retrieved, err := store.GetObject(hash)
+				if err != nil {
+					errors <- err
+					return
+				}
+				
+				if !assert.Equal(t, data, retrieved) {
+					errors <- fmt.Errorf("data mismatch")
+				}
+			}()
+		}
+		
+		wg.Wait()
+		close(errors)
+		
+		// Check for errors
+		for err := range errors {
+			assert.NoError(t, err)
+		}
+	})
+	
+	t.Run("ConcurrentTransactions", func(t *testing.T) {
+		ctx := context.Background()
+		var wg sync.WaitGroup
+		errors := make(chan error, 5)
+		
+		// Launch concurrent transactions
+		for i := 0; i < 5; i++ {
+			wg.Add(1)
+			go func(id int) {
+				defer wg.Done()
+				
+				tx, err := store.BeginTx(ctx, nil)
+				if err != nil {
+					errors <- err
+					return
+				}
+				
+				hash := fmt.Sprintf("%stx-%d", prefix, id)
+				data := []byte(fmt.Sprintf("tx data %d", id))
+				
+				if err := tx.PutObject(hash, data); err != nil {
+					tx.Rollback()
+					errors <- err
+					return
+				}
+				
+				if err := tx.Commit(); err != nil {
+					errors <- err
+					return
+				}
+			}(i)
+		}
+		
+		wg.Wait()
+		close(errors)
+		
+		// Check for errors
+		for err := range errors {
+			assert.NoError(t, err)
+		}
+		
+		// Verify all transactions succeeded
+		for i := 0; i < 5; i++ {
+			hash := fmt.Sprintf("%stx-%d", prefix, i)
+			exists, err := store.HasObject(hash)
+			assert.NoError(t, err)
+			assert.True(t, exists)
+			
+			// Clean up
+			store.DeleteObject(hash)
+		}
+	})
+}
+
+// testHealthAndMetricsCompliance tests health check and metrics
+func testHealthAndMetricsCompliance(t *testing.T, store DataStore) {
+	ctx := context.Background()
+	
+	t.Run("HealthCheck", func(t *testing.T) {
+		err := store.HealthCheck(ctx)
+		assert.NoError(t, err)
+		
+		// Health check with timeout
+		timeoutCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+		defer cancel()
+		
+		err = store.HealthCheck(timeoutCtx)
+		assert.NoError(t, err)
+	})
+	
+	t.Run("Metrics", func(t *testing.T) {
+		metrics := store.GetMetrics()
+		
+		// Basic metrics should be present
+		assert.GreaterOrEqual(t, metrics.Reads, int64(0))
+		assert.GreaterOrEqual(t, metrics.Writes, int64(0))
+		assert.GreaterOrEqual(t, metrics.Deletes, int64(0))
+		assert.GreaterOrEqual(t, metrics.ObjectCount, int64(0))
+		assert.GreaterOrEqual(t, metrics.StorageSize, int64(0))
+		
+		// Perform operations and check metrics change
+		initialReads := metrics.Reads
+		initialWrites := metrics.Writes
+		
+		hash := "metrics-test"
+		data := []byte("metrics test data")
+		
+		// Write should increase write count
+		store.PutObject(hash, data)
+		
+		// Read should increase read count
+		store.GetObject(hash)
+		
+		// Get new metrics
+		newMetrics := store.GetMetrics()
+		assert.Greater(t, newMetrics.Reads, initialReads)
+		assert.Greater(t, newMetrics.Writes, initialWrites)
+		
+		// Clean up
+		store.DeleteObject(hash)
+	})
+	
+	t.Run("Info", func(t *testing.T) {
+		info := store.Info()
+		
+		// Type should match
+		assert.Equal(t, store.Type(), info["type"])
+		
+		// Should contain basic information
+		assert.Contains(t, info, "type")
+		
+		// Uptime should be positive if provided
+		if uptime, ok := info["uptime"].(time.Duration); ok {
+			assert.Greater(t, uptime, time.Duration(0))
+		}
+	})
+}

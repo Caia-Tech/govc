@@ -1,0 +1,551 @@
+package datastore
+
+import (
+	"context"
+	"fmt"
+	"runtime"
+	"sort"
+	"sync"
+	"sync/atomic"
+	"testing"
+	"time"
+
+)
+
+// PerformanceTestSuite runs comprehensive performance and benchmark tests
+func PerformanceTestSuite(t *testing.T, stores map[string]DataStore) {
+	t.Run("ThroughputComparison", func(t *testing.T) {
+		runThroughputComparison(t, stores)
+	})
+	
+	t.Run("LatencyAnalysis", func(t *testing.T) {
+		runLatencyAnalysis(t, stores)
+	})
+	
+	t.Run("MemoryEfficiency", func(t *testing.T) {
+		runMemoryEfficiencyTests(t, stores)
+	})
+	
+	t.Run("ScalabilityTests", func(t *testing.T) {
+		runScalabilityTests(t, stores)
+	})
+	
+	t.Run("ConcurrencyPerformance", func(t *testing.T) {
+		runConcurrencyPerformanceTests(t, stores)
+	})
+}
+
+// PerformanceMetrics tracks detailed performance statistics
+type PerformanceMetrics struct {
+	StoreName           string
+	TotalOperations     int64
+	OperationsPerSecond float64
+	AverageLatency      time.Duration
+	P95Latency          time.Duration
+	P99Latency          time.Duration
+	MinLatency          time.Duration
+	MaxLatency          time.Duration
+	MemoryUsed          int64
+	ErrorCount          int64
+	Latencies           []time.Duration
+}
+
+// runThroughputComparison compares throughput across different stores
+func runThroughputComparison(t *testing.T, stores map[string]DataStore) {
+	results := make(map[string]*PerformanceMetrics)
+	
+	for storeName, store := range stores {
+		t.Run(storeName, func(t *testing.T) {
+			metrics := measureThroughput(t, store, storeName)
+			results[storeName] = metrics
+		})
+	}
+	
+	// Print comparison table
+	t.Log("\n=== THROUGHPUT COMPARISON ===")
+	t.Logf("%-15s %10s %15s %12s %12s", 
+		"Store", "Ops/Sec", "Avg Latency", "Errors", "Memory(MB)")
+	
+	// Sort by throughput
+	var sortedStores []string
+	for name := range results {
+		sortedStores = append(sortedStores, name)
+	}
+	sort.Slice(sortedStores, func(i, j int) bool {
+		return results[sortedStores[i]].OperationsPerSecond > results[sortedStores[j]].OperationsPerSecond
+	})
+	
+	for _, name := range sortedStores {
+		metrics := results[name]
+		t.Logf("%-15s %10.2f %15s %12d %12d", 
+			name,
+			metrics.OperationsPerSecond,
+			metrics.AverageLatency,
+			metrics.ErrorCount,
+			metrics.MemoryUsed/(1024*1024))
+	}
+}
+
+// measureThroughput measures throughput for a single store
+func measureThroughput(t *testing.T, store DataStore, storeName string) *PerformanceMetrics {
+	metrics := &PerformanceMetrics{
+		StoreName: storeName,
+		MinLatency: time.Hour, // Start with high value
+	}
+	
+	var memStart runtime.MemStats
+	runtime.GC()
+	runtime.ReadMemStats(&memStart)
+	
+	duration := 10 * time.Second
+	numWorkers := runtime.NumCPU()
+	
+	ctx, cancel := context.WithTimeout(context.Background(), duration)
+	defer cancel()
+	
+	var wg sync.WaitGroup
+	latencyChan := make(chan time.Duration, 10000)
+	
+	// Launch workers
+	for i := 0; i < numWorkers; i++ {
+		wg.Add(1)
+		go func(workerID int) {
+			defer wg.Done()
+			
+			counter := 0
+			for {
+				select {
+				case <-ctx.Done():
+					return
+				default:
+					hash := fmt.Sprintf("perf-%s-%d-%d", storeName, workerID, counter)
+					data := make([]byte, 512) // Fixed size for consistency
+					
+					start := time.Now()
+					err := store.ObjectStore().PutObject(hash, data)
+					latency := time.Since(start)
+					
+					atomic.AddInt64(&metrics.TotalOperations, 1)
+					if err != nil {
+						atomic.AddInt64(&metrics.ErrorCount, 1)
+					}
+					
+					// Send latency to channel (non-blocking)
+					select {
+					case latencyChan <- latency:
+					default:
+						// Channel full, skip this latency measurement
+					}
+					
+					counter++
+				}
+			}
+		}(i)
+	}
+	
+	wg.Wait()
+	close(latencyChan)
+	
+	// Collect latencies
+	for latency := range latencyChan {
+		metrics.Latencies = append(metrics.Latencies, latency)
+	}
+	
+	// Calculate statistics
+	if len(metrics.Latencies) > 0 {
+		sort.Slice(metrics.Latencies, func(i, j int) bool {
+			return metrics.Latencies[i] < metrics.Latencies[j]
+		})
+		
+		var totalLatency time.Duration
+		for _, lat := range metrics.Latencies {
+			totalLatency += lat
+			if lat < metrics.MinLatency {
+				metrics.MinLatency = lat
+			}
+			if lat > metrics.MaxLatency {
+				metrics.MaxLatency = lat
+			}
+		}
+		
+		metrics.AverageLatency = totalLatency / time.Duration(len(metrics.Latencies))
+		metrics.P95Latency = metrics.Latencies[int(float64(len(metrics.Latencies))*0.95)]
+		metrics.P99Latency = metrics.Latencies[int(float64(len(metrics.Latencies))*0.99)]
+	}
+	
+	metrics.OperationsPerSecond = float64(metrics.TotalOperations) / duration.Seconds()
+	
+	var memEnd runtime.MemStats
+	runtime.ReadMemStats(&memEnd)
+	metrics.MemoryUsed = int64(memEnd.Alloc - memStart.Alloc)
+	
+	return metrics
+}
+
+// runLatencyAnalysis performs detailed latency analysis
+func runLatencyAnalysis(t *testing.T, stores map[string]DataStore) {
+	operationTypes := []struct {
+		name string
+		op   func(store DataStore, id int) error
+	}{
+		{
+			name: "Put",
+			op: func(store DataStore, id int) error {
+				return store.ObjectStore().PutObject(fmt.Sprintf("lat-put-%d", id), make([]byte, 1024))
+			},
+		},
+		{
+			name: "Get",
+			op: func(store DataStore, id int) error {
+				_, err := store.ObjectStore().GetObject(fmt.Sprintf("lat-put-%d", id%100)) // Get existing objects
+				return err
+			},
+		},
+		{
+			name: "Has",
+			op: func(store DataStore, id int) error {
+				_, err := store.ObjectStore().HasObject(fmt.Sprintf("lat-put-%d", id%100))
+				return err
+			},
+		},
+		{
+			name: "Delete",
+			op: func(store DataStore, id int) error {
+				return store.ObjectStore().DeleteObject(fmt.Sprintf("lat-del-%d", id))
+			},
+		},
+	}
+	
+	for storeName, store := range stores {
+		// Pre-populate for Get operations
+		for i := 0; i < 100; i++ {
+			store.ObjectStore().PutObject(fmt.Sprintf("lat-put-%d", i), make([]byte, 1024))
+		}
+		
+		t.Run(storeName, func(t *testing.T) {
+			t.Logf("\n=== LATENCY ANALYSIS FOR %s ===", storeName)
+			
+			for _, opType := range operationTypes {
+				latencies := measureOperationLatency(store, opType.op, 1000)
+				
+				if len(latencies) > 0 {
+					sort.Slice(latencies, func(i, j int) bool {
+						return latencies[i] < latencies[j]
+					})
+					
+					var total time.Duration
+					for _, lat := range latencies {
+						total += lat
+					}
+					
+					avg := total / time.Duration(len(latencies))
+					p50 := latencies[len(latencies)/2]
+					p95 := latencies[int(float64(len(latencies))*0.95)]
+					p99 := latencies[int(float64(len(latencies))*0.99)]
+					
+					t.Logf("%-8s: Avg=%8s P50=%8s P95=%8s P99=%8s Min=%8s Max=%8s", 
+						opType.name, avg, p50, p95, p99, latencies[0], latencies[len(latencies)-1])
+				}
+			}
+		})
+	}
+}
+
+// measureOperationLatency measures latency for a specific operation
+func measureOperationLatency(store DataStore, op func(DataStore, int) error, iterations int) []time.Duration {
+	latencies := make([]time.Duration, 0, iterations)
+	
+	for i := 0; i < iterations; i++ {
+		start := time.Now()
+		op(store, i)
+		latency := time.Since(start)
+		latencies = append(latencies, latency)
+	}
+	
+	return latencies
+}
+
+// runMemoryEfficiencyTests compares memory usage patterns
+func runMemoryEfficiencyTests(t *testing.T, stores map[string]DataStore) {
+	for storeName, store := range stores {
+		t.Run(storeName, func(t *testing.T) {
+			t.Logf("\n=== MEMORY EFFICIENCY TEST FOR %s ===", storeName)
+			
+			// Test different data sizes
+			sizes := []int{100, 1000, 10000, 100000} // Bytes
+			
+			for _, size := range sizes {
+				var memBefore, memAfter runtime.MemStats
+				
+				runtime.GC()
+				runtime.ReadMemStats(&memBefore)
+				
+				// Store objects of specific size
+				numObjects := 1000
+				for i := 0; i < numObjects; i++ {
+					hash := fmt.Sprintf("mem-test-%d-%d", size, i)
+					data := make([]byte, size)
+					err := store.ObjectStore().PutObject(hash, data)
+					if err != nil {
+						t.Logf("Failed to store object %d of size %d: %v", i, size, err)
+						break
+					}
+				}
+				
+				runtime.GC()
+				runtime.ReadMemStats(&memAfter)
+				
+				memoryGrowth := memAfter.Alloc - memBefore.Alloc
+				memoryPerObject := float64(memoryGrowth) / float64(numObjects)
+				overhead := memoryPerObject - float64(size)
+				overheadPercent := (overhead / float64(size)) * 100
+				
+				t.Logf("Size %6d bytes: Memory/obj=%8.2f Overhead=%8.2f (%.1f%%)", 
+					size, memoryPerObject, overhead, overheadPercent)
+				
+				// Clean up
+				for i := 0; i < numObjects; i++ {
+					hash := fmt.Sprintf("mem-test-%d-%d", size, i)
+					store.ObjectStore().DeleteObject(hash)
+				}
+			}
+		})
+	}
+}
+
+// runScalabilityTests tests how performance scales with data size
+func runScalabilityTests(t *testing.T, stores map[string]DataStore) {
+	dataSizes := []int{10, 100, 1000, 10000, 100000} // Number of objects
+	
+	for storeName, store := range stores {
+		t.Run(storeName, func(t *testing.T) {
+			t.Logf("\n=== SCALABILITY TEST FOR %s ===", storeName)
+			t.Logf("%-10s %15s %15s %15s", "Objects", "Write Time", "Read Time", "Ops/Sec")
+			
+			cumulativeObjects := 0
+			
+			for _, numObjects := range dataSizes {
+				// Add more objects to existing set
+				writeStart := time.Now()
+				for i := cumulativeObjects; i < cumulativeObjects+numObjects; i++ {
+					hash := fmt.Sprintf("scale-test-%d", i)
+					data := make([]byte, 512)
+					err := store.ObjectStore().PutObject(hash, data)
+					if err != nil {
+						t.Logf("Failed to store object %d: %v", i, err)
+						continue
+					}
+				}
+				writeTime := time.Since(writeStart)
+				
+				cumulativeObjects += numObjects
+				
+				// Measure read performance with current total
+				readStart := time.Now()
+				successfulReads := 0
+				testReads := min(100, cumulativeObjects) // Sample reads
+				
+				for i := 0; i < testReads; i++ {
+					hash := fmt.Sprintf("scale-test-%d", i*cumulativeObjects/testReads)
+					_, err := store.ObjectStore().GetObject(hash)
+					if err == nil {
+						successfulReads++
+					}
+				}
+				readTime := time.Since(readStart)
+				
+				opsPerSec := float64(numObjects) / writeTime.Seconds()
+				
+				t.Logf("%-10d %15s %15s %15.2f", 
+					cumulativeObjects, writeTime, readTime, opsPerSec)
+				
+				// Verify performance doesn't degrade too much
+				if opsPerSec < 10 {
+					t.Logf("WARNING: Performance degradation detected at %d objects", cumulativeObjects)
+				}
+			}
+		})
+	}
+}
+
+// runConcurrencyPerformanceTests tests performance under various concurrency levels
+func runConcurrencyPerformanceTests(t *testing.T, stores map[string]DataStore) {
+	concurrencyLevels := []int{1, 2, 4, 8, 16, 32}
+	
+	for storeName, store := range stores {
+		t.Run(storeName, func(t *testing.T) {
+			t.Logf("\n=== CONCURRENCY PERFORMANCE FOR %s ===", storeName)
+			t.Logf("%-12s %15s %15s %15s", "Concurrency", "Total Ops/Sec", "Latency", "Efficiency")
+			
+			for _, concurrency := range concurrencyLevels {
+				metrics := measureConcurrencyPerformance(store, concurrency, 5*time.Second)
+				
+				efficiency := metrics.OperationsPerSecond / float64(concurrency)
+				
+				t.Logf("%-12d %15.2f %15s %15.2f", 
+					concurrency, 
+					metrics.OperationsPerSecond,
+					metrics.AverageLatency,
+					efficiency)
+				
+				// Check for performance scaling issues
+				if concurrency > 1 && efficiency < 50 { // Less than 50 ops/sec per worker
+					t.Logf("WARNING: Poor concurrency scaling at level %d", concurrency)
+				}
+			}
+		})
+	}
+}
+
+// measureConcurrencyPerformance measures performance at specific concurrency level
+func measureConcurrencyPerformance(store DataStore, concurrency int, duration time.Duration) *PerformanceMetrics {
+	metrics := &PerformanceMetrics{
+		MinLatency: time.Hour,
+	}
+	
+	ctx, cancel := context.WithTimeout(context.Background(), duration)
+	defer cancel()
+	
+	var wg sync.WaitGroup
+	latencies := make([]time.Duration, 0, 1000)
+	var latencyMutex sync.Mutex
+	
+	for i := 0; i < concurrency; i++ {
+		wg.Add(1)
+		go func(workerID int) {
+			defer wg.Done()
+			
+			localLatencies := make([]time.Duration, 0, 100)
+			counter := 0
+			
+			for {
+				select {
+				case <-ctx.Done():
+					// Add local latencies to global collection
+					latencyMutex.Lock()
+					latencies = append(latencies, localLatencies...)
+					latencyMutex.Unlock()
+					return
+				default:
+					hash := fmt.Sprintf("conc-%d-%d", workerID, counter)
+					data := make([]byte, 256)
+					
+					start := time.Now()
+					err := store.ObjectStore().PutObject(hash, data)
+					latency := time.Since(start)
+					
+					atomic.AddInt64(&metrics.TotalOperations, 1)
+					if err != nil {
+						atomic.AddInt64(&metrics.ErrorCount, 1)
+					} else {
+						localLatencies = append(localLatencies, latency)
+						
+						// Update min/max atomically
+						for {
+							current := atomic.LoadInt64((*int64)(&metrics.MinLatency))
+							if latency >= time.Duration(current) {
+								break
+							}
+							if atomic.CompareAndSwapInt64((*int64)(&metrics.MinLatency), current, int64(latency)) {
+								break
+							}
+						}
+						
+						for {
+							current := atomic.LoadInt64((*int64)(&metrics.MaxLatency))
+							if latency <= time.Duration(current) {
+								break
+							}
+							if atomic.CompareAndSwapInt64((*int64)(&metrics.MaxLatency), current, int64(latency)) {
+								break
+							}
+						}
+					}
+					
+					counter++
+				}
+			}
+		}(i)
+	}
+	
+	wg.Wait()
+	
+	// Calculate final metrics
+	metrics.OperationsPerSecond = float64(metrics.TotalOperations) / duration.Seconds()
+	
+	if len(latencies) > 0 {
+		sort.Slice(latencies, func(i, j int) bool {
+			return latencies[i] < latencies[j]
+		})
+		
+		var totalLatency time.Duration
+		for _, lat := range latencies {
+			totalLatency += lat
+		}
+		
+		metrics.AverageLatency = totalLatency / time.Duration(len(latencies))
+		
+		if len(latencies) > 10 {
+			metrics.P95Latency = latencies[int(float64(len(latencies))*0.95)]
+			metrics.P99Latency = latencies[int(float64(len(latencies))*0.99)]
+		}
+	}
+	
+	return metrics
+}
+
+// BenchmarkStorageOperations provides standardized benchmarks
+func BenchmarkStorageOperations(b *testing.B, store DataStore, storeName string) {
+	// Pre-populate data for read benchmarks
+	for i := 0; i < 1000; i++ {
+		hash := fmt.Sprintf("bench-data-%d", i)
+		data := make([]byte, 1024)
+		store.ObjectStore().PutObject(hash, data)
+	}
+	
+	b.Run(storeName+"/Put-1KB", func(b *testing.B) {
+		data := make([]byte, 1024)
+		b.ResetTimer()
+		b.ReportAllocs()
+		
+		for i := 0; i < b.N; i++ {
+			hash := fmt.Sprintf("bench-put-%d", i)
+			store.ObjectStore().PutObject(hash, data)
+		}
+	})
+	
+	b.Run(storeName+"/Get-1KB", func(b *testing.B) {
+		b.ResetTimer()
+		b.ReportAllocs()
+		
+		for i := 0; i < b.N; i++ {
+			hash := fmt.Sprintf("bench-data-%d", i%1000)
+			store.ObjectStore().GetObject(hash)
+		}
+	})
+	
+	b.Run(storeName+"/HasObject", func(b *testing.B) {
+		b.ResetTimer()
+		b.ReportAllocs()
+		
+		for i := 0; i < b.N; i++ {
+			hash := fmt.Sprintf("bench-data-%d", i%1000)
+			store.ObjectStore().HasObject(hash)
+		}
+	})
+	
+	b.Run(storeName+"/BatchPut-10", func(b *testing.B) {
+		b.ResetTimer()
+		b.ReportAllocs()
+		
+		for i := 0; i < b.N; i++ {
+			objects := make(map[string][]byte)
+			for j := 0; j < 10; j++ {
+				hash := fmt.Sprintf("batch-put-%d-%d", i, j)
+				objects[hash] = make([]byte, 512)
+			}
+			store.ObjectStore().PutObjects(objects)
+		}
+	})
+}
+

@@ -1,0 +1,774 @@
+package postgres
+
+import (
+	"context"
+	"fmt"
+	"os"
+	"strings"
+	"testing"
+	"time"
+
+	"github.com/caiatech/govc/datastore"
+	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+)
+
+func getUnitTestConfig() datastore.Config {
+	connStr := os.Getenv("POSTGRES_TEST_URL")
+	if connStr == "" {
+		// Default to local PostgreSQL for testing
+		connStr = "postgres://postgres:postgres@localhost:5432/govc_test?sslmode=disable"
+	}
+	
+	return datastore.Config{
+		Type:               datastore.TypePostgres,
+		Connection:         connStr,
+		MaxConnections:     10,
+		MaxIdleConnections: 2,
+		ConnectionTimeout:  time.Second * 30,
+	}
+}
+
+func setupTestDB(t *testing.T) (*PostgresStore, func()) {
+	config := getUnitTestConfig()
+	
+	// Try to connect to test database
+	store, err := New(config)
+	require.NoError(t, err)
+	
+	err = store.Initialize(config)
+	if err != nil {
+		t.Skipf("PostgreSQL not available: %v", err)
+	}
+	
+	cleanup := func() {
+		if store.db != nil {
+			// Clean up test data
+			store.db.Exec("TRUNCATE govc.objects, govc.repositories, govc.users, govc.refs, govc.audit_events, govc.config RESTART IDENTITY CASCADE")
+			store.Close()
+		}
+	}
+	
+	return store, cleanup
+}
+
+func TestPostgresStore_ConnectionHandling(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping PostgreSQL test in short mode")
+	}
+
+	t.Run("ValidConnection", func(t *testing.T) {
+		store, cleanup := setupTestDB(t)
+		defer cleanup()
+		
+		// Test basic operations
+		err := store.PutObject("conn-test", []byte("test data"))
+		assert.NoError(t, err)
+		
+		data, err := store.GetObject("conn-test")
+		assert.NoError(t, err)
+		assert.Equal(t, []byte("test data"), data)
+	})
+
+	t.Run("InvalidConnection", func(t *testing.T) {
+		config := datastore.Config{
+			Type:       datastore.TypePostgres,
+			Connection: "postgres://invalid:invalid@nonexistent:5432/test",
+		}
+		
+		store, err := New(config)
+		require.NoError(t, err)
+		
+		err = store.Initialize(config)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "failed to ping database")
+	})
+
+	t.Run("ConnectionPooling", func(t *testing.T) {
+		store, cleanup := setupTestDB(t)
+		defer cleanup()
+		
+		// Get pool stats
+		info := store.Info()
+		assert.Contains(t, info, "open_connections")
+		assert.Contains(t, info, "in_use")
+		assert.Contains(t, info, "idle")
+		
+		// Test concurrent operations to stress connection pool
+		const numWorkers = 20
+		done := make(chan bool, numWorkers)
+		errors := make(chan error, numWorkers)
+		
+		for i := 0; i < numWorkers; i++ {
+			go func(workerID int) {
+				defer func() { done <- true }()
+				
+				for j := 0; j < 10; j++ {
+					hash := fmt.Sprintf("pool-test-%d-%d", workerID, j)
+					data := []byte(fmt.Sprintf("worker %d operation %d", workerID, j))
+					
+					if err := store.PutObject(hash, data); err != nil {
+						errors <- err
+						return
+					}
+					
+					if retrieved, err := store.GetObject(hash); err != nil {
+						errors <- err
+						return
+					} else if string(retrieved) != string(data) {
+						errors <- fmt.Errorf("data mismatch")
+						return
+					}
+				}
+			}(i)
+		}
+		
+		// Wait for all workers
+		for i := 0; i < numWorkers; i++ {
+			<-done
+		}
+		
+		close(errors)
+		for err := range errors {
+			assert.NoError(t, err)
+		}
+	})
+}
+
+func TestPostgresStore_SchemaAndMigrations(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping PostgreSQL test in short mode")
+	}
+
+	store, cleanup := setupTestDB(t)
+	defer cleanup()
+
+	t.Run("SchemaExists", func(t *testing.T) {
+		// Check that govc schema exists
+		var schemaExists bool
+		err := store.db.QueryRow(`
+			SELECT EXISTS (
+				SELECT 1 FROM information_schema.schemata 
+				WHERE schema_name = 'govc'
+			)
+		`).Scan(&schemaExists)
+		assert.NoError(t, err)
+		assert.True(t, schemaExists)
+	})
+
+	t.Run("TablesExist", func(t *testing.T) {
+		expectedTables := []string{
+			"objects", "repositories", "users", "refs", "audit_events", "config", "schema_version",
+		}
+		
+		for _, table := range expectedTables {
+			var exists bool
+			err := store.db.QueryRow(`
+				SELECT EXISTS (
+					SELECT 1 FROM information_schema.tables 
+					WHERE table_schema = 'govc' AND table_name = $1
+				)
+			`, table).Scan(&exists)
+			assert.NoError(t, err)
+			assert.True(t, exists, "Table %s should exist", table)
+		}
+	})
+
+	t.Run("IndexesExist", func(t *testing.T) {
+		expectedIndexes := []string{
+			"idx_objects_type", "idx_objects_created", "idx_repositories_name",
+			"idx_users_username", "idx_refs_type", "idx_audit_timestamp",
+		}
+		
+		for _, index := range expectedIndexes {
+			var exists bool
+			err := store.db.QueryRow(`
+				SELECT EXISTS (
+					SELECT 1 FROM pg_indexes 
+					WHERE schemaname = 'govc' AND indexname = $1
+				)
+			`, index).Scan(&exists)
+			assert.NoError(t, err)
+			assert.True(t, exists, "Index %s should exist", index)
+		}
+	})
+
+	t.Run("SchemaVersion", func(t *testing.T) {
+		var version int
+		var description string
+		var appliedAt time.Time
+		
+		err := store.db.QueryRow(`
+			SELECT version, description, applied_at 
+			FROM govc.schema_version 
+			ORDER BY version DESC LIMIT 1
+		`).Scan(&version, &description, &appliedAt)
+		
+		assert.NoError(t, err)
+		assert.Greater(t, version, 0)
+		assert.NotEmpty(t, description)
+		assert.False(t, appliedAt.IsZero())
+	})
+}
+
+func TestPostgresStore_DataTypes(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping PostgreSQL test in short mode")
+	}
+
+	store, cleanup := setupTestDB(t)
+	defer cleanup()
+
+	t.Run("BinaryData", func(t *testing.T) {
+		// Test various binary data patterns
+		testData := [][]byte{
+			{0x00, 0x01, 0x02, 0xFF, 0xFE, 0xFD}, // Binary data
+			{},                                    // Empty data
+			make([]byte, 65536),                   // Large data (64KB)
+		}
+		
+		// Fill large data with pattern
+		for i := range testData[2] {
+			testData[2][i] = byte(i % 256)
+		}
+		
+		for i, data := range testData {
+			hash := fmt.Sprintf("binary-test-%d", i)
+			
+			err := store.PutObject(hash, data)
+			assert.NoError(t, err, "Failed to store binary data %d", i)
+			
+			retrieved, err := store.GetObject(hash)
+			assert.NoError(t, err, "Failed to retrieve binary data %d", i)
+			assert.Equal(t, data, retrieved, "Binary data mismatch for %d", i)
+		}
+	})
+
+	t.Run("UnicodeData", func(t *testing.T) {
+		unicodeStrings := []string{
+			"Hello, 世界! 🌍",
+			"Привет мир",
+			"مرحبا بالعالم",
+			"こんにちは世界",
+			"🚀🌟💻🔥⚡",
+			strings.Repeat("你好", 1000), // Long unicode string
+		}
+		
+		for i, str := range unicodeStrings {
+			hash := fmt.Sprintf("unicode-test-%d", i)
+			data := []byte(str)
+			
+			err := store.PutObject(hash, data)
+			assert.NoError(t, err, "Failed to store unicode data %d", i)
+			
+			retrieved, err := store.GetObject(hash)
+			assert.NoError(t, err, "Failed to retrieve unicode data %d", i)
+			assert.Equal(t, data, retrieved, "Unicode data mismatch for %d", i)
+		}
+	})
+
+	t.Run("JSONData", func(t *testing.T) {
+		// Test complex JSON structures in metadata fields
+		repo := &datastore.Repository{
+			ID:          uuid.New().String(),
+			Name:        "json-test-repo",
+			Description: "Repository for testing JSON data",
+			Metadata: map[string]interface{}{
+				"nested": map[string]interface{}{
+					"level1": map[string]interface{}{
+						"level2": []interface{}{
+							"string",
+							123,
+							true,
+							nil,
+							map[string]interface{}{
+								"deep": "value",
+							},
+						},
+					},
+				},
+				"array": []interface{}{1, 2, 3, 4, 5},
+				"unicode": "测试数据 🚀",
+				"large_string": strings.Repeat("A", 10000),
+			},
+			CreatedAt: time.Now(),
+			UpdatedAt: time.Now(),
+		}
+		
+		err := store.SaveRepository(repo)
+		assert.NoError(t, err)
+		
+		retrieved, err := store.GetRepository(repo.ID)
+		assert.NoError(t, err)
+		assert.Equal(t, repo.Name, retrieved.Name)
+		assert.NotNil(t, retrieved.Metadata)
+		
+		// Test specific JSON fields
+		nested, ok := retrieved.Metadata["nested"].(map[string]interface{})
+		assert.True(t, ok)
+		assert.NotNil(t, nested)
+	})
+
+	t.Run("TimestampHandling", func(t *testing.T) {
+		// Test various timestamp formats
+		timestamps := []time.Time{
+			time.Now(),
+			time.Now().UTC(),
+			time.Now().Add(-time.Hour * 24 * 365), // 1 year ago
+			time.Now().Add(time.Hour * 24 * 365),  // 1 year from now
+			time.Date(1970, 1, 1, 0, 0, 0, 0, time.UTC), // Unix epoch
+			time.Date(2038, 1, 19, 3, 14, 7, 0, time.UTC), // Y2038
+		}
+		
+		for i, ts := range timestamps {
+			user := &datastore.User{
+				ID:          uuid.New().String(),
+				Username:    fmt.Sprintf("timestamp-user-%d", i),
+				Email:       fmt.Sprintf("user%d@example.com", i),
+				CreatedAt:   ts,
+				UpdatedAt:   ts,
+				LastLoginAt: &ts,
+			}
+			
+			err := store.SaveUser(user)
+			assert.NoError(t, err, "Failed to save user with timestamp %d", i)
+			
+			retrieved, err := store.GetUser(user.ID)
+			assert.NoError(t, err, "Failed to retrieve user with timestamp %d", i)
+			
+			// PostgreSQL truncates to microseconds
+			assert.WithinDuration(t, ts, retrieved.CreatedAt, time.Microsecond,
+				"CreatedAt mismatch for timestamp %d", i)
+			assert.WithinDuration(t, ts, retrieved.UpdatedAt, time.Microsecond,
+				"UpdatedAt mismatch for timestamp %d", i)
+			assert.NotNil(t, retrieved.LastLoginAt)
+			assert.WithinDuration(t, ts, *retrieved.LastLoginAt, time.Microsecond,
+				"LastLoginAt mismatch for timestamp %d", i)
+		}
+	})
+}
+
+func TestPostgresStore_TransactionIsolation(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping PostgreSQL test in short mode")
+	}
+
+	store, cleanup := setupTestDB(t)
+	defer cleanup()
+
+	ctx := context.Background()
+
+	t.Run("IsolationLevels", func(t *testing.T) {
+		isolationLevels := []datastore.IsolationLevel{
+			datastore.IsolationReadCommitted,
+			datastore.IsolationRepeatableRead,
+			datastore.IsolationSerializable,
+		}
+		
+		for _, isolation := range isolationLevels {
+			t.Run(fmt.Sprintf("Isolation_%v", isolation), func(t *testing.T) {
+				tx, err := store.BeginTx(ctx, &datastore.TxOptions{
+					Isolation: isolation,
+				})
+				assert.NoError(t, err, "Failed to begin transaction with isolation %v", isolation)
+				
+				if tx != nil {
+					defer tx.Rollback()
+					
+					// Test basic operations
+					hash := fmt.Sprintf("isolation-test-%v", isolation)
+					data := []byte("isolation test data")
+					
+					err = tx.PutObject(hash, data)
+					assert.NoError(t, err, "Failed to put object in transaction with isolation %v", isolation)
+					retrieved, err := tx.GetObject(hash)
+					assert.NoError(t, err, "Failed to get object in transaction with isolation %v", isolation)
+					assert.Equal(t, data, retrieved, "Data mismatch in transaction with isolation %v", isolation)
+				}
+			})
+		}
+	})
+
+	t.Run("ReadCommittedBehavior", func(t *testing.T) {
+		// Setup initial data
+		err := store.PutObject("read-committed-test", []byte("initial"))
+		require.NoError(t, err)
+		
+		// Start transaction 1 (read committed)
+		tx1, err := store.BeginTx(ctx, &datastore.TxOptions{
+			Isolation: datastore.IsolationReadCommitted,
+		})
+		require.NoError(t, err)
+		defer tx1.Rollback()
+		
+		// Start transaction 2
+		tx2, err := store.BeginTx(ctx, &datastore.TxOptions{
+			Isolation: datastore.IsolationReadCommitted,
+		})
+		require.NoError(t, err)
+		defer tx2.Rollback()
+		
+		// Read in tx1
+		data1, err := tx1.GetObject("read-committed-test")
+		assert.NoError(t, err)
+		assert.Equal(t, []byte("initial"), data1)
+		
+		// Modify and commit in tx2
+		err = tx2.PutObject("read-committed-test", []byte("modified"))
+		assert.NoError(t, err)
+		
+		err = tx2.Commit()
+		assert.NoError(t, err)
+		
+		// Read again in tx1 - should see new committed data
+		data2, err := tx1.GetObject("read-committed-test")
+		assert.NoError(t, err)
+		// In read committed, we should see the new committed data
+		assert.Equal(t, []byte("modified"), data2)
+	})
+
+	t.Run("SerializableConflict", func(t *testing.T) {
+		// Setup initial data
+		err := store.PutObject("serializable-test", []byte("initial"))
+		require.NoError(t, err)
+		
+		// Start two serializable transactions
+		tx1, err := store.BeginTx(ctx, &datastore.TxOptions{
+			Isolation: datastore.IsolationSerializable,
+		})
+		require.NoError(t, err)
+		defer tx1.Rollback()
+		
+		tx2, err := store.BeginTx(ctx, &datastore.TxOptions{
+			Isolation: datastore.IsolationSerializable,
+		})
+		require.NoError(t, err)
+		defer tx2.Rollback()
+		
+		// Both transactions read the same data
+		data1, err := tx1.GetObject("serializable-test")
+		assert.NoError(t, err)
+		assert.Equal(t, []byte("initial"), data1)
+		
+		data2, err := tx2.GetObject("serializable-test")
+		assert.NoError(t, err)
+		assert.Equal(t, []byte("initial"), data2)
+		
+		// Both transactions try to modify
+		err = tx1.PutObject("serializable-test", []byte("modified-by-tx1"))
+		assert.NoError(t, err)
+		
+		err = tx2.PutObject("serializable-test", []byte("modified-by-tx2"))
+		assert.NoError(t, err)
+		
+		// First commit should succeed
+		err = tx1.Commit()
+		assert.NoError(t, err)
+		
+		// Second commit should fail due to serialization conflict
+		err = tx2.Commit()
+		// PostgreSQL should detect the conflict and fail the transaction
+		assert.Error(t, err)
+	})
+}
+
+func TestPostgresStore_PerformanceOptimizations(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping performance test in short mode")
+	}
+
+	store, cleanup := setupTestDB(t)
+	defer cleanup()
+
+	t.Run("PreparedStatements", func(t *testing.T) {
+		// Test that prepared statements are working efficiently
+		const numOperations = 1000
+		
+		start := time.Now()
+		
+		// Perform many similar operations that should benefit from prepared statements
+		for i := 0; i < numOperations; i++ {
+			hash := fmt.Sprintf("prepared-test-%04d", i)
+			data := []byte(fmt.Sprintf("prepared statement test %d", i))
+			
+			err := store.PutObject(hash, data)
+			assert.NoError(t, err, "Failed operation %d", i)
+		}
+		
+		elapsed := time.Since(start)
+		rate := float64(numOperations) / elapsed.Seconds()
+		
+		t.Logf("Prepared statements: %d operations in %v (%.2f ops/sec)", numOperations, elapsed, rate)
+		
+		// Should be reasonably fast with prepared statements
+		assert.Less(t, elapsed, time.Second*10, "Operations took too long, prepared statements may not be working")
+	})
+
+	t.Run("BatchOperations", func(t *testing.T) {
+		const batchSize = 1000
+		
+		// Test batch insert performance
+		objects := make(map[string][]byte)
+		for i := 0; i < batchSize; i++ {
+			hash := fmt.Sprintf("batch-test-%04d", i)
+			data := []byte(fmt.Sprintf("batch operation test %d", i))
+			objects[hash] = data
+		}
+		
+		start := time.Now()
+		err := store.PutObjects(objects)
+		elapsed := time.Since(start)
+		
+		assert.NoError(t, err)
+		rate := float64(batchSize) / elapsed.Seconds()
+		t.Logf("Batch insert: %d objects in %v (%.2f ops/sec)", batchSize, elapsed, rate)
+		
+		// Test batch read performance
+		hashes := make([]string, 0, batchSize)
+		for hash := range objects {
+			hashes = append(hashes, hash)
+		}
+		
+		start = time.Now()
+		retrieved, err := store.GetObjects(hashes)
+		elapsed = time.Since(start)
+		
+		assert.NoError(t, err)
+		assert.Equal(t, objects, retrieved)
+		rate = float64(batchSize) / elapsed.Seconds()
+		t.Logf("Batch read: %d objects in %v (%.2f ops/sec)", batchSize, elapsed, rate)
+	})
+
+	t.Run("IndexUtilization", func(t *testing.T) {
+		// Add test data
+		for i := 0; i < 1000; i++ {
+			repo := &datastore.Repository{
+				ID:          uuid.New().String(),
+				Name:        fmt.Sprintf("index-test-repo-%04d", i),
+				Description: fmt.Sprintf("Repository %d for index testing", i),
+				CreatedAt:   time.Now().Add(-time.Duration(i) * time.Hour),
+				UpdatedAt:   time.Now(),
+			}
+			
+			err := store.SaveRepository(repo)
+			assert.NoError(t, err)
+		}
+		
+		// Test that name index is used
+		start := time.Now()
+		repos, err := store.ListRepositories(datastore.RepositoryFilter{
+			Limit: 10,
+		})
+		elapsed := time.Since(start)
+		
+		assert.NoError(t, err)
+		assert.Len(t, repos, 10)
+		
+		t.Logf("Repository listing with index: %v", elapsed)
+		
+		// Should be fast due to index usage
+		assert.Less(t, elapsed, time.Second, "Repository listing took too long, index may not be used")
+	})
+}
+
+func TestPostgresStore_ErrorHandling(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping PostgreSQL test in short mode")
+	}
+
+	store, cleanup := setupTestDB(t)
+	defer cleanup()
+
+	t.Run("ConstraintViolations", func(t *testing.T) {
+		// Test unique constraint violations
+		user1 := &datastore.User{
+			ID:        uuid.New().String(),
+			Username:  "unique-test-user",
+			Email:     "unique@example.com",
+			CreatedAt: time.Now(),
+			UpdatedAt: time.Now(),
+		}
+		
+		err := store.SaveUser(user1)
+		assert.NoError(t, err)
+		
+		// Try to create another user with same username
+		user2 := &datastore.User{
+			ID:        uuid.New().String(),
+			Username:  "unique-test-user", // Same username
+			Email:     "different@example.com",
+			CreatedAt: time.Now(),
+			UpdatedAt: time.Now(),
+		}
+		
+		err = store.SaveUser(user2)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "duplicate key") // PostgreSQL constraint error
+	})
+
+	t.Run("ForeignKeyViolations", func(t *testing.T) {
+		// Try to create a reference without a repository
+		ref := &datastore.Reference{
+			Name:      "refs/heads/test",
+			Hash:      "abc123",
+			Type:      datastore.RefTypeBranch,
+			UpdatedAt: time.Now(),
+			UpdatedBy: "test",
+		}
+		
+		err := store.SaveRef("non-existent-repo-id", ref)
+		assert.Error(t, err)
+		// Should be a foreign key constraint violation
+	})
+
+	t.Run("InvalidDataTypes", func(t *testing.T) {
+		// Test with invalid SQL that would cause type errors
+		ctx := context.Background()
+		tx, err := store.BeginTx(ctx, nil)
+		require.NoError(t, err)
+		defer tx.Rollback()
+		
+		// Try to execute raw SQL that would fail
+		if pgTx, ok := tx.(*postgresTransaction); ok {
+			// This is testing internal transaction behavior
+			_, err = pgTx.tx.Exec("SELECT 1 / 0") // Division by zero
+			assert.Error(t, err)
+		}
+	})
+
+	t.Run("DeadlockHandling", func(t *testing.T) {
+		// Create two objects for deadlock testing
+		err := store.PutObject("deadlock-a", []byte("data a"))
+		require.NoError(t, err)
+		
+		err = store.PutObject("deadlock-b", []byte("data b"))
+		require.NoError(t, err)
+		
+		// Create scenario that might cause deadlock
+		ctx := context.Background()
+		
+		tx1, err := store.BeginTx(ctx, nil)
+		require.NoError(t, err)
+		defer tx1.Rollback()
+		
+		tx2, err := store.BeginTx(ctx, nil)
+		require.NoError(t, err)
+		defer tx2.Rollback()
+		
+		// TX1: Lock A then try to lock B
+		// TX2: Lock B then try to lock A
+		
+		err = tx1.PutObject("deadlock-a", []byte("modified by tx1"))
+		assert.NoError(t, err)
+		
+		err = tx2.PutObject("deadlock-b", []byte("modified by tx2"))
+		assert.NoError(t, err)
+		
+		// This might cause a deadlock
+		done := make(chan error, 2)
+		
+		go func() {
+			err := tx1.PutObject("deadlock-b", []byte("tx1 modifies b"))
+			done <- err
+		}()
+		
+		go func() {
+			err := tx2.PutObject("deadlock-a", []byte("tx2 modifies a"))
+			done <- err
+		}()
+		
+		// Wait for both operations
+		for i := 0; i < 2; i++ {
+			err := <-done
+			// One should succeed, one might fail due to deadlock detection
+			t.Logf("Deadlock test result %d: %v", i, err)
+		}
+	})
+}
+
+func TestPostgresStore_Monitoring(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping PostgreSQL test in short mode")
+	}
+
+	store, cleanup := setupTestDB(t)
+	defer cleanup()
+
+	t.Run("ConnectionStats", func(t *testing.T) {
+		info := store.Info()
+		
+		// Check that connection statistics are present
+		assert.Contains(t, info, "open_connections")
+		assert.Contains(t, info, "in_use")
+		assert.Contains(t, info, "idle")
+		assert.Contains(t, info, "wait_count")
+		assert.Contains(t, info, "wait_duration")
+		
+		// Values should be non-negative
+		assert.GreaterOrEqual(t, info["open_connections"], 0)
+		assert.GreaterOrEqual(t, info["in_use"], 0)
+		assert.GreaterOrEqual(t, info["idle"], 0)
+	})
+
+	t.Run("DatabaseSize", func(t *testing.T) {
+		info := store.Info()
+		
+		assert.Contains(t, info, "database_size")
+		assert.Contains(t, info, "postgres_version")
+		
+		// Database size should be a string (formatted by pg_size_pretty)
+		dbSize, ok := info["database_size"].(string)
+		assert.True(t, ok)
+		assert.NotEmpty(t, dbSize)
+		
+		// PostgreSQL version should be present
+		pgVersion, ok := info["postgres_version"].(string)
+		assert.True(t, ok)
+		assert.Contains(t, pgVersion, "PostgreSQL")
+	})
+
+	t.Run("ObjectCounts", func(t *testing.T) {
+		// Add some test data
+		for i := 0; i < 10; i++ {
+			err := store.PutObject(fmt.Sprintf("monitor-test-%d", i), []byte("test"))
+			require.NoError(t, err)
+		}
+		
+		info := store.Info()
+		
+		assert.Contains(t, info, "objects")
+		objectCount, ok := info["objects"].(int64)
+		assert.True(t, ok)
+		assert.GreaterOrEqual(t, objectCount, int64(10))
+	})
+
+	t.Run("Metrics", func(t *testing.T) {
+		initialMetrics := store.GetMetrics()
+		
+		// Perform some operations
+		err := store.PutObject("metrics-test", []byte("test"))
+		require.NoError(t, err)
+		
+		_, err = store.GetObject("metrics-test")
+		require.NoError(t, err)
+		
+		err = store.DeleteObject("metrics-test")
+		require.NoError(t, err)
+		
+		newMetrics := store.GetMetrics()
+		
+		// Metrics should have increased
+		assert.Greater(t, newMetrics.Writes, initialMetrics.Writes)
+		assert.Greater(t, newMetrics.Reads, initialMetrics.Reads)
+		assert.Greater(t, newMetrics.Deletes, initialMetrics.Deletes)
+		
+		// Check other metrics
+		assert.GreaterOrEqual(t, newMetrics.ObjectCount, int64(0))
+		assert.GreaterOrEqual(t, newMetrics.StorageSize, int64(0))
+		assert.GreaterOrEqual(t, newMetrics.ActiveConnections, 0)
+		assert.GreaterOrEqual(t, newMetrics.TotalConnections, int64(0))
+		assert.False(t, newMetrics.StartTime.IsZero())
+		assert.Greater(t, newMetrics.Uptime, time.Duration(0))
+	})
+}
