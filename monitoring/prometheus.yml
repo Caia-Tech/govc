@@ -1,0 +1,66 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  external_labels:
+    cluster: 'govc-production'
+    replica: '1'
+
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets:
+            - alertmanager:9093
+
+rule_files:
+  - "alerts.yml"
+
+scrape_configs:
+  # govc dashboard metrics
+  - job_name: 'govc-dashboard'
+    static_configs:
+      - targets: ['host.docker.internal:8080']
+        labels:
+          service: 'dashboard'
+          env: 'production'
+    metrics_path: '/metrics'
+    scrape_interval: 10s
+    scrape_timeout: 5s
+
+  # govc API server metrics
+  - job_name: 'govc-api'
+    static_configs:
+      - targets: ['host.docker.internal:8080']
+        labels:
+          service: 'api'
+          env: 'production'
+    metrics_path: '/metrics'
+
+  # Node exporter for system metrics
+  - job_name: 'node'
+    static_configs:
+      - targets: ['node-exporter:9100']
+        labels:
+          instance: 'govc-server'
+
+  # Prometheus self-monitoring
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+
+  # Grafana metrics
+  - job_name: 'grafana'
+    static_configs:
+      - targets: ['grafana:3000']
+
+  # Alertmanager metrics
+  - job_name: 'alertmanager'
+    static_configs:
+      - targets: ['alertmanager:9093']
+
+# Optional: Remote write for long-term storage
+# remote_write:
+#   - url: "http://remote-storage:9201/write"
+#     write_relabel_configs:
+#       - source_labels: [__name__]
+#         regex: 'govc_dashboard.*'
+#         action: keep

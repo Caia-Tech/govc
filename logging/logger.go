@@ -13,6 +13,71 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+// Pool for reusing log entries to reduce allocations
+var logEntryPool = sync.Pool{
+	New: func() interface{} {
+		return &LogEntry{
+			Fields: make(map[string]interface{}),
+		}
+	},
+}
+
+// Pool for reusing field maps
+var fieldsPool = sync.Pool{
+	New: func() interface{} {
+		return make(map[string]interface{})
+	},
+}
+
+// getLogEntry gets a log entry from the pool
+func getLogEntry() *LogEntry {
+	entry := logEntryPool.Get().(*LogEntry)
+	// Reset the entry
+	entry.Timestamp = time.Time{}
+	entry.Level = 0
+	entry.Message = ""
+	entry.Caller = ""
+	entry.RequestID = ""
+	entry.UserID = ""
+	entry.Component = ""
+	entry.Operation = ""
+	entry.Duration = nil
+	entry.Error = ""
+	entry.HTTPMethod = ""
+	entry.HTTPPath = ""
+	entry.HTTPStatus = 0
+	entry.HTTPLatency = nil
+	// Clear the fields map
+	for k := range entry.Fields {
+		delete(entry.Fields, k)
+	}
+	return entry
+}
+
+// putLogEntry returns a log entry to the pool
+func putLogEntry(entry *LogEntry) {
+	if entry != nil {
+		logEntryPool.Put(entry)
+	}
+}
+
+// getFields gets a fields map from the pool
+func getFields() map[string]interface{} {
+	fields := fieldsPool.Get().(map[string]interface{})
+	// Clear the map
+	for k := range fields {
+		delete(fields, k)
+	}
+	return fields
+}
+
+// putFields returns a fields map to the pool
+func putFields(fields map[string]interface{}) {
+	if fields != nil {
+		fieldsPool.Put(fields)
+	}
+}
+
 // LogLevel represents the severity level of a log entry
 type LogLevel int
 
@@ -236,7 +301,7 @@ func (l *Logger) LogOperation(operation string, fn func() error) error {
 	return nil
 }
 
-// log writes a log entry
+// log writes a log entry using object pooling for performance
 func (l *Logger) log(level LogLevel, message string, additionalFields map[string]interface{}) {
 	if level < l.level {
 		return
@@ -245,13 +310,14 @@ func (l *Logger) log(level LogLevel, message string, additionalFields map[string
 	l.mu.RLock()
 	defer l.mu.RUnlock()
 
-	entry := LogEntry{
-		Timestamp: time.Now(),
-		Level:     level,
-		Message:   message,
-		Fields:    make(map[string]interface{}),
-		Component: l.component,
-	}
+	// Get pooled entry and configure it
+	entry := getLogEntry()
+	defer putLogEntry(entry)
+	
+	entry.Timestamp = time.Now()
+	entry.Level = level
+	entry.Message = message
+	entry.Component = l.component
 
 	// Add existing fields
 	for k, v := range l.fields {
@@ -271,7 +337,7 @@ func (l *Logger) log(level LogLevel, message string, additionalFields map[string
 	}
 
 	// Format and write the log entry
-	formatted := l.formatEntry(entry)
+	formatted := l.formatEntry(*entry)
 	l.output.Write([]byte(formatted + "\n"))
 }
 

@@ -1,0 +1,201 @@
+groups:
+  - name: govc_dashboard_alerts
+    interval: 30s
+    rules:
+      # Latency alerts
+      - alert: DashboardHighLatency
+        expr: |
+          histogram_quantile(0.95, 
+            sum(rate(govc_dashboard_request_duration_seconds_bucket[5m])) by (le)
+          ) > 0.5
+        for: 5m
+        labels:
+          severity: warning
+          component: dashboard
+        annotations:
+          summary: "Dashboard API latency is high"
+          description: "95th percentile latency is {{ $value }}s (threshold: 0.5s)"
+          dashboard: "http://grafana.example.com/d/govc-dashboard"
+
+      - alert: DashboardVeryHighLatency
+        expr: |
+          histogram_quantile(0.95, 
+            sum(rate(govc_dashboard_request_duration_seconds_bucket[5m])) by (le)
+          ) > 2
+        for: 2m
+        labels:
+          severity: critical
+          component: dashboard
+        annotations:
+          summary: "Dashboard API latency is critically high"
+          description: "95th percentile latency is {{ $value }}s (threshold: 2s)"
+          runbook: "https://wiki.example.com/runbooks/dashboard-high-latency"
+
+      # Error rate alerts
+      - alert: DashboardHighErrorRate
+        expr: |
+          sum(rate(govc_dashboard_errors_total[5m])) 
+          / 
+          sum(rate(govc_dashboard_requests_total[5m])) > 0.05
+        for: 5m
+        labels:
+          severity: warning
+          component: dashboard
+        annotations:
+          summary: "Dashboard error rate is high"
+          description: "Error rate is {{ $value | humanizePercentage }} (threshold: 5%)"
+
+      - alert: DashboardCriticalErrorRate
+        expr: |
+          sum(rate(govc_dashboard_errors_total[5m])) 
+          / 
+          sum(rate(govc_dashboard_requests_total[5m])) > 0.1
+        for: 2m
+        labels:
+          severity: critical
+          component: dashboard
+          pager: true
+        annotations:
+          summary: "Dashboard error rate is critically high"
+          description: "Error rate is {{ $value | humanizePercentage }} (threshold: 10%)"
+
+      # WebSocket alerts
+      - alert: WebSocketConnectionSpike
+        expr: govc_dashboard_websocket_connections > 1000
+        for: 1m
+        labels:
+          severity: warning
+          component: dashboard_websocket
+        annotations:
+          summary: "Too many WebSocket connections"
+          description: "{{ $value }} WebSocket connections (threshold: 1000)"
+
+      - alert: WebSocketHighErrorRate
+        expr: rate(govc_dashboard_websocket_errors_total[5m]) > 1
+        for: 5m
+        labels:
+          severity: warning
+          component: dashboard_websocket
+        annotations:
+          summary: "WebSocket errors occurring frequently"
+          description: "{{ $value }} errors per second"
+
+      # Resource alerts
+      - alert: DashboardHighMemoryUsage
+        expr: govc_dashboard_memory_usage_bytes > 500000000
+        for: 10m
+        labels:
+          severity: warning
+          component: dashboard
+        annotations:
+          summary: "Dashboard memory usage is high"
+          description: "Memory usage: {{ $value | humanize1024 }}B (threshold: 500MB)"
+
+      - alert: DashboardVeryHighMemoryUsage
+        expr: govc_dashboard_memory_usage_bytes > 1000000000
+        for: 5m
+        labels:
+          severity: critical
+          component: dashboard
+        annotations:
+          summary: "Dashboard memory usage is critically high"
+          description: "Memory usage: {{ $value | humanize1024 }}B (threshold: 1GB)"
+
+      # Availability alerts
+      - alert: DashboardDown
+        expr: up{job="govc-dashboard"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          component: dashboard
+          pager: true
+        annotations:
+          summary: "Dashboard is down"
+          description: "Dashboard has been down for {{ $value }} minutes"
+          runbook: "https://wiki.example.com/runbooks/dashboard-down"
+
+      # Performance degradation
+      - alert: DashboardSlowEndpoint
+        expr: |
+          histogram_quantile(0.95, 
+            sum(rate(govc_dashboard_api_latency_seconds_bucket[5m])) by (endpoint, le)
+          ) > 1
+        for: 5m
+        labels:
+          severity: warning
+          component: dashboard
+        annotations:
+          summary: "Dashboard endpoint {{ $labels.endpoint }} is slow"
+          description: "95th percentile latency is {{ $value }}s for endpoint {{ $labels.endpoint }}"
+
+      # Cache performance
+      - alert: DashboardLowCacheHitRate
+        expr: |
+          govc_dashboard_cache_hits_total 
+          / 
+          (govc_dashboard_cache_hits_total + govc_dashboard_cache_misses_total) < 0.7
+        for: 10m
+        labels:
+          severity: info
+          component: dashboard
+        annotations:
+          summary: "Dashboard cache hit rate is low"
+          description: "Cache hit rate is {{ $value | humanizePercentage }} (expected: >70%)"
+
+      # Traffic anomalies
+      - alert: DashboardTrafficSpike
+        expr: |
+          sum(rate(govc_dashboard_requests_total[5m])) 
+          > 
+          2 * avg_over_time(sum(rate(govc_dashboard_requests_total[5m]))[1h:5m])
+        for: 5m
+        labels:
+          severity: info
+          component: dashboard
+        annotations:
+          summary: "Dashboard experiencing traffic spike"
+          description: "Request rate is 2x higher than hourly average"
+
+      # Business metrics
+      - alert: DashboardNoActiveUsers
+        expr: govc_dashboard_active_users == 0
+        for: 30m
+        labels:
+          severity: info
+          component: dashboard
+        annotations:
+          summary: "No active dashboard users"
+          description: "Dashboard has had no active users for 30 minutes"
+
+  # Alerting rules for dashboard SLOs
+  - name: govc_dashboard_slos
+    interval: 1m
+    rules:
+      - alert: DashboardSLOLatencyBreach
+        expr: |
+          (
+            sum(rate(govc_dashboard_request_duration_seconds_bucket{le="0.5"}[30m]))
+            /
+            sum(rate(govc_dashboard_request_duration_seconds_count[30m]))
+          ) < 0.95
+        for: 5m
+        labels:
+          severity: warning
+          component: dashboard
+          slo: true
+        annotations:
+          summary: "Dashboard latency SLO breach"
+          description: "Less than 95% of requests completed within 500ms (current: {{ $value | humanizePercentage }})"
+
+      - alert: DashboardSLOAvailabilityBreach
+        expr: |
+          avg_over_time(up{job="govc-dashboard"}[30m]) < 0.99
+        for: 5m
+        labels:
+          severity: critical
+          component: dashboard
+          slo: true
+          pager: true
+        annotations:
+          summary: "Dashboard availability SLO breach"
+          description: "Dashboard availability is {{ $value | humanizePercentage }} (SLO: 99%)"

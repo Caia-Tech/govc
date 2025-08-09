@@ -77,3 +77,43 @@ dev:
 		echo "Running tests..."; \
 		go test -short ./...; \
 	done
+
+# Dashboard-specific targets
+.PHONY: dashboard-test dashboard-bench dashboard-dev dashboard-build
+
+# Test dashboard components
+dashboard-test:
+	@echo "Running dashboard tests..."
+	go test -v ./web/...
+	go test -v ./web/tests/...
+
+# Run dashboard benchmarks
+dashboard-bench:
+	@echo "Running dashboard benchmarks..."
+	go test -bench="BenchmarkDashboard" -benchmem ./web/...
+
+# Dashboard development mode with live reload
+dashboard-dev:
+	@echo "Starting dashboard in development mode..."
+	go build -o govc-server ./cmd/govc-server
+	./govc-server --config config.example.yaml &
+	@echo "Dashboard running at http://localhost:8080/dashboard"
+	@echo "Press Ctrl+C to stop"
+	@trap 'kill $$!' INT; wait
+
+# Build dashboard with embedded assets
+dashboard-build:
+	@echo "Building dashboard server..."
+	go build -tags embed -o govc-server ./cmd/govc-server
+	@echo "Dashboard server built: ./govc-server"
+
+# Run dashboard integration tests
+dashboard-integration:
+	@echo "Running dashboard integration tests..."
+	go test -v -tags=integration ./web/tests/...
+
+# Check dashboard health
+dashboard-health:
+	@echo "Checking dashboard health..."
+	@curl -s http://localhost:8080/api/v1/dashboard/overview > /dev/null && echo "✅ Dashboard API is healthy" || echo "❌ Dashboard API is not responding"
+	@curl -s http://localhost:8080/dashboard > /dev/null && echo "✅ Dashboard UI is healthy" || echo "❌ Dashboard UI is not responding"

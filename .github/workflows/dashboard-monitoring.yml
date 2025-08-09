@@ -1,0 +1,207 @@
+name: Dashboard Monitoring
+
+on:
+  schedule:
+    # Run every 6 hours
+    - cron: '0 */6 * * *'
+  workflow_dispatch:
+
+jobs:
+  performance-monitoring:
+    name: Dashboard Performance Monitoring
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Go
+      uses: actions/setup-go@v4
+      with:
+        go-version: '1.21'
+    
+    - name: Run Dashboard Benchmarks
+      run: |
+        # Run dashboard-specific benchmarks
+        go test -bench="BenchmarkDashboard" -benchmem -benchtime=10s ./web/... | tee dashboard-benchmark.txt
+        
+        # Extract key metrics
+        echo "## Dashboard Performance Metrics" > performance-report.md
+        echo "Date: $(date -u)" >> performance-report.md
+        echo "" >> performance-report.md
+        
+        # Parse benchmark results
+        echo "### Benchmark Results" >> performance-report.md
+        grep "Benchmark" dashboard-benchmark.txt >> performance-report.md
+        
+        # Calculate performance thresholds
+        OVERVIEW_NS=$(grep "BenchmarkDashboardAPI_GetOverview" dashboard-benchmark.txt | awk '{print $3}')
+        REPOS_NS=$(grep "BenchmarkDashboardAPI_GetRepositories" dashboard-benchmark.txt | awk '{print $3}')
+        WS_NS=$(grep "BenchmarkDashboardHandler_WebSocketBroadcast" dashboard-benchmark.txt | awk '{print $3}')
+        
+        echo "" >> performance-report.md
+        echo "### Performance Analysis" >> performance-report.md
+        
+        # Check if performance is within acceptable limits (in nanoseconds)
+        if [ ! -z "$OVERVIEW_NS" ] && [ "$OVERVIEW_NS" -gt "50000" ]; then
+          echo "⚠️ WARNING: Dashboard overview endpoint is slower than 50µs threshold" >> performance-report.md
+        else
+          echo "✅ Dashboard overview endpoint performance is acceptable" >> performance-report.md
+        fi
+        
+        if [ ! -z "$REPOS_NS" ] && [ "$REPOS_NS" -gt "15000" ]; then
+          echo "⚠️ WARNING: Repository listing endpoint is slower than 15µs threshold" >> performance-report.md
+        else
+          echo "✅ Repository listing endpoint performance is acceptable" >> performance-report.md
+        fi
+        
+        if [ ! -z "$WS_NS" ] && [ "$WS_NS" -gt "1000" ]; then
+          echo "⚠️ WARNING: WebSocket broadcast is slower than 1µs threshold" >> performance-report.md
+        else
+          echo "✅ WebSocket broadcast performance is acceptable" >> performance-report.md
+        fi
+    
+    - name: Memory Usage Analysis
+      run: |
+        # Build and run memory profiling
+        go test -run=TestDashboardHandler_GetOverview -memprofile=mem.prof ./web/
+        go tool pprof -top mem.prof | head -20 >> performance-report.md
+    
+    - name: Load Testing
+      run: |
+        # Install hey for load testing
+        go install github.com/rakyll/hey@latest
+        
+        # Start test server
+        go build -o test-server ./cmd/govc-server
+        ./test-server --config config.example.yaml &
+        SERVER_PID=$!
+        sleep 5
+        
+        echo "" >> performance-report.md
+        echo "### Load Test Results" >> performance-report.md
+        
+        # Run load tests on key endpoints
+        echo "#### Dashboard Overview Endpoint" >> performance-report.md
+        hey -n 1000 -c 10 -m GET http://localhost:8080/api/v1/dashboard/overview | grep -E "Requests/sec:|Latency distribution:|Status code distribution:" -A 5 >> performance-report.md
+        
+        echo "" >> performance-report.md
+        echo "#### Repository List Endpoint" >> performance-report.md
+        hey -n 1000 -c 10 -m GET http://localhost:8080/api/v1/repositories | grep -E "Requests/sec:|Latency distribution:|Status code distribution:" -A 5 >> performance-report.md
+        
+        # Stop test server
+        kill $SERVER_PID
+    
+    - name: Create Issue if Performance Degraded
+      uses: actions/github-script@v6
+      if: contains(steps.*.outputs.*, 'WARNING')
+      with:
+        script: |
+          const fs = require('fs');
+          const report = fs.readFileSync('performance-report.md', 'utf8');
+          
+          if (report.includes('WARNING')) {
+            await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: `Dashboard Performance Degradation Detected - ${new Date().toISOString().split('T')[0]}`,
+              body: report,
+              labels: ['performance', 'dashboard', 'automated']
+            });
+          }
+    
+    - name: Upload Performance Report
+      uses: actions/upload-artifact@v3
+      with:
+        name: performance-monitoring-report
+        path: |
+          performance-report.md
+          dashboard-benchmark.txt
+          mem.prof
+
+  endpoint-health-check:
+    name: Dashboard Endpoint Health Check
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Go
+      uses: actions/setup-go@v4
+      with:
+        go-version: '1.21'
+    
+    - name: Build and Start Server
+      run: |
+        go build -o govc-server ./cmd/govc-server
+        ./govc-server --config config.example.yaml &
+        echo $! > server.pid
+        sleep 10
+    
+    - name: Run Health Checks
+      id: health-check
+      run: |
+        # Create health check report
+        echo "## Dashboard Health Check Report" > health-report.md
+        echo "Date: $(date -u)" >> health-report.md
+        echo "" >> health-report.md
+        
+        # Check main dashboard page
+        echo "### Dashboard Page" >> health-report.md
+        if curl -f -s http://localhost:8080/dashboard > /dev/null; then
+          echo "✅ Dashboard page is accessible" >> health-report.md
+        else
+          echo "❌ Dashboard page is NOT accessible" >> health-report.md
+          echo "unhealthy=true" >> $GITHUB_OUTPUT
+        fi
+        
+        # Check API endpoints
+        echo "" >> health-report.md
+        echo "### API Endpoints" >> health-report.md
+        
+        endpoints=(
+          "/api/v1/dashboard/overview"
+          "/api/v1/dashboard/performance"
+          "/api/v1/dashboard/logs"
+          "/api/v1/repositories"
+          "/api/v1/auth/info"
+        )
+        
+        for endpoint in "${endpoints[@]}"; do
+          if curl -f -s http://localhost:8080$endpoint > /dev/null; then
+            echo "✅ $endpoint is healthy" >> health-report.md
+          else
+            echo "❌ $endpoint is NOT healthy" >> health-report.md
+            echo "unhealthy=true" >> $GITHUB_OUTPUT
+          fi
+        done
+        
+        # Check WebSocket endpoint
+        echo "" >> health-report.md
+        echo "### WebSocket Endpoint" >> health-report.md
+        
+        # Simple WebSocket connectivity test
+        timeout 5 bash -c 'exec 3<>/dev/tcp/localhost/8080 && echo -e "GET /ws HTTP/1.1\r\nHost: localhost\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Key: x3JJHMbDL1EzLkh9GBhXDw==\r\nSec-WebSocket-Version: 13\r\n\r\n" >&3 && cat <&3 | grep -q "101 Switching Protocols"' && echo "✅ WebSocket endpoint is healthy" >> health-report.md || echo "❌ WebSocket endpoint is NOT healthy" >> health-report.md
+        
+        # Stop server
+        kill $(cat server.pid)
+    
+    - name: Alert on Failure
+      if: steps.health-check.outputs.unhealthy == 'true'
+      uses: actions/github-script@v6
+      with:
+        script: |
+          const fs = require('fs');
+          const report = fs.readFileSync('health-report.md', 'utf8');
+          
+          await github.rest.issues.create({
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            title: `Dashboard Health Check Failed - ${new Date().toISOString()}`,
+            body: report,
+            labels: ['bug', 'dashboard', 'health-check', 'automated']
+          });
+    
+    - name: Upload Health Report
+      uses: actions/upload-artifact@v3
+      if: always()
+      with:
+        name: health-check-report
+        path: health-report.md

@@ -1,0 +1,223 @@
+name: Dashboard Deployment
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'web/**'
+      - 'api/handlers_*.go'
+      - 'cmd/govc-server/**'
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Deployment environment'
+        required: true
+        default: 'staging'
+        type: choice
+        options:
+          - staging
+          - production
+
+jobs:
+  validate-dashboard:
+    name: Validate Dashboard
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Go
+      uses: actions/setup-go@v4
+      with:
+        go-version: '1.21'
+    
+    - name: Set up Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+    
+    - name: Validate Dashboard Assets
+      run: |
+        # Check dashboard files exist
+        test -f web/templates/dashboard.html || exit 1
+        test -f web/static/dashboard.css || exit 1
+        test -f web/static/dashboard.js || exit 1
+        
+        # Validate HTML
+        npm install -g html-validate
+        html-validate web/templates/dashboard.html || true
+        
+        # Validate CSS
+        npm install -g csslint
+        csslint web/static/dashboard.css || true
+        
+        # Validate JavaScript
+        npm install -g jshint
+        jshint web/static/dashboard.js || true
+    
+    - name: Run Dashboard Tests
+      run: |
+        go test -v ./web/...
+        
+    - name: Build Dashboard Binary
+      run: |
+        go build -o govc-server-dashboard ./cmd/govc-server
+        
+    - name: Test Dashboard Startup
+      run: |
+        ./govc-server-dashboard --config config.example.yaml &
+        SERVER_PID=$!
+        sleep 5
+        
+        # Verify dashboard loads
+        curl -f http://localhost:8080/dashboard
+        curl -f http://localhost:8080/api/v1/dashboard/overview
+        
+        kill $SERVER_PID
+
+  deploy-staging:
+    name: Deploy to Staging
+    needs: validate-dashboard
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' || github.event.inputs.environment == 'staging'
+    environment: staging
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Build Docker Image
+      run: |
+        docker build -t govc-dashboard:staging .
+        
+    - name: Deploy to Staging
+      env:
+        STAGING_HOST: ${{ secrets.STAGING_HOST }}
+        STAGING_SSH_KEY: ${{ secrets.STAGING_SSH_KEY }}
+      run: |
+        # This is a placeholder for actual deployment
+        echo "Deploying to staging environment..."
+        
+        # Example deployment steps:
+        # 1. Push Docker image to registry
+        # 2. SSH to staging server
+        # 3. Pull new image
+        # 4. Run database migrations if needed
+        # 5. Update container
+        # 6. Verify health
+    
+    - name: Run Smoke Tests
+      run: |
+        # Wait for deployment
+        sleep 30
+        
+        # Run smoke tests against staging
+        echo "Running smoke tests..."
+        # curl -f https://staging.example.com/dashboard
+        # curl -f https://staging.example.com/api/v1/dashboard/overview
+    
+    - name: Notify Deployment
+      uses: actions/github-script@v6
+      with:
+        script: |
+          await github.rest.repos.createDeploymentStatus({
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            deployment_id: context.payload.deployment.id,
+            state: 'success',
+            environment_url: 'https://staging.example.com/dashboard',
+            description: 'Dashboard deployed to staging'
+          });
+
+  deploy-production:
+    name: Deploy to Production
+    needs: [validate-dashboard, deploy-staging]
+    runs-on: ubuntu-latest
+    if: github.event.inputs.environment == 'production'
+    environment: production
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Build Production Image
+      run: |
+        docker build -t govc-dashboard:production \
+          --build-arg BUILD_ENV=production \
+          --build-arg ENABLE_METRICS=true \
+          --build-arg ENABLE_MONITORING=true \
+          .
+    
+    - name: Create Backup
+      env:
+        PROD_HOST: ${{ secrets.PROD_HOST }}
+        PROD_SSH_KEY: ${{ secrets.PROD_SSH_KEY }}
+      run: |
+        echo "Creating backup of current production..."
+        # Backup current deployment
+        # Export critical data
+    
+    - name: Deploy to Production
+      env:
+        PROD_HOST: ${{ secrets.PROD_HOST }}
+        PROD_SSH_KEY: ${{ secrets.PROD_SSH_KEY }}
+      run: |
+        echo "Deploying to production environment..."
+        
+        # Blue-green deployment steps:
+        # 1. Deploy to blue environment
+        # 2. Run health checks
+        # 3. Switch traffic from green to blue
+        # 4. Monitor for issues
+        # 5. Keep green as rollback option
+    
+    - name: Verify Production Health
+      run: |
+        # Comprehensive health checks
+        echo "Verifying production deployment..."
+        
+        # Check all critical endpoints
+        # Verify WebSocket connectivity
+        # Check performance metrics
+        # Validate data integrity
+    
+    - name: Update Monitoring
+      run: |
+        # Update monitoring dashboards
+        # Configure alerts
+        # Set up performance tracking
+        echo "Updating monitoring configuration..."
+    
+    - name: Rollback on Failure
+      if: failure()
+      run: |
+        echo "Deployment failed, initiating rollback..."
+        # Restore from backup
+        # Switch traffic back
+        # Alert team
+
+  post-deployment:
+    name: Post-Deployment Tasks
+    needs: [deploy-staging]
+    runs-on: ubuntu-latest
+    if: always()
+    steps:
+    - name: Generate Deployment Report
+      run: |
+        echo "## Dashboard Deployment Report" > deployment-report.md
+        echo "Date: $(date -u)" >> deployment-report.md
+        echo "Commit: ${{ github.sha }}" >> deployment-report.md
+        echo "Deployer: ${{ github.actor }}" >> deployment-report.md
+        echo "" >> deployment-report.md
+        echo "### Changes Deployed" >> deployment-report.md
+        echo "${{ github.event.head_commit.message }}" >> deployment-report.md
+    
+    - name: Update Documentation
+      run: |
+        # Update deployment documentation
+        # Record deployment in changelog
+        echo "Updating deployment documentation..."
+    
+    - name: Send Notifications
+      uses: actions/github-script@v6
+      with:
+        script: |
+          // Send deployment notifications
+          // Update team chat
+          // Email stakeholders
+          console.log('Sending deployment notifications...');

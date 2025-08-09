@@ -4,16 +4,26 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"fmt"
+	"sync"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
 )
 
+// CachedToken represents a cached token validation result
+type CachedToken struct {
+	Claims    *Claims
+	ExpiresAt time.Time
+}
+
 // JWTAuth handles JWT token generation and validation
 type JWTAuth struct {
-	Secret string
-	Issuer string
-	TTL    time.Duration
+	Secret     string
+	Issuer     string
+	TTL        time.Duration
+	tokenCache map[string]*CachedToken
+	cacheMu    sync.RWMutex
+	cacheTTL   time.Duration
 }
 
 // Claims represents the JWT claims
@@ -37,9 +47,11 @@ func NewJWTAuth(secret, issuer string, ttl time.Duration) *JWTAuth {
 	}
 
 	return &JWTAuth{
-		Secret: secret,
-		Issuer: issuer,
-		TTL:    ttl,
+		Secret:     secret,
+		Issuer:     issuer,
+		TTL:        ttl,
+		tokenCache: make(map[string]*CachedToken),
+		cacheTTL:   5 * time.Minute, // Cache tokens for 5 minutes
 	}
 }
 
@@ -65,8 +77,20 @@ func (j *JWTAuth) GenerateToken(userID, username, email string, permissions []st
 	return token.SignedString([]byte(j.Secret))
 }
 
-// ValidateToken validates a JWT token and returns the claims
+// ValidateToken validates a JWT token and returns the claims with caching
 func (j *JWTAuth) ValidateToken(tokenString string) (*Claims, error) {
+	// Check cache first
+	j.cacheMu.RLock()
+	if cached, exists := j.tokenCache[tokenString]; exists {
+		if time.Now().Before(cached.ExpiresAt) {
+			j.cacheMu.RUnlock()
+			return cached.Claims, nil
+		}
+		// Cache entry expired, will be cleaned up later
+	}
+	j.cacheMu.RUnlock()
+
+	// Parse and validate token
 	token, err := jwt.ParseWithClaims(tokenString, &Claims{}, func(token *jwt.Token) (interface{}, error) {
 		// Validate the signing method
 		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
@@ -88,7 +112,30 @@ func (j *JWTAuth) ValidateToken(tokenString string) (*Claims, error) {
 		return nil, fmt.Errorf("invalid token claims")
 	}
 
+	// Cache the result
+	j.cacheMu.Lock()
+	j.tokenCache[tokenString] = &CachedToken{
+		Claims:    claims,
+		ExpiresAt: time.Now().Add(j.cacheTTL),
+	}
+	// Clean up expired entries periodically
+	if len(j.tokenCache) > 100 { // Arbitrary threshold
+		j.cleanupExpiredTokens()
+	}
+	j.cacheMu.Unlock()
+
 	return claims, nil
+}
+
+// cleanupExpiredTokens removes expired entries from the cache
+// Must be called with write lock held
+func (j *JWTAuth) cleanupExpiredTokens() {
+	now := time.Now()
+	for token, cached := range j.tokenCache {
+		if now.After(cached.ExpiresAt) {
+			delete(j.tokenCache, token)
+		}
+	}
 }
 
 // RefreshToken generates a new token with the same claims but extended expiration

@@ -1,0 +1,119 @@
+global:
+  resolve_timeout: 5m
+  
+  # SMTP configuration (update with your settings)
+  smtp_smarthost: 'smtp.gmail.com:587'
+  smtp_from: 'alerts@example.com'
+  smtp_auth_username: 'alerts@example.com'
+  smtp_auth_password: 'your-password'
+
+# Templates for alert messages
+templates:
+  - '/etc/alertmanager/templates/*.tmpl'
+
+# The root route on which each incoming alert enters
+route:
+  group_by: ['alertname', 'cluster', 'service']
+  group_wait: 10s
+  group_interval: 10s
+  repeat_interval: 12h
+  receiver: 'default'
+  
+  routes:
+    # Critical alerts go to PagerDuty
+    - match:
+        severity: critical
+      receiver: pagerduty
+      continue: true
+    
+    # Dashboard-specific alerts
+    - match:
+        component: dashboard
+      receiver: dashboard-team
+      
+    # SLO breaches
+    - match:
+        slo: true
+      receiver: slo-alerts
+      
+    # Info level alerts only go to Slack
+    - match:
+        severity: info
+      receiver: slack-info
+      repeat_interval: 24h
+
+receivers:
+  - name: 'default'
+    email_configs:
+      - to: 'ops-team@example.com'
+        headers:
+          Subject: 'govc Alert: {{ .GroupLabels.alertname }}'
+        html: |
+          <h2>{{ .GroupLabels.alertname }}</h2>
+          <p><b>Severity:</b> {{ .CommonLabels.severity }}</p>
+          <p><b>Summary:</b> {{ .CommonAnnotations.summary }}</p>
+          <p><b>Description:</b> {{ .CommonAnnotations.description }}</p>
+          <h3>Alerts:</h3>
+          {{ range .Alerts }}
+          <hr>
+          <p><b>Labels:</b></p>
+          <ul>
+          {{ range .Labels.SortedPairs }}
+            <li>{{ .Name }}: {{ .Value }}</li>
+          {{ end }}
+          </ul>
+          <p><b>Started at:</b> {{ .StartsAt }}</p>
+          {{ if .EndsAt }}<p><b>Ended at:</b> {{ .EndsAt }}</p>{{ end }}
+          {{ end }}
+
+  - name: 'dashboard-team'
+    email_configs:
+      - to: 'dashboard-team@example.com'
+    slack_configs:
+      - api_url: '${SLACK_WEBHOOK_URL}'
+        channel: '#dashboard-alerts'
+        title: 'Dashboard Alert: {{ .GroupLabels.alertname }}'
+        text: '{{ .CommonAnnotations.summary }}'
+        send_resolved: true
+
+  - name: 'pagerduty'
+    pagerduty_configs:
+      - service_key: '${PAGERDUTY_SERVICE_KEY}'
+        description: '{{ .CommonAnnotations.summary }}'
+        details:
+          severity: '{{ .CommonLabels.severity }}'
+          component: '{{ .CommonLabels.component }}'
+          runbook: '{{ .CommonAnnotations.runbook }}'
+
+  - name: 'slo-alerts'
+    email_configs:
+      - to: 'slo-team@example.com,management@example.com'
+        headers:
+          Subject: 'SLO Breach: {{ .GroupLabels.alertname }}'
+    webhook_configs:
+      - url: 'http://slo-tracker:8080/webhook'
+        send_resolved: true
+
+  - name: 'slack-info'
+    slack_configs:
+      - api_url: '${SLACK_WEBHOOK_URL}'
+        channel: '#dashboard-info'
+        title: 'Info: {{ .GroupLabels.alertname }}'
+        text: '{{ .CommonAnnotations.summary }}'
+        send_resolved: false
+
+# Inhibition rules to suppress certain alerts
+inhibit_rules:
+  # If the dashboard is down, suppress high latency alerts
+  - source_match:
+      alertname: 'DashboardDown'
+    target_match:
+      alertname: 'DashboardHighLatency'
+    equal: ['cluster', 'service']
+    
+  # If there's a critical error rate, suppress warning error rate
+  - source_match:
+      alertname: 'DashboardCriticalErrorRate'
+    target_match:
+      alertname: 'DashboardHighErrorRate'
+    equal: ['cluster', 'service']

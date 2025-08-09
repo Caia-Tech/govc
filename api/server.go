@@ -12,6 +12,7 @@ import (
 	"github.com/caiatech/govc/logging"
 	"github.com/caiatech/govc/metrics"
 	"github.com/caiatech/govc/pool"
+	"github.com/caiatech/govc/web"
 	"github.com/gin-gonic/gin"
 )
 
@@ -114,6 +115,9 @@ func (s *Server) RegisterRoutes(router *gin.Engine) {
 		router.Use(CORSMiddleware(s.config.Development.AllowedOrigins))
 	}
 
+	// Setup dashboard routes first (includes static files and WebSocket)
+	web.SetupDashboardRoutes(router, s.repoPool, s.jwtAuth, s.logger)
+
 	// Add CSRF protection for state-changing operations
 	csrfSkipPaths := []string{
 		"/api/v1/auth/login",
@@ -121,6 +125,9 @@ func (s *Server) RegisterRoutes(router *gin.Engine) {
 		"/health",
 		"/metrics",
 		"/swagger",
+		"/dashboard",
+		"/ws",
+		"/static",
 	}
 	
 	// Use double submit cookie pattern for simplicity in development

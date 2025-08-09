@@ -1,0 +1,394 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>govc Dashboard</title>
+    <link rel="stylesheet" href="/static/dashboard.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+</head>
+<body>
+    <div class="dashboard-container">
+        <!-- Header -->
+        <header class="header">
+            <div class="header-left">
+                <h1 class="logo">
+                    <i class="fas fa-code-branch"></i>
+                    govc
+                </h1>
+                <div class="breadcrumb">
+                    <span>Dashboard</span>
+                </div>
+            </div>
+            <div class="header-right">
+                <div class="user-info">
+                    <span class="user-name" id="user-name">User</span>
+                    <div class="user-menu">
+                        <button class="btn-icon" id="user-menu-btn">
+                            <i class="fas fa-user-circle"></i>
+                        </button>
+                        <div class="user-dropdown" id="user-dropdown">
+                            <a href="#" id="logout-btn">
+                                <i class="fas fa-sign-out-alt"></i>
+                                Logout
+                            </a>
+                        </div>
+                    </div>
+                </div>
+                <div class="connection-status" id="connection-status">
+                    <span class="status-indicator connected" id="status-indicator"></span>
+                    <span class="status-text" id="status-text">Connected</span>
+                </div>
+            </div>
+        </header>
+
+        <!-- Sidebar -->
+        <aside class="sidebar">
+            <nav class="nav">
+                <ul class="nav-list">
+                    <li class="nav-item active">
+                        <a href="#overview" class="nav-link" data-section="overview">
+                            <i class="fas fa-tachometer-alt"></i>
+                            <span>Overview</span>
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a href="#repositories" class="nav-link" data-section="repositories">
+                            <i class="fas fa-folder"></i>
+                            <span>Repositories</span>
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a href="#git-ops" class="nav-link" data-section="git-ops">
+                            <i class="fas fa-code-branch"></i>
+                            <span>Git Operations</span>
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a href="#performance" class="nav-link" data-section="performance">
+                            <i class="fas fa-chart-line"></i>
+                            <span>Performance</span>
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a href="#auth" class="nav-link" data-section="auth">
+                            <i class="fas fa-shield-alt"></i>
+                            <span>Authentication</span>
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a href="#logs" class="nav-link" data-section="logs">
+                            <i class="fas fa-file-alt"></i>
+                            <span>Logs</span>
+                        </a>
+                    </li>
+                </ul>
+            </nav>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <!-- Overview Section -->
+            <section id="overview" class="content-section active">
+                <div class="section-header">
+                    <h2>System Overview</h2>
+                    <div class="header-actions">
+                        <button class="btn btn-secondary" id="refresh-btn">
+                            <i class="fas fa-sync"></i>
+                            Refresh
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Key Metrics Cards -->
+                <div class="metrics-grid">
+                    <div class="metric-card">
+                        <div class="metric-icon">
+                            <i class="fas fa-server"></i>
+                        </div>
+                        <div class="metric-content">
+                            <h3 class="metric-value" id="total-repos">0</h3>
+                            <p class="metric-label">Total Repositories</p>
+                        </div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="metric-icon">
+                            <i class="fas fa-play"></i>
+                        </div>
+                        <div class="metric-content">
+                            <h3 class="metric-value" id="active-repos">0</h3>
+                            <p class="metric-label">Active Repositories</p>
+                        </div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="metric-icon">
+                            <i class="fas fa-clock"></i>
+                        </div>
+                        <div class="metric-content">
+                            <h3 class="metric-value" id="avg-response">0ms</h3>
+                            <p class="metric-label">Avg Response Time</p>
+                        </div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="metric-icon">
+                            <i class="fas fa-memory"></i>
+                        </div>
+                        <div class="metric-content">
+                            <h3 class="metric-value" id="memory-usage">0MB</h3>
+                            <p class="metric-label">Memory Usage</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Charts Row -->
+                <div class="charts-row">
+                    <div class="chart-container">
+                        <h3>Performance Metrics</h3>
+                        <canvas id="performance-chart"></canvas>
+                    </div>
+                    <div class="chart-container">
+                        <h3>Repository Activity</h3>
+                        <canvas id="activity-chart"></canvas>
+                    </div>
+                </div>
+
+                <!-- Recent Activity -->
+                <div class="activity-section">
+                    <h3>Recent Activity</h3>
+                    <div class="activity-list" id="activity-list">
+                        <div class="activity-item">
+                            <i class="fas fa-info-circle activity-icon info"></i>
+                            <div class="activity-content">
+                                <p class="activity-message">Dashboard initialized</p>
+                                <span class="activity-time">Just now</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Repositories Section -->
+            <section id="repositories" class="content-section">
+                <div class="section-header">
+                    <h2>Repository Management</h2>
+                    <div class="header-actions">
+                        <button class="btn btn-primary" id="create-repo-btn">
+                            <i class="fas fa-plus"></i>
+                            Create Repository
+                        </button>
+                    </div>
+                </div>
+
+                <div class="repositories-container">
+                    <div class="repositories-filters">
+                        <input type="text" placeholder="Search repositories..." class="search-input" id="repo-search">
+                        <select class="filter-select" id="repo-status-filter">
+                            <option value="">All Status</option>
+                            <option value="active">Active</option>
+                            <option value="idle">Idle</option>
+                        </select>
+                    </div>
+
+                    <div class="repositories-table">
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>ID</th>
+                                    <th>Path</th>
+                                    <th>Status</th>
+                                    <th>Last Accessed</th>
+                                    <th>Access Count</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="repositories-tbody">
+                                <!-- Repository rows will be populated here -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Git Operations Section -->
+            <section id="git-ops" class="content-section">
+                <div class="section-header">
+                    <h2>Git Operations</h2>
+                </div>
+
+                <div class="git-ops-container">
+                    <div class="operations-panel">
+                        <h3>Quick Operations</h3>
+                        <div class="operations-grid">
+                            <button class="operation-btn" id="commit-btn">
+                                <i class="fas fa-save"></i>
+                                Commit
+                            </button>
+                            <button class="operation-btn" id="branch-btn">
+                                <i class="fas fa-code-branch"></i>
+                                Branch
+                            </button>
+                            <button class="operation-btn" id="merge-btn">
+                                <i class="fas fa-code-merge"></i>
+                                Merge
+                            </button>
+                            <button class="operation-btn" id="revert-btn">
+                                <i class="fas fa-undo"></i>
+                                Revert
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="commit-log">
+                        <h3>Recent Commits</h3>
+                        <div class="commit-list" id="commit-list">
+                            <!-- Commit entries will be populated here -->
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Performance Section -->
+            <section id="performance" class="content-section">
+                <div class="section-header">
+                    <h2>Performance Monitoring</h2>
+                </div>
+
+                <div class="performance-grid">
+                    <div class="performance-card">
+                        <h3>Pool Statistics</h3>
+                        <div class="pool-stats" id="pool-stats">
+                            <div class="stat-item">
+                                <span class="stat-label">Total Repositories:</span>
+                                <span class="stat-value" id="pool-total">0</span>
+                            </div>
+                            <div class="stat-item">
+                                <span class="stat-label">Active:</span>
+                                <span class="stat-value" id="pool-active">0</span>
+                            </div>
+                            <div class="stat-item">
+                                <span class="stat-label">Idle:</span>
+                                <span class="stat-value" id="pool-idle">0</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="performance-card">
+                        <h3>Authentication Metrics</h3>
+                        <div class="auth-stats" id="auth-stats">
+                            <div class="stat-item">
+                                <span class="stat-label">JWT Validations/sec:</span>
+                                <span class="stat-value" id="jwt-rate">0</span>
+                            </div>
+                            <div class="stat-item">
+                                <span class="stat-label">Cache Hit Rate:</span>
+                                <span class="stat-value" id="cache-hit-rate">0%</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="performance-card full-width">
+                        <h3>Performance Benchmarks</h3>
+                        <div class="benchmark-results" id="benchmark-results">
+                            <!-- Benchmark data will be populated here -->
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Authentication Section -->
+            <section id="auth" class="content-section">
+                <div class="section-header">
+                    <h2>Authentication Management</h2>
+                </div>
+
+                <div class="auth-container">
+                    <div class="token-management">
+                        <h3>JWT Token Management</h3>
+                        <div class="token-actions">
+                            <button class="btn btn-primary" id="generate-token-btn">
+                                <i class="fas fa-key"></i>
+                                Generate Token
+                            </button>
+                            <button class="btn btn-secondary" id="validate-token-btn">
+                                <i class="fas fa-check"></i>
+                                Validate Token
+                            </button>
+                        </div>
+                        <div class="token-display" id="token-display">
+                            <!-- Token information will be displayed here -->
+                        </div>
+                    </div>
+
+                    <div class="permissions-panel">
+                        <h3>Permissions</h3>
+                        <div class="permissions-list" id="permissions-list">
+                            <!-- Permissions will be listed here -->
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Logs Section -->
+            <section id="logs" class="content-section">
+                <div class="section-header">
+                    <h2>System Logs</h2>
+                    <div class="header-actions">
+                        <select class="filter-select" id="log-level-filter">
+                            <option value="">All Levels</option>
+                            <option value="DEBUG">Debug</option>
+                            <option value="INFO">Info</option>
+                            <option value="WARN">Warning</option>
+                            <option value="ERROR">Error</option>
+                        </select>
+                        <button class="btn btn-secondary" id="clear-logs-btn">
+                            <i class="fas fa-trash"></i>
+                            Clear
+                        </button>
+                    </div>
+                </div>
+
+                <div class="logs-container">
+                    <div class="log-entries" id="log-entries">
+                        <!-- Log entries will be populated here -->
+                    </div>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <!-- Modals -->
+    <div class="modal-overlay" id="modal-overlay">
+        <div class="modal" id="create-repo-modal">
+            <div class="modal-header">
+                <h3>Create Repository</h3>
+                <button class="modal-close" id="modal-close">&times;</button>
+            </div>
+            <div class="modal-body">
+                <form id="create-repo-form">
+                    <div class="form-group">
+                        <label for="repo-id">Repository ID:</label>
+                        <input type="text" id="repo-id" name="repo-id" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="repo-path">Path:</label>
+                        <input type="text" id="repo-path" name="repo-path" placeholder="/path/to/repo or :memory:">
+                    </div>
+                    <div class="form-group">
+                        <label>
+                            <input type="checkbox" id="memory-only" name="memory-only">
+                            Memory-only repository
+                        </label>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" id="cancel-create">Cancel</button>
+                <button type="submit" class="btn btn-primary" form="create-repo-form">Create</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="/static/dashboard.js"></script>
+</body>
+</html>

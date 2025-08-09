@@ -1,0 +1,51 @@
+# govc Local Development Configuration
+
+server:
+  host: "localhost"
+  port: 8080
+  read_timeout: "30s"
+  write_timeout: "30s"
+  idle_timeout: "60s"
+  request_timeout: "25s"
+  max_repos: 100
+  max_request_size: 10485760  # 10MB
+  trusted_proxy: []
+
+auth:
+  enabled: true
+  jwt:
+    secret: "local-development-jwt-secret-key-32-chars-minimum"
+    issuer: "govc-dev"
+    ttl: "24h"
+
+pool:
+  max_repositories: 50
+  max_idle_time: "15m"
+  cleanup_interval: "2m"
+  enable_metrics: true
+
+logging:
+  level: "INFO"
+  format: "text"  # More readable for local development
+  component: "govc-dev"
+  output: "stdout"
+
+metrics:
+  enabled: true
+  path: "/metrics"
+
+storage:
+  type: "memory"  # Fast for local development
+  max_memory_mb: 512
+  cache_enabled: true
+  cache_ttl: "30m"
+
+development:
+  debug: true
+  profiler_enabled: true
+  cors_enabled: true
+  allowed_origins:
+    - "http://localhost:3000"
+    - "http://localhost:8080"
+    - "http://localhost:5173"  # Vite dev server
+    - "http://127.0.0.1:3000"

@@ -17,6 +17,11 @@ type RepositoryPool struct {
 	cleanupTicker *time.Ticker
 	done          chan struct{}
 	closed        bool
+	
+	// Stats caching for performance
+	cachedStats     *RepositoryStats
+	statsLastUpdate time.Time
+	statsCacheTTL   time.Duration
 }
 
 // PoolConfig defines configuration for the repository pool
@@ -81,10 +86,11 @@ func NewRepositoryPool(config PoolConfig) *RepositoryPool {
 	}
 
 	pool := &RepositoryPool{
-		repositories: make(map[string]*PooledRepository),
-		config:       config,
-		lastCleanup:  time.Now(),
-		done:         make(chan struct{}),
+		repositories:  make(map[string]*PooledRepository),
+		config:        config,
+		lastCleanup:   time.Now(),
+		done:          make(chan struct{}),
+		statsCacheTTL: 5 * time.Second, // Cache stats for 5 seconds
 	}
 
 	// Start cleanup routine
@@ -142,6 +148,9 @@ func (p *RepositoryPool) Get(id, path string, memoryOnly bool) (*PooledRepositor
 
 	// Add to pool
 	p.repositories[id] = pooledRepo
+	
+	// Invalidate stats cache since pool changed
+	p.invalidateStatsCache()
 
 	return pooledRepo, nil
 }
@@ -153,6 +162,8 @@ func (p *RepositoryPool) Remove(id string) bool {
 
 	if _, exists := p.repositories[id]; exists {
 		delete(p.repositories, id)
+		// Invalidate stats cache since pool changed
+		p.invalidateStatsCache()
 		return true
 	}
 	return false
@@ -165,10 +176,27 @@ func (p *RepositoryPool) Size() int {
 	return len(p.repositories)
 }
 
-// Stats returns statistics about the repository pool
+// Stats returns statistics about the repository pool with caching for performance
 func (p *RepositoryPool) Stats() RepositoryStats {
 	p.mu.RLock()
-	defer p.mu.RUnlock()
+	
+	// Check if we have valid cached stats
+	now := time.Now()
+	if p.cachedStats != nil && now.Sub(p.statsLastUpdate) < p.statsCacheTTL {
+		defer p.mu.RUnlock()
+		return *p.cachedStats
+	}
+	
+	p.mu.RUnlock()
+	
+	// Need to refresh stats - acquire write lock
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	
+	// Double-check in case another goroutine updated while we waited
+	if p.cachedStats != nil && now.Sub(p.statsLastUpdate) < p.statsCacheTTL {
+		return *p.cachedStats
+	}
 
 	stats := RepositoryStats{
 		TotalRepositories:  len(p.repositories),
@@ -179,7 +207,6 @@ func (p *RepositoryPool) Stats() RepositoryStats {
 		Config:             p.config,
 	}
 
-	now := time.Now()
 	idleThreshold := now.Add(-p.config.MaxIdleTime)
 
 	for id, pooledRepo := range p.repositories {
@@ -207,7 +234,17 @@ func (p *RepositoryPool) Stats() RepositoryStats {
 		pooledRepo.mu.RUnlock()
 	}
 
+	// Cache the results
+	p.cachedStats = &stats
+	p.statsLastUpdate = now
+
 	return stats
+}
+
+// invalidateStatsCache invalidates the cached statistics
+func (p *RepositoryPool) invalidateStatsCache() {
+	p.cachedStats = nil
+	p.statsLastUpdate = time.Time{}
 }
 
 // Cleanup manually triggers cleanup of idle repositories
@@ -272,6 +309,11 @@ func (p *RepositoryPool) evictIdleRepositories() int {
 			delete(p.repositories, id)
 			evicted++
 		}
+	}
+
+	// Invalidate stats cache if we evicted any repositories
+	if evicted > 0 {
+		p.invalidateStatsCache()
 	}
 
 	return evicted
