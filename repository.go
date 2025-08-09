@@ -401,9 +401,7 @@ func (r *Repository) Status() (*Status, error) {
 	}
 
 	// Get staged files
-	for file := range r.staging.files {
-		status.Staged = append(status.Staged, file)
-	}
+	status.Staged = r.staging.List()
 
 	// Get worktree files to check for untracked/modified
 	worktreeFiles := r.worktree.ListFiles()
@@ -427,7 +425,7 @@ func (r *Repository) Status() (*Status, error) {
 	// Check each worktree file
 	for _, file := range worktreeFiles {
 		// Skip if already staged
-		if _, staged := r.staging.files[file]; staged {
+		if r.staging.Contains(file) {
 			continue
 		}
 
@@ -481,7 +479,7 @@ func (r *Repository) createTreeFromStaging() (*object.Tree, error) {
 					// Copy all entries from parent tree
 					for _, entry := range parentTree.Entries {
 						// Skip if this file is being updated in staging or removed
-						if _, exists := r.staging.files[entry.Name]; !exists && !r.staging.removed[entry.Name] {
+						if !r.staging.Contains(entry.Name) && !r.staging.IsRemoved(entry.Name) {
 							tree.AddEntry(entry.Mode, entry.Name, entry.Hash)
 						}
 					}
@@ -491,10 +489,10 @@ func (r *Repository) createTreeFromStaging() (*object.Tree, error) {
 	}
 
 	// Add/update files from staging
-	for file, hash := range r.staging.files {
+	r.staging.ForEach(func(file, hash string) {
 		mode := "100644"
 		tree.AddEntry(mode, file, hash)
-	}
+	})
 
 	return tree, nil
 }
@@ -703,6 +701,42 @@ func (s *StagingArea) List() []string {
 		result = append(result, path)
 	}
 	return result
+}
+
+// ForEach iterates over staged files safely with a callback
+func (s *StagingArea) ForEach(callback func(path, hash string)) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	
+	for path, hash := range s.files {
+		callback(path, hash)
+	}
+}
+
+// Contains checks if a path is staged
+func (s *StagingArea) Contains(path string) bool {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	
+	_, exists := s.files[path]
+	return exists
+}
+
+// GetHash returns the hash for a specific staged file
+func (s *StagingArea) GetHash(path string) (string, bool) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	
+	hash, exists := s.files[path]
+	return hash, exists
+}
+
+// SetFile sets a file hash directly (for internal operations like stash apply)
+func (s *StagingArea) SetFile(path, hash string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	
+	s.files[path] = hash
 }
 
 type Worktree struct {
@@ -1607,7 +1641,7 @@ func (r *Repository) DiffWorking() (*WorkingDiffInfo, error) {
 
 	// Get staged files
 	stagedDiffs := []FileDiffInfo{}
-	for path, hash := range r.staging.files {
+	r.staging.ForEach(func(path, hash string) {
 		oldHash, exists := headFiles[path]
 		status := "modified"
 		if !exists {
@@ -1635,7 +1669,7 @@ func (r *Repository) DiffWorking() (*WorkingDiffInfo, error) {
 			Deletions: deletions,
 			Patch:     patch,
 		})
-	}
+	})
 
 	// For unstaged changes, we'd need to compare working directory with staging
 	// This is simplified for now
@@ -2046,7 +2080,7 @@ func (r *Repository) Stash(message string, includeUntracked bool) (*Stash, error
 	// Save staged files
 	stagedFiles := make(map[string]string)
 	for _, path := range status.Staged {
-		if hash, exists := r.staging.files[path]; exists {
+		if hash, exists := r.staging.GetHash(path); exists {
 			stagedFiles[path] = hash
 		}
 	}
@@ -2176,7 +2210,7 @@ func (r *Repository) ApplyStash(stashID string, drop bool) error {
 
 	// Apply staged files
 	for path, hash := range stash.StagedFiles {
-		r.staging.files[path] = hash
+		r.staging.SetFile(path, hash)
 	}
 
 	// Apply working directory files
