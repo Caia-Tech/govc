@@ -19,6 +19,7 @@ type Config struct {
 	Metrics     MetricsConfig     `yaml:"metrics"`
 	Storage     StorageConfig     `yaml:"storage"`
 	Development DevelopmentConfig `yaml:"development"`
+	Cluster     ClusterConfig     `yaml:"cluster"`
 }
 
 // ServerConfig contains HTTP server configuration
@@ -87,6 +88,29 @@ type DevelopmentConfig struct {
 	UseNewArchitecture bool     `yaml:"use_new_architecture"`
 }
 
+// ClusterConfig contains high availability cluster configuration
+type ClusterConfig struct {
+	Enabled               bool          `yaml:"enabled"`
+	ID                    string        `yaml:"id"`
+	Name                  string        `yaml:"name"`
+	ReplicationFactor     int           `yaml:"replication_factor"`
+	ShardSize             int           `yaml:"shard_size"`
+	ElectionTimeout       time.Duration `yaml:"election_timeout"`
+	HeartbeatInterval     time.Duration `yaml:"heartbeat_interval"`
+	MaxLogEntries         int           `yaml:"max_log_entries"`
+	SnapshotThreshold     int           `yaml:"snapshot_threshold"`
+	AutoRebalance         bool          `yaml:"auto_rebalance"`
+	ConsistencyLevel      string        `yaml:"consistency_level"`
+	AutoFailoverEnabled   bool          `yaml:"auto_failover_enabled"`
+	FailoverTimeout       time.Duration `yaml:"failover_timeout"`
+	MinHealthyNodes       int           `yaml:"min_healthy_nodes"`
+	RequireQuorum         bool          `yaml:"require_quorum"`
+	PreventSplitBrain     bool          `yaml:"prevent_split_brain"`
+	MaxFailoversPerMinute int           `yaml:"max_failovers_per_minute"`
+	CooldownPeriod        time.Duration `yaml:"cooldown_period"`
+	DataDir               string        `yaml:"data_dir"`
+}
+
 // DefaultConfig returns a default configuration
 func DefaultConfig() *Config {
 	return &Config{
@@ -138,6 +162,27 @@ func DefaultConfig() *Config {
 			CORSEnabled:        false,
 			AllowedOrigins:     []string{"http://localhost:3000"},
 			UseNewArchitecture: true, // Default to new architecture
+		},
+		Cluster: ClusterConfig{
+			Enabled:               false, // Disabled by default
+			ID:                    "govc-cluster-1",
+			Name:                  "GoVC Production Cluster",
+			ReplicationFactor:     3,
+			ShardSize:             1000,
+			ElectionTimeout:       150 * time.Millisecond,
+			HeartbeatInterval:     50 * time.Millisecond,
+			MaxLogEntries:         10000,
+			SnapshotThreshold:     1000,
+			AutoRebalance:         true,
+			ConsistencyLevel:      "eventual",
+			AutoFailoverEnabled:   true,
+			FailoverTimeout:       30 * time.Second,
+			MinHealthyNodes:       1,
+			RequireQuorum:         false,
+			PreventSplitBrain:     true,
+			MaxFailoversPerMinute: 5,
+			CooldownPeriod:        5 * time.Minute,
+			DataDir:               "/var/lib/govc/cluster",
 		},
 	}
 }

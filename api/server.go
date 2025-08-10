@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"sync"
@@ -29,6 +30,9 @@ type Server struct {
 	prometheusMetrics *metrics.PrometheusMetrics
 	logger            *logging.Logger
 	csrfStore         *CSRFStore
+	repository        *govc.Repository // Add direct repository reference
+	clusterManager    *ClusterManager  // High availability cluster manager
+	monitoringManager *MonitoringManager // Comprehensive monitoring system
 	mu                sync.RWMutex
 }
 
@@ -81,7 +85,7 @@ func NewServer(cfg *config.Config) *Server {
 	// Initialize CSRF store with 1 hour TTL
 	csrfStore := NewCSRFStore(time.Hour)
 
-	return &Server{
+	server := &Server{
 		config:            cfg,
 		repoPool:          repoPool,
 		repoFactory:       NewRepositoryFactory(logger),
@@ -94,7 +98,24 @@ func NewServer(cfg *config.Config) *Server {
 		prometheusMetrics: prometheusMetrics,
 		logger:            logger,
 		csrfStore:         csrfStore,
+		repository:        nil, // Will be set when repository is created
 	}
+
+	// Initialize monitoring manager
+	server.monitoringManager = NewMonitoringManager(server)
+
+	return server
+}
+
+// Start initializes and starts server components
+func (s *Server) Start() error {
+	// Start monitoring if initialized
+	if s.monitoringManager != nil {
+		go s.monitoringManager.Start(context.Background())
+		s.logger.Info("Monitoring system started")
+	}
+	
+	return nil
 }
 
 func (s *Server) RegisterRoutes(router *gin.Engine) {
@@ -253,6 +274,16 @@ func (s *Server) RegisterRoutes(router *gin.Engine) {
 		repoRoutes.GET("/:repo_id/search/content", s.searchContent)
 		repoRoutes.GET("/:repo_id/search/files", s.searchFiles)
 		repoRoutes.POST("/:repo_id/grep", s.grep)
+		
+		// Advanced Search Endpoints
+		repoRoutes.POST("/:repo_id/search/fulltext", s.fullTextSearch)
+		repoRoutes.POST("/:repo_id/search/sql", s.sqlQuery)
+		repoRoutes.POST("/:repo_id/search/aggregate", s.searchWithAggregation)
+		repoRoutes.GET("/:repo_id/search/statistics", s.getSearchIndexStatistics)
+		repoRoutes.GET("/:repo_id/search/suggestions", s.getSearchSuggestions)
+		repoRoutes.POST("/:repo_id/search/rebuild", s.rebuildSearchIndex)
+
+		// Note: Streaming endpoints temporarily disabled for HA focus
 
 		// Hooks & Events
 		repoRoutes.POST("/:repo_id/hooks", s.registerHook)
@@ -335,6 +366,15 @@ func (s *Server) RegisterRoutes(router *gin.Engine) {
 	router.GET("/health/ready", s.readiness)
 	router.GET("/metrics", s.prometheusMetrics.PrometheusHandler())
 	router.GET("/version", s.versionInfo)
+	
+	// Enhanced monitoring endpoints
+	monitoringRoutes := v1.Group("/monitoring")
+	{
+		monitoringRoutes.GET("/metrics", s.monitoringManager.GetSystemMetrics)
+		monitoringRoutes.GET("/health/history", s.monitoringManager.GetHealthHistory)
+		monitoringRoutes.GET("/alerts", s.monitoringManager.GetAlerts)
+		monitoringRoutes.GET("/performance", s.monitoringManager.GetPerformanceProfile)
+	}
 
 	// Pool management endpoints (admin only if auth is enabled)
 	poolRoutes := v1.Group("/pool")
@@ -348,6 +388,9 @@ func (s *Server) RegisterRoutes(router *gin.Engine) {
 	}
 
 	// Container system removed - focusing on core VCS functionality
+
+	// Setup cluster management routes
+	s.setupClusterRoutes(v1)
 
 	// Add Prometheus middleware for automatic metrics collection
 	if s.prometheusMetrics != nil {

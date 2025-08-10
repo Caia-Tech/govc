@@ -136,6 +136,50 @@ func main() {
 	// Create server with config
 	server := api.NewServer(cfg)
 
+	// Initialize cluster if enabled
+	if cfg.Cluster.Enabled {
+		logger.Info("High availability cluster enabled, initializing...")
+		
+		clusterConfig := api.ClusterConfig{
+			ID:                    cfg.Cluster.ID,
+			Name:                  cfg.Cluster.Name,
+			ReplicationFactor:     cfg.Cluster.ReplicationFactor,
+			ShardSize:             cfg.Cluster.ShardSize,
+			ElectionTimeout:       cfg.Cluster.ElectionTimeout,
+			HeartbeatInterval:     cfg.Cluster.HeartbeatInterval,
+			MaxLogEntries:         cfg.Cluster.MaxLogEntries,
+			SnapshotThreshold:     cfg.Cluster.SnapshotThreshold,
+			AutoRebalance:         cfg.Cluster.AutoRebalance,
+			ConsistencyLevel:      cfg.Cluster.ConsistencyLevel,
+			AutoFailoverEnabled:   cfg.Cluster.AutoFailoverEnabled,
+			FailoverTimeout:       cfg.Cluster.FailoverTimeout,
+			MinHealthyNodes:       cfg.Cluster.MinHealthyNodes,
+			RequireQuorum:         cfg.Cluster.RequireQuorum,
+			PreventSplitBrain:     cfg.Cluster.PreventSplitBrain,
+			MaxFailoversPerMinute: cfg.Cluster.MaxFailoversPerMinute,
+			CooldownPeriod:        cfg.Cluster.CooldownPeriod,
+			DataDir:               cfg.Cluster.DataDir,
+		}
+
+		if err := server.InitializeCluster(clusterConfig); err != nil {
+			logger.WithField("error", err.Error()).Fatal("Failed to initialize cluster")
+		}
+
+		logger.WithFields(map[string]interface{}{
+			"cluster_id":         cfg.Cluster.ID,
+			"cluster_name":       cfg.Cluster.Name,
+			"replication_factor": cfg.Cluster.ReplicationFactor,
+			"auto_failover":      cfg.Cluster.AutoFailoverEnabled,
+		}).Info("High availability cluster initialized successfully")
+	} else {
+		logger.Info("High availability cluster disabled")
+	}
+
+	// Start server components
+	if err := server.Start(); err != nil {
+		logger.WithField("error", err.Error()).Fatal("Failed to start server components")
+	}
+
 	// Register routes
 	server.RegisterRoutes(router)
 

@@ -1,0 +1,474 @@
+package api
+
+import (
+	"context"
+	"crypto/md5"
+	"fmt"
+	"io"
+	"net/http"
+	"strconv"
+	"time"
+
+	"github.com/gin-gonic/gin"
+	"github.com/gorilla/websocket"
+)
+
+// StreamingConfig defines configuration for streaming operations
+type StreamingConfig struct {
+	ChunkSize           int           `json:"chunk_size"`           // Default chunk size in bytes
+	MaxChunkSize        int           `json:"max_chunk_size"`       // Maximum allowed chunk size
+	MinChunkSize        int           `json:"min_chunk_size"`       // Minimum chunk size
+	StreamTimeout       time.Duration `json:"stream_timeout"`       // Timeout for stream operations
+	MaxConcurrentChunks int           `json:"max_concurrent_chunks"` // Max parallel chunk processing
+	EnableCompression   bool          `json:"enable_compression"`   // Enable chunk compression
+	EnableChecksums     bool          `json:"enable_checksums"`     // Enable chunk integrity checks
+}
+
+// StreamChunk represents a chunk of streamed data
+type StreamChunk struct {
+	ID           string `json:"id"`            // Unique chunk identifier
+	StreamID     string `json:"stream_id"`     // Stream identifier
+	SequenceNum  int    `json:"sequence_num"`  // Chunk sequence number
+	Data         []byte `json:"data"`          // Chunk data
+	Size         int    `json:"size"`          // Actual chunk size
+	Checksum     string `json:"checksum"`      // MD5 checksum of data
+	IsLast       bool   `json:"is_last"`       // True if this is the final chunk
+	IsCompressed bool   `json:"is_compressed"` // True if chunk is compressed
+	Timestamp    int64  `json:"timestamp"`     // Unix timestamp
+}
+
+// StreamRequest represents a streaming request
+type StreamRequest struct {
+	Hash         string `json:"hash"`          // Content hash to stream
+	ChunkSize    int    `json:"chunk_size"`    // Requested chunk size
+	StartOffset  int64  `json:"start_offset"`  // Starting byte offset
+	EndOffset    int64  `json:"end_offset"`    // Ending byte offset (-1 for EOF)
+	EnableGzip   bool   `json:"enable_gzip"`   // Enable gzip compression
+	StreamID     string `json:"stream_id"`     // Client-provided stream ID
+}
+
+// StreamResponse represents the response to a stream request
+type StreamResponse struct {
+	StreamID     string `json:"stream_id"`     // Stream identifier
+	TotalSize    int64  `json:"total_size"`    // Total content size
+	ChunkCount   int    `json:"chunk_count"`   // Expected number of chunks
+	ContentType  string `json:"content_type"`  // Content MIME type
+	LastModified int64  `json:"last_modified"` // Last modification time
+	Checksum     string `json:"checksum"`      // Full content checksum
+}
+
+// StreamProgress tracks streaming progress
+type StreamProgress struct {
+	StreamID        string    `json:"stream_id"`
+	BytesStreamed   int64     `json:"bytes_streamed"`
+	TotalBytes      int64     `json:"total_bytes"`
+	ChunksStreamed  int       `json:"chunks_streamed"`
+	TotalChunks     int       `json:"total_chunks"`
+	StartTime       time.Time `json:"start_time"`
+	LastChunkTime   time.Time `json:"last_chunk_time"`
+	EstimatedETA    int64     `json:"estimated_eta_seconds"`
+	TransferRate    float64   `json:"transfer_rate_mbps"`
+	Status          string    `json:"status"` // "streaming", "completed", "error", "paused"
+}
+
+// WebSocket upgrader for streaming
+var upgrader = websocket.Upgrader{
+	CheckOrigin: func(r *http.Request) bool {
+		return true // Allow all origins in development
+	},
+	ReadBufferSize:  1024 * 16, // 16KB read buffer
+	WriteBufferSize: 1024 * 64, // 64KB write buffer
+}
+
+// Default streaming configuration
+func DefaultStreamingConfig() *StreamingConfig {
+	return &StreamingConfig{
+		ChunkSize:           64 * 1024,      // 64KB default chunk size
+		MaxChunkSize:        10 * 1024 * 1024, // 10MB max chunk
+		MinChunkSize:        1024,           // 1KB min chunk
+		StreamTimeout:       300 * time.Second, // 5 minute timeout
+		MaxConcurrentChunks: 4,              // 4 parallel chunks
+		EnableCompression:   true,
+		EnableChecksums:     true,
+	}
+}
+
+// StartBlobStream handles HTTP streaming of large blobs
+func (s *Server) StartBlobStream(c *gin.Context) {
+	var req StreamRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid stream request"})
+		return
+	}
+	
+	// Validate request
+	if req.Hash == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Hash is required"})
+		return
+	}
+	
+	if req.ChunkSize <= 0 {
+		req.ChunkSize = s.streamingConfig.ChunkSize
+	}
+	
+	// Clamp chunk size to limits
+	if req.ChunkSize > s.streamingConfig.MaxChunkSize {
+		req.ChunkSize = s.streamingConfig.MaxChunkSize
+	}
+	if req.ChunkSize < s.streamingConfig.MinChunkSize {
+		req.ChunkSize = s.streamingConfig.MinChunkSize
+	}
+	
+	// Get the repository from context
+	repo := s.getRepositoryFromContext(c)
+	if repo == nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Repository not found"})
+		return
+	}
+	
+	// Get blob content
+	blob, err := repo.GetBlobWithDelta(req.Hash)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Blob not found"})
+		return
+	}
+	
+	contentSize := int64(len(blob.Content))
+	
+	// Handle range request
+	startOffset := req.StartOffset
+	endOffset := req.EndOffset
+	if endOffset == -1 || endOffset >= contentSize {
+		endOffset = contentSize - 1
+	}
+	
+	if startOffset < 0 || startOffset > endOffset {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid byte range"})
+		return
+	}
+	
+	rangeSize := endOffset - startOffset + 1
+	chunkCount := int((rangeSize + int64(req.ChunkSize) - 1) / int64(req.ChunkSize))
+	
+	// Generate stream ID if not provided
+	streamID := req.StreamID
+	if streamID == "" {
+		streamID = fmt.Sprintf("stream_%d_%s", time.Now().Unix(), req.Hash[:8])
+	}
+	
+	// Calculate content checksum
+	contentChecksum := fmt.Sprintf("%x", md5.Sum(blob.Content[startOffset:endOffset+1]))
+	
+	// Send initial response
+	response := StreamResponse{
+		StreamID:     streamID,
+		TotalSize:    rangeSize,
+		ChunkCount:   chunkCount,
+		ContentType:  "application/octet-stream",
+		LastModified: time.Now().Unix(),
+		Checksum:     contentChecksum,
+	}
+	
+	c.JSON(http.StatusOK, response)
+}
+
+// StreamBlobChunks handles chunked streaming via HTTP
+func (s *Server) StreamBlobChunks(c *gin.Context) {
+	streamID := c.Param("stream_id")
+	chunkNumStr := c.Query("chunk")
+	
+	chunkNum, err := strconv.Atoi(chunkNumStr)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid chunk number"})
+		return
+	}
+	
+	// In a real implementation, you'd maintain stream state
+	// For now, we'll reconstruct from the hash in the stream ID
+	hash := c.Query("hash")
+	chunkSize, _ := strconv.Atoi(c.DefaultQuery("chunk_size", "65536"))
+	
+	repo := s.getRepositoryFromContext(c)
+	if repo == nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Repository not found"})
+		return
+	}
+	
+	blob, err := repo.GetBlobWithDelta(hash)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Blob not found"})
+		return
+	}
+	
+	// Calculate chunk boundaries
+	contentSize := int64(len(blob.Content))
+	startOffset := int64(chunkNum * chunkSize)
+	endOffset := startOffset + int64(chunkSize) - 1
+	
+	if startOffset >= contentSize {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Chunk not found"})
+		return
+	}
+	
+	if endOffset >= contentSize {
+		endOffset = contentSize - 1
+	}
+	
+	// Extract chunk data
+	chunkData := blob.Content[startOffset : endOffset+1]
+	isLast := endOffset == contentSize-1
+	
+	// Calculate checksum
+	checksum := fmt.Sprintf("%x", md5.Sum(chunkData))
+	
+	chunk := StreamChunk{
+		ID:          fmt.Sprintf("%s_chunk_%d", streamID, chunkNum),
+		StreamID:    streamID,
+		SequenceNum: chunkNum,
+		Data:        chunkData,
+		Size:        len(chunkData),
+		Checksum:    checksum,
+		IsLast:      isLast,
+		Timestamp:   time.Now().Unix(),
+	}
+	
+	c.JSON(http.StatusOK, chunk)
+}
+
+// StreamBlobWebSocket handles WebSocket-based streaming
+func (s *Server) StreamBlobWebSocket(c *gin.Context) {
+	// Upgrade HTTP connection to WebSocket
+	conn, err := upgrader.Upgrade(c.Writer, c.Request, nil)
+	if err != nil {
+		s.logger.Printf("WebSocket upgrade failed: %v", err)
+		return
+	}
+	defer conn.Close()
+	
+	// Set timeouts
+	conn.SetReadDeadline(time.Now().Add(s.streamingConfig.StreamTimeout))
+	conn.SetWriteDeadline(time.Now().Add(s.streamingConfig.StreamTimeout))
+	
+	ctx, cancel := context.WithTimeout(context.Background(), s.streamingConfig.StreamTimeout)
+	defer cancel()
+	
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		default:
+			// Read stream request
+			var req StreamRequest
+			err := conn.ReadJSON(&req)
+			if err != nil {
+				if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
+					s.logger.Printf("WebSocket error: %v", err)
+				}
+				return
+			}
+			
+			// Process the streaming request
+			s.handleWebSocketStream(conn, &req, ctx)
+		}
+	}
+}
+
+// handleWebSocketStream processes a WebSocket streaming request
+func (s *Server) handleWebSocketStream(conn *websocket.Conn, req *StreamRequest, ctx context.Context) {
+	repo := s.repository // Assume server has repository reference
+	if repo == nil {
+		conn.WriteJSON(map[string]string{"error": "Repository not available"})
+		return
+	}
+	
+	// Get blob
+	blob, err := repo.GetBlobWithDelta(req.Hash)
+	if err != nil {
+		conn.WriteJSON(map[string]string{"error": "Blob not found"})
+		return
+	}
+	
+	contentSize := int64(len(blob.Content))
+	chunkSize := req.ChunkSize
+	if chunkSize <= 0 {
+		chunkSize = s.streamingConfig.ChunkSize
+	}
+	
+	// Send initial response
+	totalChunks := int((contentSize + int64(chunkSize) - 1) / int64(chunkSize))
+	response := StreamResponse{
+		StreamID:    req.StreamID,
+		TotalSize:   contentSize,
+		ChunkCount:  totalChunks,
+		ContentType: "application/octet-stream",
+		Checksum:    fmt.Sprintf("%x", md5.Sum(blob.Content)),
+	}
+	
+	if err := conn.WriteJSON(response); err != nil {
+		return
+	}
+	
+	// Stream chunks
+	startTime := time.Now()
+	for chunkNum := 0; chunkNum < totalChunks; chunkNum++ {
+		select {
+		case <-ctx.Done():
+			return
+		default:
+			startOffset := int64(chunkNum * chunkSize)
+			endOffset := startOffset + int64(chunkSize)
+			if endOffset > contentSize {
+				endOffset = contentSize
+			}
+			
+			chunkData := blob.Content[startOffset:endOffset]
+			chunk := StreamChunk{
+				ID:          fmt.Sprintf("%s_chunk_%d", req.StreamID, chunkNum),
+				StreamID:    req.StreamID,
+				SequenceNum: chunkNum,
+				Data:        chunkData,
+				Size:        len(chunkData),
+				Checksum:    fmt.Sprintf("%x", md5.Sum(chunkData)),
+				IsLast:      chunkNum == totalChunks-1,
+				Timestamp:   time.Now().Unix(),
+			}
+			
+			if err := conn.WriteJSON(chunk); err != nil {
+				return
+			}
+			
+			// Send progress update every 10 chunks
+			if chunkNum%10 == 0 || chunk.IsLast {
+				elapsed := time.Since(startTime)
+				bytesTransferred := startOffset + int64(len(chunkData))
+				transferRate := float64(bytesTransferred) / elapsed.Seconds() / (1024 * 1024) // MB/s
+				
+				remaining := contentSize - bytesTransferred
+				eta := int64(0)
+				if transferRate > 0 {
+					eta = int64(float64(remaining) / (transferRate * 1024 * 1024))
+				}
+				
+				progress := StreamProgress{
+					StreamID:       req.StreamID,
+					BytesStreamed:  bytesTransferred,
+					TotalBytes:     contentSize,
+					ChunksStreamed: chunkNum + 1,
+					TotalChunks:    totalChunks,
+					StartTime:      startTime,
+					LastChunkTime:  time.Now(),
+					EstimatedETA:   eta,
+					TransferRate:   transferRate,
+					Status:         "streaming",
+				}
+				
+				if chunk.IsLast {
+					progress.Status = "completed"
+				}
+				
+				conn.WriteJSON(progress)
+			}
+			
+			// Small delay to prevent overwhelming the client
+			time.Sleep(1 * time.Millisecond)
+		}
+	}
+}
+
+// UploadBlobStream handles streamed blob uploads
+func (s *Server) UploadBlobStream(c *gin.Context) {
+	// Get multipart reader
+	reader, err := c.Request.MultipartReader()
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid multipart request"})
+		return
+	}
+	
+	repo := s.getRepositoryFromContext(c)
+	if repo == nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Repository not found"})
+		return
+	}
+	
+	// Buffer for accumulating chunks
+	var buffer []byte
+	totalSize := int64(0)
+	chunkCount := 0
+	
+	for {
+		part, err := reader.NextPart()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Error reading multipart data"})
+			return
+		}
+		
+		// Read chunk data
+		chunkData, err := io.ReadAll(part)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Error reading chunk data"})
+			return
+		}
+		
+		buffer = append(buffer, chunkData...)
+		totalSize += int64(len(chunkData))
+		chunkCount++
+		
+		// Limit total upload size (e.g., 100MB)
+		if totalSize > 100*1024*1024 {
+			c.JSON(http.StatusRequestEntityTooLarge, gin.H{"error": "Upload too large"})
+			return
+		}
+	}
+	
+	// Store the assembled blob
+	hash, err := repo.StoreBlobWithDelta(buffer)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to store blob"})
+		return
+	}
+	
+	c.JSON(http.StatusOK, gin.H{
+		"hash":        hash,
+		"size":        totalSize,
+		"chunks":      chunkCount,
+		"compressed":  false, // TODO: Implement compression detection
+	})
+}
+
+// GetStreamProgress returns the progress of an active stream
+func (s *Server) GetStreamProgress(c *gin.Context) {
+	streamID := c.Param("stream_id")
+	
+	// In a production implementation, you'd maintain stream state
+	// For now, return a mock progress response
+	progress := StreamProgress{
+		StreamID:       streamID,
+		BytesStreamed:  1024 * 1024, // 1MB
+		TotalBytes:     10 * 1024 * 1024, // 10MB
+		ChunksStreamed: 16,
+		TotalChunks:    160,
+		StartTime:      time.Now().Add(-30 * time.Second),
+		LastChunkTime:  time.Now().Add(-1 * time.Second),
+		EstimatedETA:   270, // 4.5 minutes
+		TransferRate:   2.1, // 2.1 MB/s
+		Status:         "streaming",
+	}
+	
+	c.JSON(http.StatusOK, progress)
+}
+
+// CancelStream cancels an active stream
+func (s *Server) CancelStream(c *gin.Context) {
+	streamID := c.Param("stream_id")
+	
+	// In a production implementation, you'd cancel the actual stream
+	// For now, just acknowledge the cancellation
+	c.JSON(http.StatusOK, gin.H{
+		"stream_id": streamID,
+		"status":    "cancelled",
+		"message":   "Stream cancellation requested",
+	})
+}

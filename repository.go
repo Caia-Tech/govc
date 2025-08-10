@@ -51,6 +51,7 @@ type Repository struct {
 	txnManager *AtomicTransactionManager  // Atomic operations manager
 	queryEngine *QueryEngine              // Efficient data access system
 	deltaCompression *DeltaCompression    // Storage optimization for high-frequency commits
+	advancedSearch *AdvancedSearch        // Full-text search and analytics system
 	mu         sync.RWMutex
 }
 

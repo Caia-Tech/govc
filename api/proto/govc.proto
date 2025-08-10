@@ -1,0 +1,491 @@
+syntax = "proto3";
+
+package govc;
+
+option go_package = "github.com/caiatech/govc/api/proto";
+
+import "google/protobuf/timestamp.proto";
+import "google/protobuf/empty.proto";
+
+// GoVC Service Definition
+service GoVCService {
+  // Repository Management
+  rpc CreateRepository(CreateRepositoryRequest) returns (CreateRepositoryResponse);
+  rpc GetRepository(GetRepositoryRequest) returns (GetRepositoryResponse);
+  rpc DeleteRepository(DeleteRepositoryRequest) returns (google.protobuf.Empty);
+  rpc ListRepositories(ListRepositoriesRequest) returns (ListRepositoriesResponse);
+
+  // Blob Operations
+  rpc StoreBlob(StoreBlobRequest) returns (StoreBlobResponse);
+  rpc GetBlob(GetBlobRequest) returns (GetBlobResponse);
+  rpc StoreBlobWithDelta(StoreBlobWithDeltaRequest) returns (StoreBlobWithDeltaResponse);
+  rpc GetBlobWithDelta(GetBlobWithDeltaRequest) returns (GetBlobWithDeltaResponse);
+
+  // Batch Operations
+  rpc BatchOperations(BatchOperationsRequest) returns (BatchOperationsResponse);
+
+  // File Operations
+  rpc AddFile(AddFileRequest) returns (AddFileResponse);
+  rpc ReadFile(ReadFileRequest) returns (ReadFileResponse);
+  rpc WriteFile(WriteFileRequest) returns (WriteFileResponse);
+  rpc RemoveFile(RemoveFileRequest) returns (google.protobuf.Empty);
+  rpc MoveFile(MoveFileRequest) returns (google.protobuf.Empty);
+  
+  // Commit Operations
+  rpc Commit(CommitRequest) returns (CommitResponse);
+  rpc GetCommit(GetCommitRequest) returns (GetCommitResponse);
+  rpc ListCommits(ListCommitsRequest) returns (ListCommitsResponse);
+  
+  // Branch Operations
+  rpc CreateBranch(CreateBranchRequest) returns (CreateBranchResponse);
+  rpc ListBranches(ListBranchesRequest) returns (ListBranchesResponse);
+  rpc DeleteBranch(DeleteBranchRequest) returns (google.protobuf.Empty);
+  rpc CheckoutBranch(CheckoutBranchRequest) returns (google.protobuf.Empty);
+  rpc MergeBranch(MergeBranchRequest) returns (MergeBranchResponse);
+
+  // Search Operations
+  rpc FullTextSearch(FullTextSearchRequest) returns (FullTextSearchResponse);
+  rpc ExecuteSQLQuery(ExecuteSQLQueryRequest) returns (ExecuteSQLQueryResponse);
+  rpc SearchWithAggregation(SearchWithAggregationRequest) returns (SearchWithAggregationResponse);
+
+  // Streaming Operations
+  rpc StreamBlob(stream StreamBlobRequest) returns (stream StreamBlobResponse);
+  rpc UploadBlobStream(stream UploadBlobStreamRequest) returns (UploadBlobStreamResponse);
+
+  // Health and Status
+  rpc GetHealth(google.protobuf.Empty) returns (HealthResponse);
+  rpc GetStatus(GetStatusRequest) returns (GetStatusResponse);
+}
+
+// Repository Messages
+message CreateRepositoryRequest {
+  string id = 1;
+  string name = 2;
+  string description = 3;
+  map<string, string> metadata = 4;
+}
+
+message CreateRepositoryResponse {
+  string id = 1;
+  string name = 2;
+  google.protobuf.Timestamp created_at = 3;
+}
+
+message GetRepositoryRequest {
+  string id = 1;
+}
+
+message GetRepositoryResponse {
+  string id = 1;
+  string name = 2;
+  string description = 3;
+  google.protobuf.Timestamp created_at = 4;
+  map<string, string> metadata = 5;
+}
+
+message DeleteRepositoryRequest {
+  string id = 1;
+}
+
+message ListRepositoriesRequest {
+  int32 limit = 1;
+  int32 offset = 2;
+}
+
+message ListRepositoriesResponse {
+  repeated GetRepositoryResponse repositories = 1;
+  int32 total = 2;
+}
+
+// Blob Messages
+message StoreBlobRequest {
+  string repository_id = 1;
+  bytes content = 2;
+}
+
+message StoreBlobResponse {
+  string hash = 1;
+  int64 size = 2;
+}
+
+message GetBlobRequest {
+  string repository_id = 1;
+  string hash = 2;
+}
+
+message GetBlobResponse {
+  bytes content = 1;
+  string hash = 2;
+  int64 size = 3;
+}
+
+message StoreBlobWithDeltaRequest {
+  string repository_id = 1;
+  bytes content = 2;
+  bool use_compression = 3;
+}
+
+message StoreBlobWithDeltaResponse {
+  string hash = 1;
+  int64 size = 2;
+  int64 compressed_size = 3;
+  float compression_ratio = 4;
+}
+
+message GetBlobWithDeltaRequest {
+  string repository_id = 1;
+  string hash = 2;
+}
+
+message GetBlobWithDeltaResponse {
+  bytes content = 1;
+  string hash = 2;
+  int64 size = 3;
+  int64 compressed_size = 4;
+  bool was_compressed = 5;
+}
+
+// Batch Operations
+message BatchOperationsRequest {
+  string repository_id = 1;
+  repeated BatchOperation operations = 2;
+  bool parallel = 3;
+  bool transaction = 4;
+}
+
+message BatchOperation {
+  string id = 1;
+  string type = 2;
+  bytes params = 3; // JSON-encoded parameters
+}
+
+message BatchOperationsResponse {
+  repeated BatchOperationResult results = 1;
+  bool success = 2;
+  string error = 3;
+  double execution_time_ms = 4;
+}
+
+message BatchOperationResult {
+  string id = 1;
+  bool success = 2;
+  bytes result = 3; // JSON-encoded result
+  string error = 4;
+}
+
+// File Operations
+message AddFileRequest {
+  string repository_id = 1;
+  string path = 2;
+  bytes content = 3;
+}
+
+message AddFileResponse {
+  string hash = 1;
+  int64 size = 2;
+}
+
+message ReadFileRequest {
+  string repository_id = 1;
+  string path = 2;
+  string commit = 3; // Optional: specific commit
+}
+
+message ReadFileResponse {
+  bytes content = 1;
+  string hash = 2;
+  int64 size = 3;
+  google.protobuf.Timestamp last_modified = 4;
+}
+
+message WriteFileRequest {
+  string repository_id = 1;
+  string path = 2;
+  bytes content = 3;
+  bool create_dirs = 4;
+}
+
+message WriteFileResponse {
+  string hash = 1;
+  int64 size = 2;
+}
+
+message RemoveFileRequest {
+  string repository_id = 1;
+  string path = 2;
+}
+
+message MoveFileRequest {
+  string repository_id = 1;
+  string from_path = 2;
+  string to_path = 3;
+}
+
+// Commit Operations
+message CommitRequest {
+  string repository_id = 1;
+  string message = 2;
+  string author = 3;
+  repeated string files = 4;
+}
+
+message CommitResponse {
+  string hash = 1;
+  string message = 2;
+  string author = 3;
+  google.protobuf.Timestamp timestamp = 4;
+}
+
+message GetCommitRequest {
+  string repository_id = 1;
+  string hash = 2;
+}
+
+message GetCommitResponse {
+  string hash = 1;
+  string message = 2;
+  string author = 3;
+  google.protobuf.Timestamp timestamp = 4;
+  repeated string parent_hashes = 5;
+  repeated FileChange changes = 6;
+}
+
+message FileChange {
+  string path = 1;
+  string type = 2; // "added", "modified", "deleted"
+  string hash = 3;
+}
+
+message ListCommitsRequest {
+  string repository_id = 1;
+  int32 limit = 2;
+  int32 offset = 3;
+  string branch = 4;
+  string author = 5;
+}
+
+message ListCommitsResponse {
+  repeated GetCommitResponse commits = 1;
+  int32 total = 2;
+}
+
+// Branch Operations
+message CreateBranchRequest {
+  string repository_id = 1;
+  string name = 2;
+  string from_commit = 3; // Optional: create from specific commit
+}
+
+message CreateBranchResponse {
+  string name = 1;
+  string commit_hash = 2;
+}
+
+message ListBranchesRequest {
+  string repository_id = 1;
+}
+
+message ListBranchesResponse {
+  repeated Branch branches = 1;
+  string current_branch = 2;
+}
+
+message Branch {
+  string name = 1;
+  string commit_hash = 2;
+  google.protobuf.Timestamp last_commit = 3;
+  string author = 4;
+}
+
+message DeleteBranchRequest {
+  string repository_id = 1;
+  string name = 2;
+}
+
+message CheckoutBranchRequest {
+  string repository_id = 1;
+  string name = 2;
+}
+
+message MergeBranchRequest {
+  string repository_id = 1;
+  string source_branch = 2;
+  string target_branch = 3;
+  string message = 4;
+}
+
+message MergeBranchResponse {
+  string commit_hash = 1;
+  bool conflicts = 2;
+  repeated string conflict_files = 3;
+}
+
+// Search Operations
+message FullTextSearchRequest {
+  string repository_id = 1;
+  string query = 2;
+  repeated string file_types = 3;
+  int64 max_size = 4;
+  double min_score = 5;
+  bool include_content = 6;
+  int32 highlight_length = 7;
+  int32 limit = 8;
+  int32 offset = 9;
+  string sort_by = 10;
+}
+
+message FullTextSearchResponse {
+  repeated SearchResult results = 1;
+  int32 total = 2;
+  double query_time_ms = 3;
+}
+
+message SearchResult {
+  SearchDocument document = 1;
+  double score = 2;
+  repeated string highlights = 3;
+}
+
+message SearchDocument {
+  string path = 1;
+  string hash = 2;
+  int64 size = 3;
+  google.protobuf.Timestamp last_modified = 4;
+  bytes content = 5;
+  string content_type = 6;
+}
+
+message ExecuteSQLQueryRequest {
+  string repository_id = 1;
+  string sql_query = 2;
+}
+
+message ExecuteSQLQueryResponse {
+  repeated QueryRow rows = 1;
+  int32 total = 2;
+  double query_time_ms = 3;
+  string executed_sql = 4;
+}
+
+message QueryRow {
+  map<string, string> fields = 1; // String representation of all field values
+}
+
+message SearchWithAggregationRequest {
+  string repository_id = 1;
+  FullTextSearchRequest query = 2;
+  repeated string group_by = 3;
+  repeated string aggregations = 4;
+  string time_range = 5;
+}
+
+message SearchWithAggregationResponse {
+  repeated AggregationGroup groups = 1;
+  AggregationSummary summary = 2;
+}
+
+message AggregationGroup {
+  string group_value = 1;
+  int32 count = 2;
+  map<string, double> metrics = 3;
+  repeated SearchResult sample_results = 4;
+}
+
+message AggregationSummary {
+  int32 total_documents = 1;
+  int32 total_groups = 2;
+  map<string, double> metrics = 3;
+}
+
+// Streaming Operations
+message StreamBlobRequest {
+  string repository_id = 1;
+  string hash = 2;
+  int32 chunk_size = 3;
+  int64 start_offset = 4;
+  int64 end_offset = 5;
+}
+
+message StreamBlobResponse {
+  oneof response {
+    StreamMetadata metadata = 1;
+    StreamChunk chunk = 2;
+    StreamProgress progress = 3;
+    StreamError error = 4;
+  }
+}
+
+message StreamMetadata {
+  string stream_id = 1;
+  int64 total_size = 2;
+  int32 chunk_count = 3;
+  string content_type = 4;
+  string checksum = 5;
+}
+
+message StreamChunk {
+  string stream_id = 1;
+  int32 sequence_num = 2;
+  bytes data = 3;
+  string checksum = 4;
+  bool is_last = 5;
+}
+
+message StreamProgress {
+  string stream_id = 1;
+  int64 bytes_streamed = 2;
+  int64 total_bytes = 3;
+  int32 chunks_streamed = 4;
+  int32 total_chunks = 5;
+  double transfer_rate_mbps = 6;
+  string status = 7;
+}
+
+message StreamError {
+  string stream_id = 1;
+  string error = 2;
+  int32 error_code = 3;
+}
+
+message UploadBlobStreamRequest {
+  string repository_id = 1;
+  oneof request {
+    UploadMetadata metadata = 2;
+    StreamChunk chunk = 3;
+  }
+}
+
+message UploadMetadata {
+  string filename = 1;
+  int64 total_size = 2;
+  int32 chunk_size = 3;
+  string content_type = 4;
+}
+
+message UploadBlobStreamResponse {
+  string hash = 1;
+  int64 size = 2;
+  int32 chunks_received = 3;
+  string checksum = 4;
+}
+
+// Health and Status
+message HealthResponse {
+  string status = 1; // "healthy", "unhealthy", "degraded"
+  map<string, string> checks = 2;
+  google.protobuf.Timestamp timestamp = 3;
+  double uptime_seconds = 4;
+}
+
+message GetStatusRequest {
+  string repository_id = 1;
+}
+
+message GetStatusResponse {
+  string repository_id = 1;
+  string current_branch = 2;
+  int32 staged_files = 3;
+  int32 unstaged_files = 4;
+  int32 untracked_files = 5;
+  repeated string status_entries = 6;
+}

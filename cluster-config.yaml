@@ -1,0 +1,64 @@
+server:
+  host: "0.0.0.0"
+  port: 8080
+  read_timeout: 30s
+  write_timeout: 30s
+  idle_timeout: 60s
+  request_timeout: 25s
+  max_repos: 1000
+  max_request_size: 10485760 # 10MB
+
+auth:
+  enabled: false
+
+pool:
+  max_repositories: 100
+  max_idle_time: 5m
+  cleanup_interval: 1m
+  enable_metrics: true
+
+logging:
+  level: "INFO"
+  format: "json"
+  component: "govc"
+  output: "stdout"
+
+metrics:
+  enabled: true
+  path: "/metrics"
+
+storage:
+  type: "memory"
+  disk_path: "/tmp/govc-data"
+  max_memory_mb: 1024
+  cache_enabled: true
+  cache_ttl: 1h
+
+development:
+  debug: true
+  profiler_enabled: false
+  cors_enabled: true
+  allowed_origins: ["*"]
+  use_new_architecture: true
+
+# High Availability Cluster Configuration
+cluster:
+  enabled: true
+  id: "govc-demo-cluster"
+  name: "GoVC Demo Cluster"
+  replication_factor: 3
+  shard_size: 1000
+  election_timeout: 150ms
+  heartbeat_interval: 50ms
+  max_log_entries: 10000
+  snapshot_threshold: 1000
+  auto_rebalance: true
+  consistency_level: "eventual"
+  auto_failover_enabled: true
+  failover_timeout: 30s
+  min_healthy_nodes: 1
+  require_quorum: false
+  prevent_split_brain: true
+  max_failovers_per_minute: 5
+  cooldown_period: 5m
+  data_dir: "/tmp/govc-cluster"
