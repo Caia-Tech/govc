@@ -49,9 +49,9 @@ func (s *Server) createTag(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusCreated, SuccessResponse{
-		Status:  "created",
-		Message: fmt.Sprintf("tag %s created", req.Name),
+	c.JSON(http.StatusCreated, TagResponse{
+		Name:   req.Name,
+		Commit: "", // Would need to get current HEAD commit hash
 	})
 }
 
@@ -95,5 +95,8 @@ func (s *Server) listTags(c *gin.Context) {
 		}
 	}
 
-	c.JSON(http.StatusOK, tagResponses)
+	c.JSON(http.StatusOK, gin.H{
+		"tags":  tagResponses,
+		"count": len(tagResponses),
+	})
 }

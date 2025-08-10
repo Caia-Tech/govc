@@ -457,7 +457,8 @@ const (
 
 type HookRequest struct {
 	URL         string         `json:"url" binding:"required"`
-	Events      []WebhookEvent `json:"events" binding:"required"`
+	Type        string         `json:"type,omitempty"` // For backward compatibility  
+	Events      []WebhookEvent `json:"events"`          // Made optional
 	Secret      string         `json:"secret,omitempty"`
 	ContentType string         `json:"content_type,omitempty"` // application/json, application/x-www-form-urlencoded
 	Active      bool           `json:"active"`

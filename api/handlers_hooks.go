@@ -29,19 +29,20 @@ func (s *Server) registerHook(c *gin.Context) {
 		return
 	}
 
-	// Validate webhook events
-	if len(req.Events) == 0 {
-		c.JSON(http.StatusBadRequest, ErrorResponse{
-			Error: "at least one event must be specified",
-			Code:  "MISSING_EVENTS",
-		})
-		return
-	}
-
-	// Convert WebhookEvent slice to string slice
-	events := make([]string, len(req.Events))
-	for i, event := range req.Events {
-		events[i] = string(event)
+	// Handle backward compatibility with type field
+	var events []string
+	if len(req.Events) > 0 {
+		// New events format
+		events = make([]string, len(req.Events))
+		for i, event := range req.Events {
+			events[i] = string(event)
+		}
+	} else if req.Type != "" {
+		// Backward compatibility with type field
+		events = []string{req.Type}
+	} else {
+		// Default to post-commit if no events specified
+		events = []string{"post-commit"}
 	}
 
 	// Set default content type if not specified

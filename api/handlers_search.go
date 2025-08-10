@@ -61,8 +61,8 @@ func (s *Server) searchCommits(c *gin.Context) {
 	}
 
 	// Convert to API response format
-	var results []CommitResponse
-	var matches []SearchMatch
+	results := make([]CommitResponse, 0)
+	matches := make([]SearchMatch, 0)
 
 	for _, commit := range commits {
 		// Create commit response
@@ -243,7 +243,7 @@ func (s *Server) searchFiles(c *gin.Context) {
 	}
 
 	// Convert to API response format
-	var results []FileMatch
+	results := make([]FileMatch, 0)
 	for _, match := range matches {
 		var matchRanges []MatchRange
 		for _, mr := range match.Matches {

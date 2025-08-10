@@ -137,13 +137,19 @@ func (s *Server) getStash(c *gin.Context) {
 		return
 	}
 
-	stash, err := repo.GetStash(stashID)
+	// Convert numeric stash ID to stash@{ID} format
+	fullStashID := fmt.Sprintf("stash@{%s}", stashID)
+	
+	stash, err := repo.GetStash(fullStashID)
 	if err != nil {
-		c.JSON(http.StatusNotFound, ErrorResponse{
-			Error: err.Error(),
-			Code:  "STASH_NOT_FOUND",
-		})
-		return
+		// Try with original ID as fallback
+		if stash, err = repo.GetStash(stashID); err != nil {
+			c.JSON(http.StatusNotFound, ErrorResponse{
+				Error: fmt.Sprintf("stash not found: %s", stashID),
+				Code:  "STASH_NOT_FOUND",
+			})
+			return
+		}
 	}
 
 	// Get list of affected files
@@ -194,12 +200,18 @@ func (s *Server) applyStash(c *gin.Context) {
 		req = StashApplyRequest{Drop: false}
 	}
 
-	if err := repo.ApplyStash(stashID, req.Drop); err != nil {
-		c.JSON(http.StatusInternalServerError, ErrorResponse{
-			Error: fmt.Sprintf("failed to apply stash: %v", err),
-			Code:  "APPLY_FAILED",
-		})
-		return
+	// Convert numeric stash ID to stash@{ID} format
+	fullStashID := fmt.Sprintf("stash@{%s}", stashID)
+	
+	if err := repo.ApplyStash(fullStashID, req.Drop); err != nil {
+		// Try with original ID as fallback
+		if err = repo.ApplyStash(stashID, req.Drop); err != nil {
+			c.JSON(http.StatusInternalServerError, ErrorResponse{
+				Error: fmt.Sprintf("failed to apply stash: %v", err),
+				Code:  "APPLY_FAILED",
+			})
+			return
+		}
 	}
 
 	c.JSON(http.StatusOK, SuccessResponse{
@@ -222,12 +234,18 @@ func (s *Server) dropStash(c *gin.Context) {
 		return
 	}
 
-	if err := repo.DropStash(stashID); err != nil {
-		c.JSON(http.StatusNotFound, ErrorResponse{
-			Error: err.Error(),
-			Code:  "STASH_NOT_FOUND",
-		})
-		return
+	// Convert numeric stash ID to stash@{ID} format
+	fullStashID := fmt.Sprintf("stash@{%s}", stashID)
+	
+	if err := repo.DropStash(fullStashID); err != nil {
+		// Try with original ID as fallback
+		if err = repo.DropStash(stashID); err != nil {
+			c.JSON(http.StatusNotFound, ErrorResponse{
+				Error: err.Error(),
+				Code:  "STASH_NOT_FOUND",
+			})
+			return
+		}
 	}
 
 	c.JSON(http.StatusOK, SuccessResponse{

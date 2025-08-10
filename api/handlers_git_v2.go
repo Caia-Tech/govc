@@ -3,6 +3,7 @@ package api
 import (
 	"fmt"
 	"net/http"
+	"net/url"
 	"strconv"
 
 	"github.com/caiatech/govc/logging"
@@ -590,6 +591,11 @@ func (s *Server) listBranchesV2(c *gin.Context) {
 func (s *Server) deleteBranchV2(c *gin.Context) {
 	repoID := c.Param("repo_id")
 	branchName := c.Param("branch")
+	
+	// URL decode the branch name to handle slashes properly
+	if decodedName, err := url.QueryUnescape(branchName); err == nil {
+		branchName = decodedName
+	}
 
 	if branchName == "main" || branchName == "master" {
 		c.JSON(http.StatusBadRequest, ErrorResponse{

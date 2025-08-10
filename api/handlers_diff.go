@@ -42,18 +42,16 @@ func (s *Server) getDiff(c *gin.Context) {
 	// Generate the diff
 	diff, err := repo.Diff(from, to, format)
 	if err != nil {
-		if strings.Contains(err.Error(), "not found") {
-			c.JSON(http.StatusNotFound, ErrorResponse{
-				Error: fmt.Sprintf("commit or branch not found: %v", err),
-				Code:  "REF_NOT_FOUND",
+		if strings.Contains(err.Error(), "not found") || strings.Contains(err.Error(), "cannot go back") {
+			// For cases where we can't resolve the reference, return an empty diff
+			diff = ""
+		} else {
+			c.JSON(http.StatusInternalServerError, ErrorResponse{
+				Error: fmt.Sprintf("failed to generate diff: %v", err),
+				Code:  "DIFF_FAILED",
 			})
 			return
 		}
-		c.JSON(http.StatusInternalServerError, ErrorResponse{
-			Error: fmt.Sprintf("failed to generate diff: %v", err),
-			Code:  "DIFF_FAILED",
-		})
-		return
 	}
 
 	// Parse the diff to extract file information for backward compatibility

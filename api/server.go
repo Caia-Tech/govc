@@ -3,6 +3,7 @@ package api
 import (
 	"context"
 	"fmt"
+	"net/http"
 	"os"
 	"sync"
 	"time"
@@ -396,6 +397,14 @@ func (s *Server) RegisterRoutes(router *gin.Engine) {
 	if s.prometheusMetrics != nil {
 		router.Use(s.prometheusMetrics.GinMiddleware())
 	}
+
+	// Add 404 handler for unmatched routes
+	router.NoRoute(func(c *gin.Context) {
+		c.JSON(http.StatusNotFound, ErrorResponse{
+			Error: fmt.Sprintf("endpoint not found: %s %s", c.Request.Method, c.Request.URL.Path),
+			Code:  "ENDPOINT_NOT_FOUND",
+		})
+	})
 }
 
 func (s *Server) getRepository(id string) (*govc.Repository, error) {

@@ -443,13 +443,16 @@ func (s *Server) timeTravel(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{
 		"timestamp": targetTime.Unix(),
-		"commit": CommitResponse{
-			Hash:      commit.Hash(),
-			Message:   commit.Message,
-			Author:    commit.Author.Name,
-			Email:     commit.Author.Email,
-			Timestamp: commit.Author.Time,
-			Parent:    commit.ParentHash,
+		"snapshot": gin.H{
+			"commit": CommitResponse{
+				Hash:      commit.Hash(),
+				Message:   commit.Message,
+				Author:    commit.Author.Name,
+				Email:     commit.Author.Email,
+				Timestamp: commit.Author.Time,
+				Parent:    commit.ParentHash,
+			},
+			"files_count": 0, // Could be populated with actual file count
 		},
 	})
 }
