@@ -45,7 +45,12 @@ type Repository struct {
 	config     map[string]string     // In-memory config
 	stashes    []*Stash              // In-memory stash list
 	webhooks   map[string]*Webhook   // Registered webhooks
-	events     chan *RepositoryEvent // Event stream
+	events     chan *RepositoryEvent      // Event stream
+	gc         *GarbageCollector          // Memory compaction system
+	eventBus   *EventBus                  // Pub/Sub event system
+	txnManager *AtomicTransactionManager  // Atomic operations manager
+	queryEngine *QueryEngine              // Efficient data access system
+	deltaCompression *DeltaCompression    // Storage optimization for high-frequency commits
 	mu         sync.RWMutex
 }
 
@@ -223,6 +228,11 @@ func (r *Repository) Commit(message string) (*object.Commit, error) {
 			"commit": commit.Hash(),
 			"error":  err.Error(),
 		})
+	}
+
+	// Trigger query engine indexing after commit
+	if r.queryEngine != nil {
+		go r.queryEngine.TriggerIndexing() // Do this async to not block commit
 	}
 
 	return commit, nil

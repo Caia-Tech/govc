@@ -39,7 +39,21 @@ func NewRepository() *Repository {
 	// Create the main branch ref pointing to nil (no commits yet)
 	refManager.CreateBranch("main", "")
 
-	return &Repository{
+	eventBus := NewEventBus()
+	eventBus.Start() // Start the event bus
+	
+	txnManager := NewAtomicTransactionManager()
+	
+	gc := NewGarbageCollector(createMemoryStore())
+	gc.SetPolicy(CompactionPolicy{
+		Enabled:            true,
+		Interval:           time.Minute,
+		MemoryThreshold:    0.8,
+		MinObjectAge:       time.Hour,
+		MaxObjectsPerCycle: 1000,
+	})
+	
+	repo := &Repository{
 		path:       ":memory:",
 		store:      createMemoryStore(),
 		refManager: refManager,
@@ -49,7 +63,18 @@ func NewRepository() *Repository {
 		stashes:    make([]*Stash, 0),
 		webhooks:   make(map[string]*Webhook),
 		events:     make(chan *RepositoryEvent, 100),
+		eventBus:   eventBus,
+		txnManager: txnManager,
+		gc:         gc,
 	}
+	
+	// Initialize Query Engine after repository is created
+	repo.queryEngine = NewQueryEngine(repo)
+	
+	// Initialize Delta Compression system for high-frequency commits
+	repo.deltaCompression = NewDeltaCompression()
+	
+	return repo
 }
 
 // ParallelReality creates an isolated branch universe.
