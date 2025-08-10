@@ -34,10 +34,11 @@ func (s *Server) beginTransaction(c *gin.Context) {
 	// Update metrics
 	s.updateMetrics()
 
-	c.JSON(http.StatusCreated, TransactionResponse{
-		ID:        txID,
-		RepoID:    repoID,
-		CreatedAt: time.Now(),
+	c.JSON(http.StatusCreated, gin.H{
+		"id":             txID,
+		"transaction_id": txID, // For backward compatibility
+		"repo_id":        repoID,
+		"created_at":     time.Now(),
 	})
 }
 

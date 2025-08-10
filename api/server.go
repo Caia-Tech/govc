@@ -407,7 +407,24 @@ func (s *Server) getRepository(id string) (*govc.Repository, error) {
 		return nil, fmt.Errorf("repository not found: %s", id)
 	}
 
-	// Get repository from pool
+	// For V2 architecture, we need to create a temporary legacy repository
+	// since transactions are not yet implemented in V2
+	if s.config.Development.UseNewArchitecture {
+		// Create a temporary legacy repository for transaction support
+		var repo *govc.Repository
+		if metadata.Path == ":memory:" {
+			repo = govc.New()
+		} else {
+			var err error
+			repo, err = govc.Init(metadata.Path)
+			if err != nil {
+				return nil, fmt.Errorf("failed to init repository: %v", err)
+			}
+		}
+		return repo, nil
+	}
+
+	// Get repository from pool (V1 architecture)
 	pooledRepo, err := s.repoPool.Get(id, metadata.Path, metadata.Path == ":memory:")
 	if err != nil {
 		return nil, fmt.Errorf("failed to get repository from pool: %v", err)
