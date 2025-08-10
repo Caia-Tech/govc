@@ -407,20 +407,69 @@ func (s *Server) getRepository(id string) (*govc.Repository, error) {
 		return nil, fmt.Errorf("repository not found: %s", id)
 	}
 
-	// For V2 architecture, we need to create a temporary legacy repository
-	// since transactions are not yet implemented in V2
+	// For V2 architecture, we need to use a shared repository instance
+	// to maintain state across operations
 	if s.config.Development.UseNewArchitecture {
-		// Create a temporary legacy repository for transaction support
+		// Try to get from factory first
+		if s.repoFactory != nil {
+			components, err := s.repoFactory.GetRepository(id)
+			if err == nil && components != nil {
+				// Check if we have a legacy wrapper, if not create one
+				if components.LegacyRepo == nil {
+					// Create and store a legacy wrapper
+					var repo *govc.Repository
+					if metadata.Path == ":memory:" {
+						repo = govc.New()
+					} else {
+						repo, err = govc.Open(metadata.Path)
+						if err != nil {
+							// If can't open, initialize new one
+							repo, err = govc.Init(metadata.Path)
+							if err != nil {
+								return nil, fmt.Errorf("failed to init repository: %v", err)
+							}
+						}
+					}
+					// Store for future use
+					s.mu.Lock()
+					if s.repository == nil {
+						s.repository = repo
+					}
+					s.mu.Unlock()
+					return repo, nil
+				}
+				// Return existing legacy repo (when we implement it)
+			}
+		}
+		
+		// Return cached repository if available
+		s.mu.RLock()
+		if s.repository != nil {
+			defer s.mu.RUnlock()
+			return s.repository, nil
+		}
+		s.mu.RUnlock()
+		
+		// Create new repository as fallback
 		var repo *govc.Repository
 		if metadata.Path == ":memory:" {
 			repo = govc.New()
 		} else {
 			var err error
-			repo, err = govc.Init(metadata.Path)
+			repo, err = govc.Open(metadata.Path)
 			if err != nil {
-				return nil, fmt.Errorf("failed to init repository: %v", err)
+				repo, err = govc.Init(metadata.Path)
+				if err != nil {
+					return nil, fmt.Errorf("failed to init repository: %v", err)
+				}
 			}
 		}
+		
+		// Cache it
+		s.mu.Lock()
+		s.repository = repo
+		s.mu.Unlock()
+		
 		return repo, nil
 	}
 

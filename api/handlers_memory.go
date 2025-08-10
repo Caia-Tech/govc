@@ -392,17 +392,35 @@ func (s *Server) timeTravel(c *gin.Context) {
 		return
 	}
 
-	// Parse timestamp
-	timestamp, err := strconv.ParseInt(timestampStr, 10, 64)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, ErrorResponse{
-			Error: "invalid timestamp format",
-			Code:  "INVALID_TIMESTAMP",
-		})
-		return
+	// Parse timestamp - support both Unix timestamp and RFC3339 format
+	var targetTime time.Time
+	
+	// First try as Unix timestamp
+	if timestamp, err := strconv.ParseInt(timestampStr, 10, 64); err == nil {
+		targetTime = time.Unix(timestamp, 0)
+	} else {
+		// Try parsing as RFC3339 or other common formats
+		for _, format := range []string{
+			time.RFC3339,
+			time.RFC3339Nano,
+			"2006-01-02T15:04:05-07:00",
+			"2006-01-02T15:04:05.999999-07:00",
+			"2006-01-02 15:04:05",
+		} {
+			if t, err := time.Parse(format, timestampStr); err == nil {
+				targetTime = t
+				break
+			}
+		}
+		
+		if targetTime.IsZero() {
+			c.JSON(http.StatusBadRequest, ErrorResponse{
+				Error: "invalid timestamp format (use Unix timestamp or RFC3339)",
+				Code:  "INVALID_TIMESTAMP",
+			})
+			return
+		}
 	}
-
-	targetTime := time.Unix(timestamp, 0)
 
 	// Time travel
 	snapshot := repo.TimeTravel(targetTime)
@@ -453,17 +471,35 @@ func (s *Server) timeTravelRead(c *gin.Context) {
 		return
 	}
 
-	// Parse timestamp
-	timestamp, err := strconv.ParseInt(timestampStr, 10, 64)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, ErrorResponse{
-			Error: "invalid timestamp format",
-			Code:  "INVALID_TIMESTAMP",
-		})
-		return
+	// Parse timestamp - support both Unix timestamp and RFC3339 format
+	var targetTime time.Time
+	
+	// First try as Unix timestamp
+	if timestamp, err := strconv.ParseInt(timestampStr, 10, 64); err == nil {
+		targetTime = time.Unix(timestamp, 0)
+	} else {
+		// Try parsing as RFC3339 or other common formats
+		for _, format := range []string{
+			time.RFC3339,
+			time.RFC3339Nano,
+			"2006-01-02T15:04:05-07:00",
+			"2006-01-02T15:04:05.999999-07:00",
+			"2006-01-02 15:04:05",
+		} {
+			if t, err := time.Parse(format, timestampStr); err == nil {
+				targetTime = t
+				break
+			}
+		}
+		
+		if targetTime.IsZero() {
+			c.JSON(http.StatusBadRequest, ErrorResponse{
+				Error: "invalid timestamp format (use Unix timestamp or RFC3339)",
+				Code:  "INVALID_TIMESTAMP",
+			})
+			return
+		}
 	}
-
-	targetTime := time.Unix(timestamp, 0)
 
 	// Time travel
 	snapshot := repo.TimeTravel(targetTime)

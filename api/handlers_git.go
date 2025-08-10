@@ -116,6 +116,16 @@ func (s *Server) commit(c *gin.Context) {
 		})
 		return
 	}
+	
+	// Update search index after commit (non-blocking)
+	// Note: Only if the method exists, to maintain compatibility
+	if indexer, ok := interface{}(repo).(interface{ UpdateSearchIndex() error }); ok {
+		go func() {
+			if indexErr := indexer.UpdateSearchIndex(); indexErr != nil && s.logger != nil {
+				s.logger.Warnf("Failed to update search index after commit: %v", indexErr)
+			}
+		}()
+	}
 
 	c.JSON(http.StatusCreated, CommitResponse{
 		Hash:      commit.Hash(),
