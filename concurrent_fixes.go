@@ -8,7 +8,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/caiatech/govc/pkg/object"
+	"github.com/Caia-Tech/govc/pkg/object"
 )
 
 // ConcurrentSafeRepository wraps Repository with thread-safe operations

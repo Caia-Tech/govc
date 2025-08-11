@@ -6,7 +6,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/caiatech/govc/pkg/object"
+	"github.com/Caia-Tech/govc/pkg/object"
 )
 
 // startIndexing begins background indexing of repository data

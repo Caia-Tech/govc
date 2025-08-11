@@ -13,7 +13,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/caiatech/govc/datastore"
+	"github.com/Caia-Tech/govc/datastore"
 	_ "github.com/lib/pq" // PostgreSQL driver
 )
 

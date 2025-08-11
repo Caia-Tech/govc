@@ -12,7 +12,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/caiatech/govc/datastore"
+	"github.com/Caia-Tech/govc/datastore"
 	_ "github.com/mattn/go-sqlite3" // SQLite driver
 )
 

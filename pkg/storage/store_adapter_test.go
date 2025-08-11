@@ -3,7 +3,7 @@ package storage
 import (
 	"testing"
 
-	"github.com/caiatech/govc/pkg/object"
+	"github.com/Caia-Tech/govc/pkg/object"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

@@ -10,9 +10,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/caiatech/govc/api"
-	"github.com/caiatech/govc/auth"
-	"github.com/caiatech/govc/config"
+	"github.com/Caia-Tech/govc/api"
+	"github.com/Caia-Tech/govc/auth"
+	"github.com/Caia-Tech/govc/config"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 )

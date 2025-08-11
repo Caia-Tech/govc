@@ -6,7 +6,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/caiatech/govc/cluster"
+	"github.com/Caia-Tech/govc/cluster"
 	"github.com/gin-gonic/gin"
 )
 

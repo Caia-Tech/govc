@@ -1,7 +1,7 @@
 package storage
 
 import (
-	"github.com/caiatech/govc/pkg/object"
+	"github.com/Caia-Tech/govc/pkg/object"
 )
 
 // ObjectStore handles immutable Git objects (commits, trees, blobs)

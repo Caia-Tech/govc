@@ -15,9 +15,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/caiatech/govc/auth"
-	"github.com/caiatech/govc/logging"
-	"github.com/caiatech/govc/pool"
+	"github.com/Caia-Tech/govc/auth"
+	"github.com/Caia-Tech/govc/logging"
+	"github.com/Caia-Tech/govc/pool"
 )
 
 func setupTestDashboard() *DashboardHandler {

@@ -9,7 +9,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/caiatech/govc"
+	"github.com/Caia-Tech/govc"
 )
 
 // ShardingManager manages repository sharding across cluster nodes

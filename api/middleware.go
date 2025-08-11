@@ -8,7 +8,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/caiatech/govc/logging"
+	"github.com/Caia-Tech/govc/logging"
 	"github.com/gin-gonic/gin"
 )
 

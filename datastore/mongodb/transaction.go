@@ -7,7 +7,7 @@ import (
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/gridfs"
 
-	"github.com/caiatech/govc/datastore"
+	"github.com/Caia-Tech/govc/datastore"
 )
 
 // MongoTransaction implements MongoDB transaction support

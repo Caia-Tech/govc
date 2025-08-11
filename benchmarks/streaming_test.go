@@ -14,9 +14,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/caiatech/govc"
-	"github.com/caiatech/govc/api"
-	"github.com/caiatech/govc/client"
+	"github.com/Caia-Tech/govc"
+	"github.com/Caia-Tech/govc/api"
+	"github.com/Caia-Tech/govc/client"
 )
 
 // BenchmarkStreamingPerformance tests streaming vs non-streaming performance

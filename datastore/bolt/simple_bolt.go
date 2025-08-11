@@ -8,7 +8,7 @@ import (
 
 	bolt "go.etcd.io/bbolt"
 
-	"github.com/caiatech/govc/datastore"
+	"github.com/Caia-Tech/govc/datastore"
 )
 
 // SimpleBoltStore is a minimal BoltDB implementation for basic functionality

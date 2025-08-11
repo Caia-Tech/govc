@@ -5,11 +5,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/caiatech/govc"
-	"github.com/caiatech/govc/auth"
-	"github.com/caiatech/govc/config"
-	"github.com/caiatech/govc/metrics"
-	"github.com/caiatech/govc/pool"
+	"github.com/Caia-Tech/govc"
+	"github.com/Caia-Tech/govc/auth"
+	"github.com/Caia-Tech/govc/config"
+	"github.com/Caia-Tech/govc/metrics"
+	"github.com/Caia-Tech/govc/pool"
 	"github.com/stretchr/testify/assert"
 )
 

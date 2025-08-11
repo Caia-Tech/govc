@@ -6,7 +6,7 @@ import (
 	"io"
 	"time"
 
-	pb "github.com/caiatech/govc/api/proto"
+	pb "github.com/Caia-Tech/govc/api/proto"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/protobuf/types/known/emptypb"

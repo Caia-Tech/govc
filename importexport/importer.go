@@ -14,7 +14,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/caiatech/govc"
+	"github.com/Caia-Tech/govc"
 )
 
 // GitImporter imports standard Git repositories into govc format

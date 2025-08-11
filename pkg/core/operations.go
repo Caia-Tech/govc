@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/caiatech/govc/pkg/object"
+	"github.com/Caia-Tech/govc/pkg/object"
 )
 
 // Operations provides high-level Git operations using clean architecture

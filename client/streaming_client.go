@@ -13,7 +13,7 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/caiatech/govc/api"
+	"github.com/Caia-Tech/govc/api"
 	"github.com/gorilla/websocket"
 )
 

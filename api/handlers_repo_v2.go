@@ -5,8 +5,8 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/caiatech/govc/logging"
-	"github.com/caiatech/govc/validation"
+	"github.com/Caia-Tech/govc/logging"
+	"github.com/Caia-Tech/govc/validation"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 )

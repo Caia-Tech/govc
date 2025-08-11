@@ -10,7 +10,7 @@ import (
 	"go.mongodb.org/mongo-driver/mongo/options"
 	"go.mongodb.org/mongo-driver/mongo/gridfs"
 
-	"github.com/caiatech/govc/datastore"
+	"github.com/Caia-Tech/govc/datastore"
 )
 
 // ObjectStore implements MongoDB-based object storage using GridFS for large objects

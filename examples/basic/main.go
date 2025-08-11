@@ -5,7 +5,7 @@ import (
 	"log"
 	"strings"
 
-	"github.com/caiatech/govc"
+	"github.com/Caia-Tech/govc"
 )
 
 func main() {

@@ -6,7 +6,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/caiatech/govc"
+	"github.com/Caia-Tech/govc"
 )
 
 // This example shows how govc transforms Git from a passive version control

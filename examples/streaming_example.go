@@ -9,8 +9,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/caiatech/govc/api"
-	"github.com/caiatech/govc/client"
+	"github.com/Caia-Tech/govc/api"
+	"github.com/Caia-Tech/govc/client"
 )
 
 func main() {

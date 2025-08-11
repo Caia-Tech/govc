@@ -13,9 +13,9 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/gorilla/websocket"
 
-	"github.com/caiatech/govc/auth"
-	"github.com/caiatech/govc/logging"
-	"github.com/caiatech/govc/pool"
+	"github.com/Caia-Tech/govc/auth"
+	"github.com/Caia-Tech/govc/logging"
+	"github.com/Caia-Tech/govc/pool"
 )
 
 // DashboardHandler handles dashboard-related requests

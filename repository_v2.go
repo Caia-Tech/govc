@@ -6,10 +6,10 @@ import (
 	"path/filepath"
 	"sync"
 
-	"github.com/caiatech/govc/pkg/core"
-	"github.com/caiatech/govc/pkg/object"
-	"github.com/caiatech/govc/pkg/refs"
-	"github.com/caiatech/govc/pkg/storage"
+	"github.com/Caia-Tech/govc/pkg/core"
+	"github.com/Caia-Tech/govc/pkg/object"
+	"github.com/Caia-Tech/govc/pkg/refs"
+	"github.com/Caia-Tech/govc/pkg/storage"
 )
 
 // RepositoryV2 is the new version using clean architecture

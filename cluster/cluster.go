@@ -8,7 +8,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/caiatech/govc"
+	"github.com/Caia-Tech/govc"
 )
 
 // Cluster represents a govc distributed cluster

@@ -11,7 +11,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/caiatech/govc"
+	"github.com/Caia-Tech/govc"
 )
 
 // GitExporter exports govc repositories to standard Git format

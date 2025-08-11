@@ -12,7 +12,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/caiatech/govc"
+	"github.com/Caia-Tech/govc"
 )
 
 // MigrationManager handles migrations from various Git hosting services

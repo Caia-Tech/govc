@@ -11,7 +11,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/caiatech/govc"
+	"github.com/Caia-Tech/govc"
 )
 
 // Node represents a single node in the govc cluster

@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/caiatech/govc/config"
+	"github.com/Caia-Tech/govc/config"
 	"github.com/gin-gonic/gin"
 )
 

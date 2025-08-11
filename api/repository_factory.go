@@ -7,11 +7,11 @@ import (
 	"sync"
 	"time"
 
-	"github.com/caiatech/govc"
-	"github.com/caiatech/govc/logging"
-	"github.com/caiatech/govc/pkg/core"
-	"github.com/caiatech/govc/pkg/refs"
-	"github.com/caiatech/govc/pkg/storage"
+	"github.com/Caia-Tech/govc"
+	"github.com/Caia-Tech/govc/logging"
+	"github.com/Caia-Tech/govc/pkg/core"
+	"github.com/Caia-Tech/govc/pkg/refs"
+	"github.com/Caia-Tech/govc/pkg/storage"
 )
 
 // RepositoryFactory creates repositories using the new architecture

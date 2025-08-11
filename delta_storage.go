@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/caiatech/govc/pkg/object"
+	"github.com/Caia-Tech/govc/pkg/object"
 )
 
 // DeltaStorage provides delta compression integration with the repository

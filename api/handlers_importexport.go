@@ -8,8 +8,8 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/caiatech/govc"
-	"github.com/caiatech/govc/importexport"
+	"github.com/Caia-Tech/govc"
+	"github.com/Caia-Tech/govc/importexport"
 	"github.com/gin-gonic/gin"
 )
 

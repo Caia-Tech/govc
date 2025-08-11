@@ -11,8 +11,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/caiatech/govc"
-	"github.com/caiatech/govc/api"
+	"github.com/Caia-Tech/govc"
+	"github.com/Caia-Tech/govc/api"
 )
 
 // BenchmarkOptimizedClient compares optimized client vs standard client

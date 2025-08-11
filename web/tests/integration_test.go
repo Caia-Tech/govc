@@ -16,9 +16,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/caiatech/govc/api"
-	"github.com/caiatech/govc/config"
-	"github.com/caiatech/govc/web"
+	"github.com/Caia-Tech/govc/api"
+	"github.com/Caia-Tech/govc/config"
+	"github.com/Caia-Tech/govc/web"
 )
 
 func setupIntegrationTest() (*gin.Engine, *api.Server) {

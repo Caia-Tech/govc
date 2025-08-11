@@ -10,7 +10,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/caiatech/govc"
+	"github.com/Caia-Tech/govc"
 )
 
 // ReplicationManager handles cross-node replication

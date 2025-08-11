@@ -3,9 +3,9 @@ package web
 import (
 	"github.com/gin-gonic/gin"
 
-	"github.com/caiatech/govc/auth"
-	"github.com/caiatech/govc/logging"
-	"github.com/caiatech/govc/pool"
+	"github.com/Caia-Tech/govc/auth"
+	"github.com/Caia-Tech/govc/logging"
+	"github.com/Caia-Tech/govc/pool"
 )
 
 // SetupDashboardRoutes configures all dashboard-related routes

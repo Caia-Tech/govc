@@ -3,8 +3,8 @@ package workspace
 import (
 	"testing"
 
-	"github.com/caiatech/govc/pkg/object"
-	"github.com/caiatech/govc/pkg/storage"
+	"github.com/Caia-Tech/govc/pkg/object"
+	"github.com/Caia-Tech/govc/pkg/storage"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

@@ -10,10 +10,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/caiatech/govc"
-	"github.com/caiatech/govc/api"
-	pb "github.com/caiatech/govc/api/proto"
-	"github.com/caiatech/govc/client"
+	"github.com/Caia-Tech/govc"
+	"github.com/Caia-Tech/govc/api"
+	pb "github.com/Caia-Tech/govc/api/proto"
+	"github.com/Caia-Tech/govc/client"
 )
 
 // BenchmarkGRPCvsREST compares gRPC and REST API performance

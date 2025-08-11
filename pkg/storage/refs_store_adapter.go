@@ -1,7 +1,7 @@
 package storage
 
 import (
-	"github.com/caiatech/govc/pkg/refs"
+	"github.com/Caia-Tech/govc/pkg/refs"
 )
 
 // RefsStoreAdapter adapts refs.RefStore to implement storage.RefStore interface

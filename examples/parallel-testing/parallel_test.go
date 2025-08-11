@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/caiatech/govc"
+	"github.com/Caia-Tech/govc"
 )
 
 // This example shows how govc enables true parallel testing.

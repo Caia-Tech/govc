@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/caiatech/govc/pkg/storage"
+	"github.com/Caia-Tech/govc/pkg/storage"
 )
 
 // TestGarbageCollector_BasicCompaction tests basic compaction functionality

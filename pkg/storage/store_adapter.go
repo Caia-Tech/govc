@@ -1,7 +1,7 @@
 package storage
 
 import (
-	"github.com/caiatech/govc/pkg/object"
+	"github.com/Caia-Tech/govc/pkg/object"
 )
 
 // StoreAdapter adapts the existing Store to implement ObjectStore interface

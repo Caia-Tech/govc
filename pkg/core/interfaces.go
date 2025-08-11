@@ -4,7 +4,7 @@ import (
 	"io"
 	"time"
 
-	"github.com/caiatech/govc/pkg/object"
+	"github.com/Caia-Tech/govc/pkg/object"
 )
 
 // ObjectStore defines the interface for storing immutable Git objects

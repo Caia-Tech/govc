@@ -5,7 +5,7 @@ import (
 	"net/http"
 	"strconv"
 
-	"github.com/caiatech/govc"
+	"github.com/Caia-Tech/govc"
 	"github.com/gin-gonic/gin"
 )
 

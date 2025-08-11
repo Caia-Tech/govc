@@ -7,7 +7,7 @@ import (
 	"sync/atomic"
 	"time"
 	
-	"github.com/caiatech/govc/pkg/storage"
+	"github.com/Caia-Tech/govc/pkg/storage"
 )
 
 // MemoryStats represents memory usage statistics

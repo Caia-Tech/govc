@@ -5,7 +5,7 @@ import (
 	"log"
 	"os"
 
-	"github.com/caiatech/govc/importexport"
+	"github.com/Caia-Tech/govc/importexport"
 )
 
 func main() {

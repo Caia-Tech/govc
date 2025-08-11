@@ -6,7 +6,7 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/caiatech/govc/datastore"
+	"github.com/Caia-Tech/govc/datastore"
 )
 
 // memoryTransaction implements datastore.Transaction for memory store

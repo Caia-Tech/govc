@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"log"
 
-	"github.com/caiatech/govc"
+	"github.com/Caia-Tech/govc"
 )
 
 func main() {
@@ -91,7 +91,7 @@ func customSetupExample() {
 	fmt.Println("=== Custom Setup Example ===")
 
 	// Import core package at the top of the file
-	// import "github.com/caiatech/govc/pkg/core"
+	// import "github.com/Caia-Tech/govc/pkg/core"
 
 	// For this example, we'll use QuickStart to demonstrate
 	// In real code, you would import core and use it directly

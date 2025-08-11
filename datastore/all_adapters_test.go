@@ -8,14 +8,14 @@ import (
 	"testing"
 	"time"
 
-	"github.com/caiatech/govc/datastore"
+	"github.com/Caia-Tech/govc/datastore"
 	"github.com/stretchr/testify/require"
 	
 	// Import all adapters to register them with the factory
-	_ "github.com/caiatech/govc/datastore/badger"
-	_ "github.com/caiatech/govc/datastore/memory"
-	_ "github.com/caiatech/govc/datastore/postgres"
-	_ "github.com/caiatech/govc/datastore/sqlite"
+	_ "github.com/Caia-Tech/govc/datastore/badger"
+	_ "github.com/Caia-Tech/govc/datastore/memory"
+	_ "github.com/Caia-Tech/govc/datastore/postgres"
+	_ "github.com/Caia-Tech/govc/datastore/sqlite"
 )
 
 // TestAllAdaptersCompliance runs compliance tests on all datastore implementations

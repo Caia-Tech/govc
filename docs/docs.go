@@ -9,15 +9,15 @@ const docTemplate = `{
     "info": {
         "description": "{{escape .Description}}",
         "title": "{{.Title}}",
-        "termsOfService": "https://github.com/caiatech/govc/blob/main/LICENSE",
+        "termsOfService": "https://github.com/Caia-Tech/govc/blob/main/LICENSE",
         "contact": {
             "name": "GOVC API Support",
-            "url": "https://github.com/caiatech/govc/issues",
+            "url": "https://github.com/Caia-Tech/govc/issues",
             "email": "support@caiatech.com"
         },
         "license": {
             "name": "MIT",
-            "url": "https://github.com/caiatech/govc/blob/main/LICENSE"
+            "url": "https://github.com/Caia-Tech/govc/blob/main/LICENSE"
         },
         "version": "{{.Version}}"
     },

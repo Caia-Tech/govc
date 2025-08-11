@@ -1,9 +1,9 @@
 package govc
 
 import (
-	"github.com/caiatech/govc/pkg/core"
-	"github.com/caiatech/govc/pkg/refs"
-	"github.com/caiatech/govc/pkg/storage"
+	"github.com/Caia-Tech/govc/pkg/core"
+	"github.com/Caia-Tech/govc/pkg/refs"
+	"github.com/Caia-Tech/govc/pkg/storage"
 )
 
 // NewMemoryRepositoryV2Helper creates a pure in-memory repository using clean architecture

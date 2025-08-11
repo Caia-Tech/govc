@@ -1,4 +1,4 @@
-module github.com/caiatech/govc
+module github.com/Caia-Tech/govc
 
 go 1.23.0
 

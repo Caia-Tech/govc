@@ -6,7 +6,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/caiatech/govc"
+	"github.com/Caia-Tech/govc"
 	"github.com/gin-gonic/gin"
 )
 

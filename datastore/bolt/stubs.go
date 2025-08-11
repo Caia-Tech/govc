@@ -1,7 +1,7 @@
 package bolt
 
 import (
-	"github.com/caiatech/govc/datastore"
+	"github.com/Caia-Tech/govc/datastore"
 )
 
 // StubMetadataStore provides minimal metadata store implementation

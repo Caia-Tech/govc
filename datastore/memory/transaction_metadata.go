@@ -3,7 +3,7 @@ package memory
 import (
 	"fmt"
 	
-	"github.com/caiatech/govc/datastore"
+	"github.com/Caia-Tech/govc/datastore"
 )
 
 // MetadataStore methods for transaction

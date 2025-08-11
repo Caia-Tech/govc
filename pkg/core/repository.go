@@ -5,7 +5,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/caiatech/govc/pkg/object"
+	"github.com/Caia-Tech/govc/pkg/object"
 )
 
 // CleanRepository represents the core immutable Git repository

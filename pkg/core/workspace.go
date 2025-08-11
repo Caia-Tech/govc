@@ -6,7 +6,7 @@ import (
 	"sort"
 	"sync"
 
-	"github.com/caiatech/govc/pkg/object"
+	"github.com/Caia-Tech/govc/pkg/object"
 )
 
 // CleanWorkspace manages the mutable working directory state

@@ -5,8 +5,8 @@ import (
 	"path/filepath"
 	"sync"
 
-	"github.com/caiatech/govc/pkg/object"
-	"github.com/caiatech/govc/pkg/storage"
+	"github.com/Caia-Tech/govc/pkg/object"
+	"github.com/Caia-Tech/govc/pkg/storage"
 )
 
 // WorkingDirectory represents the working directory abstraction

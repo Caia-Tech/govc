@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/caiatech/govc"
+	"github.com/Caia-Tech/govc"
 )
 
 // TestLibraryAPI tests the main public API of govc as a library

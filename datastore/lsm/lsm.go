@@ -6,7 +6,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/caiatech/govc/datastore"
+	"github.com/Caia-Tech/govc/datastore"
 )
 
 // Register LSM-tree adapter with the datastore factory

@@ -8,11 +8,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/caiatech/govc/datastore"
-	"github.com/caiatech/govc/datastore/badger"
-	"github.com/caiatech/govc/datastore/memory"
-	"github.com/caiatech/govc/datastore/postgres"
-	"github.com/caiatech/govc/datastore/sqlite"
+	"github.com/Caia-Tech/govc/datastore"
+	"github.com/Caia-Tech/govc/datastore/badger"
+	"github.com/Caia-Tech/govc/datastore/memory"
+	"github.com/Caia-Tech/govc/datastore/postgres"
+	"github.com/Caia-Tech/govc/datastore/sqlite"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
