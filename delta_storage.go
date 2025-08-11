@@ -28,19 +28,28 @@ func (r *Repository) StoreBlobWithDelta(content []byte) (string, error) {
 		return hash, nil
 	}
 	
-	// Try delta compression first
+	// Store the blob in the main store first
+	// This ensures the blob is always retrievable via GetBlob
+	// Use StoreObject which handles both cache and backend storage
+	if _, err := r.store.StoreObject(blob); err != nil {
+		return "", fmt.Errorf("failed to store blob: %w", err)
+	}
+	
+	// Try delta compression for storage optimization
+	// This creates an additional delta representation for efficiency
 	_, usedDelta, err := r.deltaCompression.StoreWithDelta(hash, data)
 	if err != nil {
-		return "", fmt.Errorf("delta compression failed: %w", err)
+		// Delta compression failed, but blob is already stored, so continue
+		// Log the error but don't fail the operation
+		// fmt.Printf("Warning: delta compression failed for %s: %v\n", hash, err)
 	}
 	
 	if usedDelta {
-		// Successfully stored as delta, return hash
-		return hash, nil
+		// Successfully stored as delta in addition to the main store
+		// Both representations now exist for optimal retrieval
 	}
 	
-	// Fall back to normal storage
-	return r.store.StoreBlob(content)
+	return hash, nil
 }
 
 // GetBlobWithDelta retrieves a blob, decompressing deltas if necessary
