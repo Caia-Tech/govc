@@ -105,8 +105,6 @@
 				
 				<option value="file24">github.com/Caia-Tech/govc/pkg/storage/store_adapter.go (70.0%)</option>
 				
-				<option value="file25">github.com/Caia-Tech/govc/validation/validators.go (89.3%)</option>
-				
 				</select>
 			</div>
 			<div id="legend">
@@ -163,7 +161,7 @@ type APIKeyManager struct {
 }
 
 // NewAPIKeyManager creates a new API key manager
-func NewAPIKeyManager(rbac *RBAC) *APIKeyManager <span class="cov4" title="17">{
+func NewAPIKeyManager(rbac *RBAC) *APIKeyManager <span class="cov3" title="17">{
         return &amp;APIKeyManager{
                 keys: make(map[string]*APIKey),
                 rbac: rbac,
@@ -273,7 +271,7 @@ func (m *APIKeyManager) GetAPIKey(keyID string) (*APIKey, error) <span class="co
         m.mu.RLock()
         defer m.mu.RUnlock()
 
-        for _, apiKey := range m.keys </span><span class="cov10" title="4909">{
+        for _, apiKey := range m.keys </span><span class="cov10" title="5228">{
                 if apiKey.ID == keyID </span><span class="cov5" title="101">{
                         // Return a copy
                         apiKeyCopy := *apiKey
@@ -942,12 +940,12 @@ func (m *AuthMiddleware) authenticateAPIKey(keyString string) (*AuthenticatedUse
 
 // hasPermission checks if a user has a specific permission
 func (m *AuthMiddleware) hasPermission(user *AuthenticatedUser, permission Permission) bool <span class="cov6" title="6">{
-        for _, perm := range user.Permissions </span><span class="cov9" title="16">{
+        for _, perm := range user.Permissions </span><span class="cov9" title="18">{
                 if perm == permission </span><span class="cov5" title="4">{
                         return true
                 }</span>
                 // Check for admin permissions
-                <span class="cov8" title="12">if perm == PermissionSystemAdmin ||
+                <span class="cov8" title="14">if perm == PermissionSystemAdmin ||
                         (strings.HasPrefix(string(permission), "repo:") &amp;&amp; perm == PermissionRepoAdmin) </span><span class="cov1" title="1">{
                         return true
                 }</span>
@@ -1948,7 +1946,7 @@ import (
 
 // Pool for reusing log entries to reduce allocations
 var logEntryPool = sync.Pool{
-        New: func() interface{} <span class="cov2" title="2">{
+        New: func() interface{} <span class="cov1" title="1">{
                 return &amp;LogEntry{
                         Fields: make(map[string]interface{}),
                 }
@@ -1981,7 +1979,7 @@ func getLogEntry() *LogEntry <span class="cov8" title="29">{
         entry.HTTPStatus = 0
         entry.HTTPLatency = nil
         // Clear the fields map
-        for k := range entry.Fields </span><span class="cov8" title="23">{
+        for k := range entry.Fields </span><span class="cov8" title="28">{
                 delete(entry.Fields, k)
         }</span>
         <span class="cov8" title="29">return entry</span>
@@ -2751,7 +2749,7 @@ func sanitizePrometheusLabel(path string) string <span class="cov5" title="20">{
         for pattern, replacement := range replacements </span><span class="cov7" title="120">{
                 if len(result) &gt; len(pattern) </span><span class="cov6" title="51">{
                         // Simple pattern matching for common API structures
-                        for i := 0; i &lt;= len(result)-len(pattern); i++ </span><span class="cov9" title="531">{
+                        for i := 0; i &lt;= len(result)-len(pattern); i++ </span><span class="cov9" title="542">{
                                 if result[i:i+len(pattern)] == pattern </span><span class="cov3" title="7">{
                                         // Check if there's more path after the pattern
                                         remaining := result[i+len(pattern):]
@@ -5235,10 +5233,10 @@ func (m *MemoryRefStore) GetRef(name string) (string, error) <span class="cov4" 
 
         fullName := m.normalizeRefName(name)
         hash, exists := m.refs[fullName]
-        if !exists </span><span class="cov3" title="10">{
+        if !exists </span><span class="cov3" title="9">{
                 return "", fmt.Errorf("ref not found: %s", name)
         }</span>
-        <span class="cov4" title="11">return hash, nil</span>
+        <span class="cov4" title="12">return hash, nil</span>
 }
 
 func (m *MemoryRefStore) SetRef(name string, hash string) error <span class="cov9" title="1021">{
@@ -6612,7 +6610,7 @@ func NewMemoryBackend() *MemoryBackend <span class="cov5" title="25">{
         }
 }</span>
 
-func (m *MemoryBackend) ReadObject(hash string) ([]byte, error) <span class="cov6" title="34">{
+func (m *MemoryBackend) ReadObject(hash string) ([]byte, error) <span class="cov6" title="35">{
         m.mu.RLock()
         defer m.mu.RUnlock()
 
@@ -6620,7 +6618,7 @@ func (m *MemoryBackend) ReadObject(hash string) ([]byte, error) <span class="cov
         if !exists </span><span class="cov4" title="8">{
                 return nil, fmt.Errorf("object not found: %s", hash)
         }</span>
-        <span class="cov5" title="26">return data, nil</span>
+        <span class="cov5" title="27">return data, nil</span>
 }
 
 func (m *MemoryBackend) WriteObject(hash string, data []byte) error <span class="cov10" title="405">{
@@ -7006,343 +7004,6 @@ func NewFileObjectStore(path string) ObjectStore <span class="cov0" title="0">{
         return NewStoreAdapter(store)
 }</span>
 </pre>
-		
-		<pre class="file" id="file25" style="display: none">package validation
-
-import (
-        "fmt"
-        "net/mail"
-        "path/filepath"
-        "regexp"
-        "strings"
-)
-
-// Common validation patterns
-var (
-        // Repository ID must be alphanumeric with hyphens, underscores
-        repoIDPattern = regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9_-]{0,63}$`)
-        
-        // Branch name validation (Git branch naming rules)
-        branchNamePattern = regexp.MustCompile(`^[a-zA-Z0-9]([a-zA-Z0-9/_.-])*[a-zA-Z0-9]$`)
-        
-        // Tag name validation
-        tagNamePattern = regexp.MustCompile(`^[a-zA-Z0-9]([a-zA-Z0-9/_.-])*[a-zA-Z0-9]$`)
-        
-        // File path component validation (no path traversal)
-        safePathPattern = regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9._-]*$`)
-        
-        // Commit message validation (reasonable length, no control characters)
-        commitMessagePattern = regexp.MustCompile(`^[\x20-\x7E\n\r\t]+$`)
-        
-        // Username validation
-        usernamePattern = regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9._-]{2,31}$`)
-)
-
-// ValidationError represents a validation error with field information
-type ValidationError struct {
-        Field   string
-        Message string
-}
-
-func (e ValidationError) Error() string <span class="cov9" title="63">{
-        return fmt.Sprintf("validation error on field '%s': %s", e.Field, e.Message)
-}</span>
-
-// ValidateRepositoryID validates a repository ID
-func ValidateRepositoryID(id string) error <span class="cov6" title="16">{
-        if id == "" </span><span class="cov1" title="1">{
-                return ValidationError{Field: "repo_id", Message: "repository ID cannot be empty"}
-        }</span>
-        
-        <span class="cov6" title="15">if len(id) &gt; 64 </span><span class="cov1" title="1">{
-                return ValidationError{Field: "repo_id", Message: "repository ID must not exceed 64 characters"}
-        }</span>
-        
-        <span class="cov6" title="14">if !repoIDPattern.MatchString(id) </span><span class="cov3" title="4">{
-                return ValidationError{Field: "repo_id", Message: "repository ID must be alphanumeric with hyphens or underscores, starting with alphanumeric"}
-        }</span>
-        
-        // Prevent common reserved names
-        <span class="cov5" title="10">reserved := []string{"api", "admin", "root", "system", "config", "health", "metrics", "swagger"}
-        lowerID := strings.ToLower(id)
-        for _, r := range reserved </span><span class="cov9" title="61">{
-                if lowerID == r </span><span class="cov3" title="3">{
-                        return ValidationError{Field: "repo_id", Message: fmt.Sprintf("repository ID '%s' is reserved", id)}
-                }</span>
-        }
-        
-        <span class="cov4" title="7">return nil</span>
-}
-
-// ValidateBranchName validates a Git branch name
-func ValidateBranchName(name string) error <span class="cov7" title="21">{
-        if name == "" </span><span class="cov1" title="1">{
-                return ValidationError{Field: "branch", Message: "branch name cannot be empty"}
-        }</span>
-        
-        <span class="cov7" title="20">if len(name) &gt; 255 </span><span class="cov1" title="1">{
-                return ValidationError{Field: "branch", Message: "branch name must not exceed 255 characters"}
-        }</span>
-        
-        // Check for invalid patterns
-        <span class="cov6" title="19">if strings.HasPrefix(name, "-") || strings.HasSuffix(name, "-") </span><span class="cov2" title="2">{
-                return ValidationError{Field: "branch", Message: "branch name cannot start or end with hyphen"}
-        }</span>
-        
-        <span class="cov6" title="17">if strings.HasPrefix(name, ".") || strings.HasSuffix(name, ".") </span><span class="cov2" title="2">{
-                return ValidationError{Field: "branch", Message: "branch name cannot start or end with period"}
-        }</span>
-        
-        <span class="cov6" title="15">if strings.Contains(name, "..") </span><span class="cov1" title="1">{
-                return ValidationError{Field: "branch", Message: "branch name cannot contain consecutive periods"}
-        }</span>
-        
-        <span class="cov6" title="14">if strings.Contains(name, "//") </span><span class="cov1" title="1">{
-                return ValidationError{Field: "branch", Message: "branch name cannot contain consecutive slashes"}
-        }</span>
-        
-        // Check against Git's forbidden patterns
-        <span class="cov6" title="13">forbidden := []string{"@{", "\\", "~", "^", ":", "?", "*", "[", " ", "\t", "\n"}
-        for _, f := range forbidden </span><span class="cov10" title="89">{
-                if strings.Contains(name, f) </span><span class="cov5" title="9">{
-                        return ValidationError{Field: "branch", Message: fmt.Sprintf("branch name cannot contain '%s'", f)}
-                }</span>
-        }
-        
-        <span class="cov3" title="4">return nil</span>
-}
-
-// ValidateFilePath validates a file path for security
-func ValidateFilePath(path string) error <span class="cov6" title="13">{
-        if path == "" </span><span class="cov1" title="1">{
-                return ValidationError{Field: "path", Message: "file path cannot be empty"}
-        }</span>
-        
-        <span class="cov5" title="12">if len(path) &gt; 4096 </span><span class="cov1" title="1">{
-                return ValidationError{Field: "path", Message: "file path too long"}
-        }</span>
-        
-        // Clean the path and check for directory traversal
-        <span class="cov5" title="11">cleaned := filepath.Clean(path)
-        
-        // Prevent path traversal attacks
-        if strings.HasPrefix(cleaned, "..") || strings.Contains(cleaned, "../") </span><span class="cov2" title="2">{
-                return ValidationError{Field: "path", Message: "path traversal detected"}
-        }</span>
-        
-        // Prevent absolute paths (both Unix and Windows style)
-        <span class="cov5" title="9">if filepath.IsAbs(cleaned) || (len(path) &gt;= 2 &amp;&amp; path[1] == ':') </span><span class="cov2" title="2">{
-                return ValidationError{Field: "path", Message: "absolute paths are not allowed"}
-        }</span>
-        
-        // Check for null bytes
-        <span class="cov4" title="7">if strings.Contains(path, "\x00") </span><span class="cov1" title="1">{
-                return ValidationError{Field: "path", Message: "null bytes in path are not allowed"}
-        }</span>
-        
-        // Prevent access to hidden files at root level
-        <span class="cov4" title="6">parts := strings.Split(cleaned, "/")
-        if len(parts) &gt; 0 &amp;&amp; strings.HasPrefix(parts[0], ".") &amp;&amp; parts[0] != "." </span><span class="cov1" title="1">{
-                return ValidationError{Field: "path", Message: "access to hidden files at root level is not allowed"}
-        }</span>
-        
-        <span class="cov4" title="5">return nil</span>
-}
-
-// ValidateCommitMessage validates a commit message
-func ValidateCommitMessage(message string) error <span class="cov5" title="8">{
-        if message == "" </span><span class="cov1" title="1">{
-                return ValidationError{Field: "message", Message: "commit message cannot be empty"}
-        }</span>
-        
-        <span class="cov4" title="7">if len(message) &gt; 100000 </span><span class="cov1" title="1">{ // 100KB limit
-                return ValidationError{Field: "message", Message: "commit message too long (max 100KB)"}
-        }</span>
-        
-        // Check for control characters except newline, carriage return, and tab
-        <span class="cov4" title="6">if !commitMessagePattern.MatchString(message) </span><span class="cov3" title="3">{
-                return ValidationError{Field: "message", Message: "commit message contains invalid control characters"}
-        }</span>
-        
-        <span class="cov3" title="3">return nil</span>
-}
-
-// ValidateUsername validates a username
-func ValidateUsername(username string) error <span class="cov6" title="17">{
-        if username == "" </span><span class="cov1" title="1">{
-                return ValidationError{Field: "username", Message: "username cannot be empty"}
-        }</span>
-        
-        <span class="cov6" title="16">if len(username) &lt; 3 </span><span class="cov1" title="1">{
-                return ValidationError{Field: "username", Message: "username must be at least 3 characters"}
-        }</span>
-        
-        <span class="cov6" title="15">if len(username) &gt; 32 </span><span class="cov1" title="1">{
-                return ValidationError{Field: "username", Message: "username must not exceed 32 characters"}
-        }</span>
-        
-        <span class="cov6" title="14">if !usernamePattern.MatchString(username) </span><span class="cov3" title="4">{
-                return ValidationError{Field: "username", Message: "username must be alphanumeric with dots, hyphens, or underscores, starting with alphanumeric"}
-        }</span>
-        
-        // Prevent reserved usernames
-        <span class="cov5" title="10">reserved := []string{"admin", "root", "system", "api", "anonymous", "guest"}
-        lower := strings.ToLower(username)
-        for _, r := range reserved </span><span class="cov8" title="47">{
-                if lower == r </span><span class="cov3" title="3">{
-                        return ValidationError{Field: "username", Message: fmt.Sprintf("username '%s' is reserved", username)}
-                }</span>
-        }
-        
-        <span class="cov4" title="7">return nil</span>
-}
-
-// ValidateEmail validates an email address
-func ValidateEmail(email string) error <span class="cov5" title="10">{
-        if email == "" </span><span class="cov1" title="1">{
-                return ValidationError{Field: "email", Message: "email cannot be empty"}
-        }</span>
-        
-        <span class="cov5" title="9">if len(email) &gt; 254 </span><span class="cov1" title="1">{ // RFC 5321
-                return ValidationError{Field: "email", Message: "email address too long"}
-        }</span>
-        
-        <span class="cov5" title="8">_, err := mail.ParseAddress(email)
-        if err != nil </span><span class="cov3" title="4">{
-                return ValidationError{Field: "email", Message: "invalid email format"}
-        }</span>
-        
-        <span class="cov3" title="4">return nil</span>
-}
-
-// ValidatePassword validates a password
-func ValidatePassword(password string) error <span class="cov5" title="9">{
-        if password == "" </span><span class="cov1" title="1">{
-                return ValidationError{Field: "password", Message: "password cannot be empty"}
-        }</span>
-        
-        <span class="cov5" title="8">if len(password) &lt; 8 </span><span class="cov1" title="1">{
-                return ValidationError{Field: "password", Message: "password must be at least 8 characters"}
-        }</span>
-        
-        <span class="cov4" title="7">if len(password) &gt; 128 </span><span class="cov1" title="1">{
-                return ValidationError{Field: "password", Message: "password must not exceed 128 characters"}
-        }</span>
-        
-        // Check password complexity
-        <span class="cov4" title="6">var hasUpper, hasLower, hasDigit, hasSpecial bool
-        for _, char := range password </span><span class="cov9" title="86">{
-                switch </span>{
-                case 'A' &lt;= char &amp;&amp; char &lt;= 'Z':<span class="cov5" title="10">
-                        hasUpper = true</span>
-                case 'a' &lt;= char &amp;&amp; char &lt;= 'z':<span class="cov9" title="59">
-                        hasLower = true</span>
-                case '0' &lt;= char &amp;&amp; char &lt;= '9':<span class="cov6" title="13">
-                        hasDigit = true</span>
-                case strings.ContainsRune("!@#$%^&amp;*()_+-=[]{}|;:,.&lt;&gt;?", char):<span class="cov3" title="4">
-                        hasSpecial = true</span>
-                }
-        }
-        
-        <span class="cov4" title="6">complexity := 0
-        if hasUpper </span><span class="cov3" title="3">{
-                complexity++
-        }</span>
-        <span class="cov4" title="6">if hasLower </span><span class="cov4" title="6">{
-                complexity++
-        }</span>
-        <span class="cov4" title="6">if hasDigit </span><span class="cov4" title="5">{
-                complexity++
-        }</span>
-        <span class="cov4" title="6">if hasSpecial </span><span class="cov3" title="3">{
-                complexity++
-        }</span>
-        
-        <span class="cov4" title="6">if complexity &lt; 3 </span><span class="cov2" title="2">{
-                return ValidationError{Field: "password", Message: "password must contain at least 3 of: uppercase, lowercase, digit, special character"}
-        }</span>
-        
-        <span class="cov3" title="4">return nil</span>
-}
-
-// ValidateFileContent validates file content for security
-func ValidateFileContent(content []byte, path string) error <span class="cov4" title="7">{
-        // Check file size
-        maxSize := int64(50 * 1024 * 1024) // 50MB default
-        
-        // Allow larger sizes for specific file types
-        ext := strings.ToLower(filepath.Ext(path))
-        switch ext </span>{
-        case ".zip", ".tar", ".gz", ".bz2":<span class="cov2" title="2">
-                maxSize = 100 * 1024 * 1024</span> // 100MB for archives
-        case ".jpg", ".jpeg", ".png", ".gif", ".webp":<span class="cov2" title="2">
-                maxSize = 20 * 1024 * 1024</span> // 20MB for images
-        }
-        
-        <span class="cov4" title="7">if int64(len(content)) &gt; maxSize </span><span class="cov3" title="3">{
-                return ValidationError{Field: "content", Message: fmt.Sprintf("file size exceeds maximum allowed (%d bytes)", maxSize)}
-        }</span>
-        
-        <span class="cov3" title="4">return nil</span>
-}
-
-// ValidateTagName validates a Git tag name
-func ValidateTagName(name string) error <span class="cov0" title="0">{
-        if name == "" </span><span class="cov0" title="0">{
-                return ValidationError{Field: "tag", Message: "tag name cannot be empty"}
-        }</span>
-        
-        <span class="cov0" title="0">if len(name) &gt; 255 </span><span class="cov0" title="0">{
-                return ValidationError{Field: "tag", Message: "tag name must not exceed 255 characters"}
-        }</span>
-        
-        // Similar rules to branch names
-        <span class="cov0" title="0">if strings.HasPrefix(name, "-") || strings.HasSuffix(name, "-") </span><span class="cov0" title="0">{
-                return ValidationError{Field: "tag", Message: "tag name cannot start or end with hyphen"}
-        }</span>
-        
-        <span class="cov0" title="0">if strings.Contains(name, "..") </span><span class="cov0" title="0">{
-                return ValidationError{Field: "tag", Message: "tag name cannot contain consecutive periods"}
-        }</span>
-        
-        // Check against Git's forbidden patterns
-        <span class="cov0" title="0">forbidden := []string{"@{", "\\", "~", "^", ":", "?", "*", "[", " ", "\t", "\n"}
-        for _, f := range forbidden </span><span class="cov0" title="0">{
-                if strings.Contains(name, f) </span><span class="cov0" title="0">{
-                        return ValidationError{Field: "tag", Message: fmt.Sprintf("tag name cannot contain '%s'", f)}
-                }</span>
-        }
-        
-        <span class="cov0" title="0">return nil</span>
-}
-
-// SanitizeFilePath sanitizes a file path for safe usage
-func SanitizeFilePath(path string) string <span class="cov5" title="10">{
-        // Remove any potential null bytes first
-        path = strings.ReplaceAll(path, "\x00", "")
-        
-        // Split the path and process each component
-        parts := strings.Split(path, "/")
-        var safeParts []string
-        
-        for _, part := range parts </span><span class="cov7" title="32">{
-                // Skip empty parts, current directory references, and parent directory references
-                if part == "" || part == "." || part == ".." </span><span class="cov6" title="15">{
-                        continue</span>
-                }
-                <span class="cov6" title="17">safeParts = append(safeParts, part)</span>
-        }
-        
-        // Join the safe parts
-        <span class="cov5" title="10">result := strings.Join(safeParts, "/")
-        
-        // Final clean
-        if result == "" </span><span class="cov0" title="0">{
-                return "."
-        }</span>
-        
-        <span class="cov5" title="10">return result</span>
-}</pre>
 		
 		</div>
 	</body>

@@ -624,6 +624,391 @@ func BenchmarkValidateAPIKey(b *testing.B) {
 	}
 }
 
+// Tests for functions with 0% coverage
+
+func TestDeleteAPIKey(t *testing.T) {
+	rbac := NewRBAC()
+	apiKeyMgr := NewAPIKeyManager(rbac)
+
+	// Create a test user and API key
+	err := rbac.CreateUser("testuser", "testname", "test@example.com", []string{"developer"})
+	if err != nil {
+		t.Fatalf("Failed to create test user: %v", err)
+	}
+
+	_, apiKey, err := apiKeyMgr.GenerateAPIKey(
+		"testuser", "test-key", []Permission{PermissionRepoRead}, nil, nil)
+	if err != nil {
+		t.Fatalf("Failed to generate API key: %v", err)
+	}
+
+	testCases := []struct {
+		name    string
+		keyID   string
+		wantErr bool
+	}{
+		{
+			name:    "delete existing key",
+			keyID:   apiKey.ID,
+			wantErr: false,
+		},
+		{
+			name:    "delete non-existent key",
+			keyID:   "nonexistent-key-id",
+			wantErr: true,
+		},
+		{
+			name:    "delete with empty key ID",
+			keyID:   "",
+			wantErr: true,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			err := apiKeyMgr.DeleteAPIKey(tc.keyID)
+
+			if tc.wantErr && err == nil {
+				t.Error("Expected error but got none")
+			}
+			if !tc.wantErr && err != nil {
+				t.Errorf("Unexpected error: %v", err)
+			}
+
+			// If deletion was successful, verify key no longer exists
+			if !tc.wantErr && err == nil {
+				_, getErr := apiKeyMgr.GetAPIKey(tc.keyID)
+				if getErr == nil {
+					t.Error("Deleted key should not exist")
+				}
+			}
+		})
+	}
+}
+
+func TestHasPermission(t *testing.T) {
+	rbac := NewRBAC()
+	apiKeyMgr := NewAPIKeyManager(rbac)
+
+	// Create a test user
+	err := rbac.CreateUser("testuser", "testname", "test@example.com", []string{"developer"})
+	if err != nil {
+		t.Fatalf("Failed to create test user: %v", err)
+	}
+
+	// Create API key with specific permissions
+	_, apiKey, err := apiKeyMgr.GenerateAPIKey(
+		"testuser", "test-key", []Permission{PermissionRepoRead, PermissionRepoWrite}, nil, nil)
+	if err != nil {
+		t.Fatalf("Failed to generate API key: %v", err)
+	}
+
+	testCases := []struct {
+		name       string
+		apiKey     *APIKey
+		permission Permission
+		expected   bool
+	}{
+		{
+			name:       "has read permission",
+			apiKey:     apiKey,
+			permission: PermissionRepoRead,
+			expected:   true,
+		},
+		{
+			name:       "has write permission",
+			apiKey:     apiKey,
+			permission: PermissionRepoWrite,
+			expected:   true,
+		},
+		{
+			name:       "does not have admin permission",
+			apiKey:     apiKey,
+			permission: PermissionRepoAdmin,
+			expected:   false,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			hasPermission := apiKeyMgr.HasPermission(tc.apiKey, tc.permission)
+
+			if hasPermission != tc.expected {
+				t.Errorf("Expected %v, got %v", tc.expected, hasPermission)
+			}
+		})
+	}
+
+	// Test with admin permissions
+	_, adminKey, err := apiKeyMgr.GenerateAPIKey(
+		"testuser", "admin-key", []Permission{PermissionRepoAdmin}, nil, nil)
+	if err != nil {
+		t.Fatalf("Failed to generate admin API key: %v", err)
+	}
+
+	// Admin should have all repo permissions
+	adminPermTests := []Permission{PermissionRepoRead, PermissionRepoWrite, PermissionRepoAdmin}
+	for _, perm := range adminPermTests {
+		if !apiKeyMgr.HasPermission(adminKey, perm) {
+			t.Errorf("Admin key should have permission %v", perm)
+		}
+	}
+}
+
+func TestHasRepositoryPermission(t *testing.T) {
+	rbac := NewRBAC()
+	apiKeyMgr := NewAPIKeyManager(rbac)
+
+	// Create a test user
+	err := rbac.CreateUser("testuser", "testname", "test@example.com", []string{"developer"})
+	if err != nil {
+		t.Fatalf("Failed to create test user: %v", err)
+	}
+
+	// Create API key with repository-specific permissions
+	repoPerms := map[string][]Permission{
+		"repo1": {PermissionRepoRead, PermissionRepoWrite},
+		"repo2": {PermissionRepoRead},
+	}
+	_, apiKey, err := apiKeyMgr.GenerateAPIKey(
+		"testuser", "test-key", []Permission{PermissionRepoRead}, repoPerms, nil)
+	if err != nil {
+		t.Fatalf("Failed to generate API key: %v", err)
+	}
+
+	testCases := []struct {
+		name       string
+		apiKey     *APIKey
+		repository string
+		permission Permission
+		expected   bool
+	}{
+		{
+			name:       "has read permission on repo1",
+			apiKey:     apiKey,
+			repository: "repo1",
+			permission: PermissionRepoRead,
+			expected:   true,
+		},
+		{
+			name:       "has write permission on repo1",
+			apiKey:     apiKey,
+			repository: "repo1",
+			permission: PermissionRepoWrite,
+			expected:   true,
+		},
+		{
+			name:       "has read permission on repo2",
+			apiKey:     apiKey,
+			repository: "repo2",
+			permission: PermissionRepoRead,
+			expected:   true,
+		},
+		{
+			name:       "does not have write permission on repo2",
+			apiKey:     apiKey,
+			repository: "repo2",
+			permission: PermissionRepoWrite,
+			expected:   false,
+		},
+		{
+			name:       "no permissions on repo3",
+			apiKey:     apiKey,
+			repository: "repo3",
+			permission: PermissionRepoRead,
+			expected:   true, // Global read permission applies
+		},
+		{
+			name:       "no admin permission on repo3",
+			apiKey:     apiKey,
+			repository: "repo3",
+			permission: PermissionRepoAdmin,
+			expected:   false,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			hasPermission := apiKeyMgr.HasRepositoryPermission(tc.apiKey, tc.repository, tc.permission)
+
+			if hasPermission != tc.expected {
+				t.Errorf("Expected %v, got %v", tc.expected, hasPermission)
+			}
+		})
+	}
+
+	// Test with key that has no global permissions
+	_, noGlobalKey, err := apiKeyMgr.GenerateAPIKey(
+		"testuser", "noglobal-key", []Permission{}, map[string][]Permission{
+			"specific-repo": {PermissionRepoWrite},
+		}, nil)
+	if err != nil {
+		t.Fatalf("Failed to generate no-global API key: %v", err)
+	}
+
+	// Should have write permission on specific repo
+	if !apiKeyMgr.HasRepositoryPermission(noGlobalKey, "specific-repo", PermissionRepoWrite) {
+		t.Error("Should have write permission on specific repo")
+	}
+
+	// Should not have permission on other repos
+	if apiKeyMgr.HasRepositoryPermission(noGlobalKey, "other-repo", PermissionRepoRead) {
+		t.Error("Should not have permission on other repo")
+	}
+}
+
+func TestUpdateAPIKeyPermissions(t *testing.T) {
+	rbac := NewRBAC()
+	apiKeyMgr := NewAPIKeyManager(rbac)
+
+	// Create a test user
+	err := rbac.CreateUser("testuser", "testname", "test@example.com", []string{"developer"})
+	if err != nil {
+		t.Fatalf("Failed to create test user: %v", err)
+	}
+
+	// Create API key
+	_, apiKey, err := apiKeyMgr.GenerateAPIKey(
+		"testuser", "test-key", []Permission{PermissionRepoRead}, nil, nil)
+	if err != nil {
+		t.Fatalf("Failed to generate API key: %v", err)
+	}
+
+	testCases := []struct {
+		name            string
+		keyID           string
+		newPermissions  []Permission
+		newRepoPerms    map[string][]Permission
+		wantErr         bool
+		expectedPermLen int
+		expectedRepoLen int
+	}{
+		{
+			name:            "update permissions",
+			keyID:           apiKey.ID,
+			newPermissions:  []Permission{PermissionRepoRead, PermissionRepoWrite},
+			newRepoPerms:    map[string][]Permission{"repo1": {PermissionRepoAdmin}},
+			wantErr:         false,
+			expectedPermLen: 2,
+			expectedRepoLen: 1,
+		},
+		{
+			name:            "clear all permissions",
+			keyID:           apiKey.ID,
+			newPermissions:  []Permission{},
+			newRepoPerms:    map[string][]Permission{},
+			wantErr:         false,
+			expectedPermLen: 0,
+			expectedRepoLen: 0,
+		},
+		{
+			name:           "update non-existent key",
+			keyID:          "nonexistent-key",
+			newPermissions: []Permission{PermissionRepoRead},
+			newRepoPerms:   nil,
+			wantErr:        true,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			err := apiKeyMgr.UpdateAPIKeyPermissions(tc.keyID, tc.newPermissions, tc.newRepoPerms)
+
+			if tc.wantErr && err == nil {
+				t.Error("Expected error but got none")
+			}
+			if !tc.wantErr && err != nil {
+				t.Errorf("Unexpected error: %v", err)
+			}
+
+			if !tc.wantErr {
+				// Verify permissions were updated
+				updatedKey, getErr := apiKeyMgr.GetAPIKey(tc.keyID)
+				if getErr != nil {
+					t.Fatalf("Failed to get updated key: %v", getErr)
+				}
+
+				if len(updatedKey.Permissions) != tc.expectedPermLen {
+					t.Errorf("Expected %d permissions, got %d", tc.expectedPermLen, len(updatedKey.Permissions))
+				}
+
+				if len(updatedKey.RepoPerms) != tc.expectedRepoLen {
+					t.Errorf("Expected %d repo permissions, got %d", tc.expectedRepoLen, len(updatedKey.RepoPerms))
+				}
+			}
+		})
+	}
+}
+
+func TestCleanupExpiredKeys(t *testing.T) {
+	rbac := NewRBAC()
+	apiKeyMgr := NewAPIKeyManager(rbac)
+
+	// Create a test user
+	err := rbac.CreateUser("testuser", "testname", "test@example.com", []string{"developer"})
+	if err != nil {
+		t.Fatalf("Failed to create test user: %v", err)
+	}
+
+	// Create expired keys
+	expiredTime := time.Now().Add(-time.Hour)
+	_, expiredKey1, err := apiKeyMgr.GenerateAPIKey(
+		"testuser", "expired-key-1", []Permission{PermissionRepoRead}, nil, &expiredTime)
+	if err != nil {
+		t.Fatalf("Failed to generate expired key 1: %v", err)
+	}
+
+	_, expiredKey2, err := apiKeyMgr.GenerateAPIKey(
+		"testuser", "expired-key-2", []Permission{PermissionRepoRead}, nil, &expiredTime)
+	if err != nil {
+		t.Fatalf("Failed to generate expired key 2: %v", err)
+	}
+
+	// Create active key (no expiration)
+	_, activeKey, err := apiKeyMgr.GenerateAPIKey(
+		"testuser", "active-key", []Permission{PermissionRepoRead}, nil, nil)
+	if err != nil {
+		t.Fatalf("Failed to generate active key: %v", err)
+	}
+
+	// Create future expiring key
+	futureTime := time.Now().Add(time.Hour)
+	_, futureKey, err := apiKeyMgr.GenerateAPIKey(
+		"testuser", "future-key", []Permission{PermissionRepoRead}, nil, &futureTime)
+	if err != nil {
+		t.Fatalf("Failed to generate future key: %v", err)
+	}
+
+	// Test cleanup
+	deletedCount := apiKeyMgr.CleanupExpiredKeys()
+
+	if deletedCount < 2 {
+		t.Errorf("Expected at least 2 expired keys to be deleted, got %d", deletedCount)
+	}
+
+	// Verify expired keys are gone
+	_, err = apiKeyMgr.GetAPIKey(expiredKey1.ID)
+	if err == nil {
+		t.Error("Expired key 1 should have been deleted")
+	}
+
+	_, err = apiKeyMgr.GetAPIKey(expiredKey2.ID)
+	if err == nil {
+		t.Error("Expired key 2 should have been deleted")
+	}
+
+	// Verify active keys still exist
+	_, err = apiKeyMgr.GetAPIKey(activeKey.ID)
+	if err != nil {
+		t.Errorf("Active key should still exist: %v", err)
+	}
+
+	_, err = apiKeyMgr.GetAPIKey(futureKey.ID)
+	if err != nil {
+		t.Errorf("Future key should still exist: %v", err)
+	}
+}
+
 // Helper function to create time pointer
 func timePtr(t time.Time) *time.Time {
 	return &t

@@ -52,6 +52,11 @@ type Repository struct {
 	queryEngine *QueryEngine              // Efficient data access system
 	deltaCompression *DeltaCompression    // Storage optimization for high-frequency commits
 	advancedSearch *AdvancedSearch        // Full-text search and analytics system
+	
+	// Performance optimization fields
+	concurrentLimiter interface{} // Limiter for concurrent operations
+	batchProcessor    interface{} // Processor for batch operations
+	
 	mu         sync.RWMutex
 }
 

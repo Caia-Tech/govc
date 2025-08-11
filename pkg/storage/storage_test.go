@@ -413,3 +413,227 @@ func TestMemoryFirstPerformance(t *testing.T) {
 		t.Logf("Memory backend not significantly faster than file backend")
 	}
 }
+
+// Tests for HybridObjectStore - currently 0% coverage
+func TestHybridObjectStore(t *testing.T) {
+	// Create temporary directory for testing
+	tmpDir, err := os.MkdirTemp("", "hybrid_test")
+	if err != nil {
+		t.Fatalf("Failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	t.Run("NewHybridObjectStore", func(t *testing.T) {
+		store, err := NewHybridObjectStore(tmpDir, 1024)
+		if err != nil {
+			t.Fatalf("NewHybridObjectStore() error = %v", err)
+		}
+		if store == nil {
+			t.Error("NewHybridObjectStore() returned nil")
+		}
+
+		// Test with invalid path
+		_, err = NewHybridObjectStore("/invalid/path/that/cannot/be/created", 1024)
+		if err == nil {
+			t.Error("NewHybridObjectStore() with invalid path should return error")
+		}
+	})
+
+	store, err := NewHybridObjectStore(tmpDir, 1024)
+	if err != nil {
+		t.Fatalf("Setup error: %v", err)
+	}
+
+	t.Run("Put and Get", func(t *testing.T) {
+		blob := object.NewBlob([]byte("test content"))
+		
+		hash, err := store.Put(blob)
+		if err != nil {
+			t.Fatalf("Put() error = %v", err)
+		}
+		if hash == "" {
+			t.Error("Put() returned empty hash")
+		}
+
+		// Get should retrieve from memory
+		obj, err := store.Get(hash)
+		if err != nil {
+			t.Fatalf("Get() error = %v", err)
+		}
+		if obj == nil {
+			t.Error("Get() returned nil object")
+		}
+
+		retrievedBlob, ok := obj.(*object.Blob)
+		if !ok {
+			t.Error("Retrieved object is not a blob")
+		}
+		if !bytes.Equal(retrievedBlob.Content, []byte("test content")) {
+			t.Errorf("Retrieved content = %v, want %v", retrievedBlob.Content, []byte("test content"))
+		}
+	})
+
+	t.Run("Exists", func(t *testing.T) {
+		blob := object.NewBlob([]byte("test exists"))
+		hash, err := store.Put(blob)
+		if err != nil {
+			t.Fatalf("Put() error = %v", err)
+		}
+
+		if !store.Exists(hash) {
+			t.Error("Exists() = false, want true for existing object")
+		}
+
+		if store.Exists("nonexistent-hash") {
+			t.Error("Exists() = true, want false for non-existent object")
+		}
+	})
+
+	t.Run("List", func(t *testing.T) {
+		// Add some test objects
+		blob1 := object.NewBlob([]byte("content 1"))
+		blob2 := object.NewBlob([]byte("content 2"))
+		
+		hash1, _ := store.Put(blob1)
+		hash2, _ := store.Put(blob2)
+
+		hashes, err := store.List()
+		if err != nil {
+			t.Fatalf("List() error = %v", err)
+		}
+
+		if len(hashes) < 2 {
+			t.Errorf("List() returned %d hashes, want at least 2", len(hashes))
+		}
+
+		found1, found2 := false, false
+		for _, h := range hashes {
+			if h == hash1 {
+				found1 = true
+			}
+			if h == hash2 {
+				found2 = true
+			}
+		}
+
+		if !found1 || !found2 {
+			t.Error("List() did not return all expected hashes")
+		}
+	})
+
+	t.Run("Size", func(t *testing.T) {
+		initialSize, err := store.Size()
+		if err != nil {
+			t.Fatalf("Size() error = %v", err)
+		}
+
+		// Add an object
+		blob := object.NewBlob([]byte("size test content"))
+		_, err = store.Put(blob)
+		if err != nil {
+			t.Fatalf("Put() error = %v", err)
+		}
+
+		newSize, err := store.Size()
+		if err != nil {
+			t.Fatalf("Size() error = %v", err)
+		}
+
+		if newSize <= initialSize {
+			t.Errorf("Size() after adding object = %d, should be > %d", newSize, initialSize)
+		}
+	})
+
+	t.Run("Close", func(t *testing.T) {
+		err := store.Close()
+		if err != nil {
+			t.Errorf("Close() error = %v", err)
+		}
+	})
+
+	t.Run("Memory Pressure Handling", func(t *testing.T) {
+		// Create store with very small memory limit
+		smallStore, err := NewHybridObjectStore(tmpDir, 10) // Very small memory limit
+		if err != nil {
+			t.Fatalf("NewHybridObjectStore() error = %v", err)
+		}
+
+		// Add objects that exceed memory limit
+		for i := 0; i < 5; i++ {
+			content := bytes.Repeat([]byte("large content"), 100)
+			blob := object.NewBlob(content)
+			_, err := smallStore.Put(blob)
+			if err != nil {
+				t.Fatalf("Put() error = %v", err)
+			}
+		}
+
+		// Objects should still be retrievable (from disk)
+		hashes, err := smallStore.List()
+		if err != nil {
+			t.Fatalf("List() error = %v", err)
+		}
+
+		for _, hash := range hashes {
+			_, err := smallStore.Get(hash)
+			if err != nil {
+				t.Errorf("Get(%s) error = %v", hash, err)
+			}
+		}
+
+		smallStore.Close()
+	})
+
+	t.Run("Disk Persistence", func(t *testing.T) {
+		// Create store and add object
+		persistStore, err := NewHybridObjectStore(tmpDir, 1024)
+		if err != nil {
+			t.Fatalf("NewHybridObjectStore() error = %v", err)
+		}
+
+		testContent := []byte("persistent test content")
+		blob := object.NewBlob(testContent)
+		hash, err := persistStore.Put(blob)
+		if err != nil {
+			t.Fatalf("Put() error = %v", err)
+		}
+
+		persistStore.Close()
+
+		// Create new store instance and verify object persisted
+		newStore, err := NewHybridObjectStore(tmpDir, 1024)
+		if err != nil {
+			t.Fatalf("NewHybridObjectStore() error = %v", err)
+		}
+
+		obj, err := newStore.Get(hash)
+		if err != nil {
+			t.Fatalf("Get() from persisted storage error = %v", err)
+		}
+
+		retrievedBlob, ok := obj.(*object.Blob)
+		if !ok {
+			t.Error("Retrieved object is not a blob")
+		}
+		if !bytes.Equal(retrievedBlob.Content, testContent) {
+			t.Errorf("Retrieved content = %v, want %v", retrievedBlob.Content, testContent)
+		}
+
+		newStore.Close()
+	})
+
+	t.Run("Error Handling", func(t *testing.T) {
+		// Test Get with non-existent hash
+		_, err := store.Get("nonexistent-hash-123")
+		if err == nil {
+			t.Error("Get() with non-existent hash should return error")
+		}
+
+		// Test operations after close
+		store.Close()
+		err = store.Close() // Second close should not error
+		if err != nil {
+			t.Errorf("Second Close() error = %v", err)
+		}
+	})
+}

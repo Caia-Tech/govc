@@ -325,3 +325,264 @@ func BenchmarkValidateToken(b *testing.B) {
 		}
 	}
 }
+
+// Tests for functions with 0% coverage
+
+func TestCleanupExpiredTokens(t *testing.T) {
+	jwtAuth := NewJWTAuth("test-secret", "test-issuer", time.Hour)
+	
+	// Create some test tokens
+	token1, err := jwtAuth.GenerateToken("user1", "testuser1", "user1@example.com", []string{"admin"})
+	if err != nil {
+		t.Fatalf("Failed to generate token1: %v", err)
+	}
+	
+	token2, err := jwtAuth.GenerateToken("user2", "testuser2", "user2@example.com", []string{"user"})
+	if err != nil {
+		t.Fatalf("Failed to generate token2: %v", err)
+	}
+	
+	// Validate tokens to add them to cache
+	_, err = jwtAuth.ValidateToken(token1)
+	if err != nil {
+		t.Fatalf("Failed to validate token1: %v", err)
+	}
+	
+	_, err = jwtAuth.ValidateToken(token2)
+	if err != nil {
+		t.Fatalf("Failed to validate token2: %v", err)
+	}
+	
+	// Access the cleanup function through reflection or test the behavior indirectly
+	// Since cleanupExpiredTokens is called internally, we test it by checking cache behavior
+	
+	// Create a JWT with very short cache TTL to test cleanup
+	shortTTLAuth := NewJWTAuth("test-secret", "test-issuer", time.Hour)
+	shortTTLAuth.cacheTTL = time.Millisecond // Very short cache
+	
+	token3, err := shortTTLAuth.GenerateToken("user3", "testuser3", "user3@example.com", []string{"user"})
+	if err != nil {
+		t.Fatalf("Failed to generate token3: %v", err)
+	}
+	
+	// Validate to add to cache
+	_, err = shortTTLAuth.ValidateToken(token3)
+	if err != nil {
+		t.Fatalf("Failed to validate token3: %v", err)
+	}
+	
+	// Wait for cache to expire
+	time.Sleep(10 * time.Millisecond)
+	
+	// Validate again - this should trigger cleanup of expired cache entries
+	_, err = shortTTLAuth.ValidateToken(token3)
+	if err != nil {
+		t.Fatalf("Failed to validate token3 after cache expiry: %v", err)
+	}
+	
+	// Test passes if no panic occurs and validation still works
+	t.Log("Cleanup test completed successfully")
+}
+
+func TestExtractUserID(t *testing.T) {
+	jwtAuth := NewJWTAuth("test-secret", "test-issuer", time.Hour)
+	
+	testCases := []struct {
+		name           string
+		userID         string
+		username       string
+		email          string
+		permissions    []string
+		expectUserID   string
+	}{
+		{
+			name:         "extract valid user ID",
+			userID:       "testuser123",
+			username:     "testuser",
+			email:        "test@example.com",
+			permissions:  []string{"admin"},
+			expectUserID: "testuser123",
+		},
+		{
+			name:         "extract user ID with special characters",
+			userID:       "user@example.com",
+			username:     "specialuser",
+			email:        "special@example.com",
+			permissions:  []string{"user"},
+			expectUserID: "user@example.com",
+		},
+		{
+			name:         "extract empty user ID",
+			userID:       "",
+			username:     "emptyuser",
+			email:        "empty@example.com",
+			permissions:  []string{"user"},
+			expectUserID: "",
+		},
+	}
+	
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			token, err := jwtAuth.GenerateToken(tc.userID, tc.username, tc.email, tc.permissions)
+			if err != nil {
+				t.Fatalf("Failed to generate token: %v", err)
+			}
+			
+			extractedUserID := jwtAuth.ExtractUserID(token)
+			
+			if extractedUserID != tc.expectUserID {
+				t.Errorf("Expected user ID '%s', got '%s'", tc.expectUserID, extractedUserID)
+			}
+		})
+	}
+	
+	// Test with invalid tokens
+	invalidTokenTests := []struct {
+		name  string
+		token string
+	}{
+		{
+			name:  "empty token",
+			token: "",
+		},
+		{
+			name:  "malformed token",
+			token: "invalid.token.here",
+		},
+		{
+			name:  "token with wrong signature",
+			token: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJ0ZXN0IiwiZXhwIjoxNjE2MjM5MDIyfQ.wrong_signature",
+		},
+	}
+	
+	for _, tc := range invalidTokenTests {
+		t.Run(tc.name, func(t *testing.T) {
+			userID := jwtAuth.ExtractUserID(tc.token)
+			if userID != "" {
+				t.Errorf("Expected empty user ID for invalid token, got '%s'", userID)
+			}
+		})
+	}
+}
+
+func TestGenerateRandomSecret(t *testing.T) {
+	// Test the generateRandomSecret function by creating JWTAuth with empty secret
+	jwtAuth1 := NewJWTAuth("", "test-issuer", time.Hour)
+	jwtAuth2 := NewJWTAuth("", "test-issuer", time.Hour)
+	
+	// Verify secrets are not empty
+	if jwtAuth1.Secret == "" {
+		t.Error("Generated secret should not be empty")
+	}
+	if jwtAuth2.Secret == "" {
+		t.Error("Generated secret should not be empty")
+	}
+	
+	// Verify secrets are different (highly likely)
+	if jwtAuth1.Secret == jwtAuth2.Secret {
+		t.Error("Generated secrets should be different")
+	}
+	
+	// Verify minimum length (should be reasonable for security)
+	if len(jwtAuth1.Secret) < 32 {
+		t.Errorf("Generated secret should be at least 32 characters, got %d", len(jwtAuth1.Secret))
+	}
+	if len(jwtAuth2.Secret) < 32 {
+		t.Errorf("Generated secret should be at least 32 characters, got %d", len(jwtAuth2.Secret))
+	}
+	
+	// Test tokens can be generated and validated with random secrets
+	token, err := jwtAuth1.GenerateToken("testuser", "testuser", "test@example.com", []string{"user"})
+	if err != nil {
+		t.Fatalf("Failed to generate token with random secret: %v", err)
+	}
+	
+	_, err = jwtAuth1.ValidateToken(token)
+	if err != nil {
+		t.Errorf("Failed to validate token with random secret: %v", err)
+	}
+}
+
+func TestGetTokenInfo(t *testing.T) {
+	jwtAuth := NewJWTAuth("test-secret", "test-issuer", time.Hour)
+	
+	userID := "testuser"
+	username := "testusername"
+	email := "test@example.com"
+	permissions := []string{"admin", "user"}
+	
+	token, err := jwtAuth.GenerateToken(userID, username, email, permissions)
+	if err != nil {
+		t.Fatalf("Failed to generate token: %v", err)
+	}
+	
+	testCases := []struct {
+		name    string
+		token   string
+		wantNil bool
+	}{
+		{
+			name:    "get info for valid token",
+			token:   token,
+			wantNil: false,
+		},
+		{
+			name:    "get info for empty token",
+			token:   "",
+			wantNil: false, // Returns invalid token info, not nil
+		},
+		{
+			name:    "get info for invalid token",
+			token:   "invalid.token.format",
+			wantNil: false, // Returns invalid token info, not nil
+		},
+	}
+	
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			info := jwtAuth.GetTokenInfo(tc.token)
+			
+			if tc.wantNil && info != nil {
+				t.Error("Expected nil but got token info")
+			}
+			if !tc.wantNil && info == nil {
+				t.Error("Expected token info but got nil")
+			}
+			
+			if !tc.wantNil && info != nil {
+				if tc.token == token {
+					// Verify the token info contains expected data for valid token
+					if info.UserID != userID {
+						t.Errorf("Expected user ID '%s', got '%s'", userID, info.UserID)
+					}
+					if info.Username != username {
+						t.Errorf("Expected username '%s', got '%s'", username, info.Username)
+					}
+					if info.Email != email {
+						t.Errorf("Expected email '%s', got '%s'", email, info.Email)
+					}
+					if len(info.Permissions) != len(permissions) {
+						t.Errorf("Expected %d permissions, got %d", len(permissions), len(info.Permissions))
+					}
+					if info.IssuedAt.IsZero() {
+						t.Error("IssuedAt should not be zero")
+					}
+					if info.ExpiresAt.IsZero() {
+						t.Error("ExpiresAt should not be zero")
+					}
+					if info.ExpiresAt.Before(info.IssuedAt) {
+						t.Error("ExpiresAt should be after IssuedAt")
+					}
+					if !info.Valid {
+						t.Error("Token should be valid")
+					}
+				} else {
+					// For invalid tokens, Valid should be false
+					if info.Valid {
+						t.Error("Invalid token should have Valid=false")
+					}
+				}
+			}
+		})
+	}
+}

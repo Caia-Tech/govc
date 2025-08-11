@@ -32,4 +32,8 @@ Thumbs.db
 # govc repositories
 .govc/
 :memory:/
-*/:memory:/
+*/:memory:/.analysis/
+sonar-project.properties
+*.prof
+*.out
+*.xml

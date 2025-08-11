@@ -174,8 +174,9 @@ func (f *FileBackend) ListObjects() ([]string, error) {
 // This enables use cases like testing infrastructure changes without
 // ever touching disk.
 type Store struct {
-	backend Backend
-	cache   *MemoryBackend // Memory-first: cache is primary, backend is optional
+	backend    Backend
+	cache      *MemoryBackend // Memory-first: cache is primary, backend is optional
+	memoryPool interface{}    // Memory pool for optimized allocations
 }
 
 func NewStore(backend Backend) *Store {
@@ -347,4 +348,9 @@ func (s *Store) WritePack(w io.Writer, hashes []string) error {
 
 func (s *Store) ReadPack(r io.Reader) error {
 	return nil
+}
+
+// SetMemoryPool sets the memory pool for optimized allocations
+func (s *Store) SetMemoryPool(pool interface{}) {
+	s.memoryPool = pool
 }

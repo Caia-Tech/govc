@@ -314,3 +314,197 @@ func TestMemoryRefStore(t *testing.T) {
 		assert.Equal(t, "refs/heads/another", head)
 	})
 }
+
+// Tests for adapter functions that have 0% coverage
+func TestObjectStoreAdapter(t *testing.T) {
+	// Create a mock storage store for testing
+	// Since we can't easily test with the real storage.Store, we'll test the error handling
+	adapter := &core.ObjectStoreAdapter{
+		Store: nil, // This will cause panics, but we're testing the adapter methods
+	}
+
+	t.Run("List_NotImplemented", func(t *testing.T) {
+		hashes, err := adapter.List()
+		assert.Error(t, err)
+		assert.Nil(t, hashes)
+		assert.Contains(t, err.Error(), "list not implemented")
+	})
+
+	t.Run("Size_NotImplemented", func(t *testing.T) {
+		size, err := adapter.Size()
+		assert.Error(t, err)
+		assert.Equal(t, int64(0), size)
+		assert.Contains(t, err.Error(), "size not implemented")
+	})
+
+	t.Run("Close", func(t *testing.T) {
+		err := adapter.Close()
+		assert.NoError(t, err) // Close should always return nil
+	})
+}
+
+func TestRefStoreAdapter(t *testing.T) {
+	// Create adapter with nil dependencies to test method calls
+	adapter := &core.RefStoreAdapter{
+		RefManager: nil,
+		Store:      nil,
+	}
+
+	t.Run("Close", func(t *testing.T) {
+		err := adapter.Close()
+		assert.NoError(t, err) // Close should always return nil
+	})
+}
+
+func TestMemoryWorkingStorage(t *testing.T) {
+	storage := core.NewMemoryWorkingStorage()
+
+	t.Run("WriteAndRead", func(t *testing.T) {
+		content := []byte("test content")
+		err := storage.Write("test.txt", content)
+		require.NoError(t, err)
+
+		readContent, err := storage.Read("test.txt")
+		require.NoError(t, err)
+		assert.Equal(t, content, readContent)
+	})
+
+	t.Run("Exists", func(t *testing.T) {
+		assert.True(t, storage.Exists("test.txt"))
+		assert.False(t, storage.Exists("nonexistent.txt"))
+	})
+
+	t.Run("List", func(t *testing.T) {
+		err := storage.Write("file2.txt", []byte("content2"))
+		require.NoError(t, err)
+
+		files, err := storage.List()
+		require.NoError(t, err)
+		assert.Len(t, files, 2)
+		assert.Contains(t, files, "test.txt")
+		assert.Contains(t, files, "file2.txt")
+	})
+
+	t.Run("Delete", func(t *testing.T) {
+		err := storage.Delete("test.txt")
+		require.NoError(t, err)
+
+		assert.False(t, storage.Exists("test.txt"))
+		_, err = storage.Read("test.txt")
+		assert.Error(t, err)
+	})
+
+	t.Run("Clear", func(t *testing.T) {
+		err := storage.Clear()
+		require.NoError(t, err)
+
+		files, err := storage.List()
+		require.NoError(t, err)
+		assert.Len(t, files, 0)
+	})
+
+	t.Run("Close", func(t *testing.T) {
+		err := storage.Close()
+		assert.NoError(t, err)
+	})
+
+	t.Run("ReadNonExistent", func(t *testing.T) {
+		_, err := storage.Read("nonexistent.txt")
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "file not found")
+	})
+}
+
+func TestFileWorkingStorage(t *testing.T) {
+	storage := core.NewFileWorkingStorage("/tmp/test")
+
+	t.Run("Read_NotImplemented", func(t *testing.T) {
+		_, err := storage.Read("test.txt")
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "not implemented")
+	})
+
+	t.Run("Write_NotImplemented", func(t *testing.T) {
+		err := storage.Write("test.txt", []byte("content"))
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "not implemented")
+	})
+
+	t.Run("Delete_NotImplemented", func(t *testing.T) {
+		err := storage.Delete("test.txt")
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "not implemented")
+	})
+
+	t.Run("List_NotImplemented", func(t *testing.T) {
+		_, err := storage.List()
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "not implemented")
+	})
+
+	t.Run("Clear_NotImplemented", func(t *testing.T) {
+		err := storage.Clear()
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "not implemented")
+	})
+
+	t.Run("Exists_NotImplemented", func(t *testing.T) {
+		exists := storage.Exists("test.txt")
+		assert.False(t, exists) // Always returns false since not implemented
+	})
+
+	t.Run("Close", func(t *testing.T) {
+		err := storage.Close()
+		assert.NoError(t, err)
+	})
+}
+
+func TestMemoryConfigStore(t *testing.T) {
+	store := core.NewMemoryConfigStore()
+
+	t.Run("SetAndGet", func(t *testing.T) {
+		err := store.Set("test.key", "test.value")
+		require.NoError(t, err)
+
+		value, err := store.Get("test.key")
+		require.NoError(t, err)
+		assert.Equal(t, "test.value", value)
+	})
+
+	t.Run("GetNonExistent", func(t *testing.T) {
+		_, err := store.Get("nonexistent.key")
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "key not found")
+	})
+
+	t.Run("List", func(t *testing.T) {
+		err := store.Set("key1", "value1")
+		require.NoError(t, err)
+		err = store.Set("key2", "value2")
+		require.NoError(t, err)
+
+		configs, err := store.List()
+		require.NoError(t, err)
+		assert.Len(t, configs, 3) // test.key + key1 + key2
+		assert.Equal(t, "test.value", configs["test.key"])
+		assert.Equal(t, "value1", configs["key1"])
+		assert.Equal(t, "value2", configs["key2"])
+	})
+
+	t.Run("Delete", func(t *testing.T) {
+		err := store.Delete("key1")
+		require.NoError(t, err)
+
+		_, err = store.Get("key1")
+		assert.Error(t, err)
+
+		configs, err := store.List()
+		require.NoError(t, err)
+		assert.Len(t, configs, 2) // test.key + key2
+	})
+
+	t.Run("Close", func(t *testing.T) {
+		err := store.Close()
+		assert.NoError(t, err)
+	})
+}

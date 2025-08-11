@@ -15,16 +15,31 @@ type MemoryBuildEngine struct {
 	plugins   map[string]BuildPlugin
 	cache     BuildCache
 	eventChan chan BuildEvent
+	
+	// Performance optimizations
+	optimizer    *PipelineOptimizer
+	distCache    *DistributedBuildCache
+	incremental  *IncrementalBuilder
+	
 	mu        sync.RWMutex
 }
 
 // NewMemoryBuildEngine creates a new memory-based build engine
 func NewMemoryBuildEngine() *MemoryBuildEngine {
-	return &MemoryBuildEngine{
+	cache := NewMemoryCache()
+	
+	engine := &MemoryBuildEngine{
 		plugins:   make(map[string]BuildPlugin),
-		cache:     NewMemoryCache(),
+		cache:     cache,
 		eventChan: make(chan BuildEvent, 100),
 	}
+	
+	// Initialize performance optimizations
+	engine.optimizer = NewPipelineOptimizer()
+	engine.distCache = NewDistributedBuildCache(".govc/cache", nil)
+	engine.incremental = NewIncrementalBuilder(cache)
+	
+	return engine
 }
 
 // RegisterPlugin adds a new build plugin

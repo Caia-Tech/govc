@@ -1,0 +1,141 @@
+name: Performance Regression Testing
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  schedule:
+    # Run daily at 2 AM UTC
+    - cron: '0 2 * * *'
+
+jobs:
+  performance-test:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v3
+      with:
+        fetch-depth: 0 # Need full history for comparisons
+    
+    - name: Set up Go
+      uses: actions/setup-go@v4
+      with:
+        go-version: '1.23'
+    
+    - name: Install dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y jq
+        go mod download
+    
+    - name: Cache performance baseline
+      uses: actions/cache@v3
+      with:
+        path: .performance/baseline.json
+        key: performance-baseline-${{ runner.os }}-${{ hashFiles('**/*.go') }}
+        restore-keys: |
+          performance-baseline-${{ runner.os }}-
+    
+    - name: Run performance tests
+      run: |
+        ./scripts/performance_regression_test.sh test
+      continue-on-error: true
+    
+    - name: Upload performance results
+      uses: actions/upload-artifact@v3
+      if: always()
+      with:
+        name: performance-results
+        path: |
+          .performance/results.json
+          .performance/report.html
+    
+    - name: Comment on PR
+      if: github.event_name == 'pull_request'
+      uses: actions/github-script@v6
+      with:
+        script: |
+          const fs = require('fs');
+          
+          // Read performance results
+          let message = '## 🚀 Performance Test Results\n\n';
+          
+          try {
+            const results = fs.readFileSync('.performance/results.json', 'utf8');
+            const baseline = fs.readFileSync('.performance/baseline.json', 'utf8');
+            
+            const resultsData = JSON.parse(results);
+            const baselineData = JSON.parse(baseline);
+            
+            // Create comparison table
+            message += '| Benchmark | Baseline | Current | Change |\n';
+            message += '|-----------|----------|---------|--------|\n';
+            
+            const baselineMap = {};
+            baselineData.forEach(b => { baselineMap[b.name] = b; });
+            
+            resultsData.forEach(result => {
+              const base = baselineMap[result.name];
+              if (base) {
+                const change = ((result.ns_op - base.ns_op) / base.ns_op) * 100;
+                const emoji = change > 10 ? '❌' : change < -5 ? '✅' : '➡️';
+                message += `| ${result.name} | ${base.ns_op.toFixed(2)} ns | ${result.ns_op.toFixed(2)} ns | ${emoji} ${change.toFixed(2)}% |\n`;
+              } else {
+                message += `| ${result.name} | - | ${result.ns_op.toFixed(2)} ns | 🆕 NEW |\n`;
+              }
+            });
+            
+            message += '\n[View Full Report](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})';
+            
+          } catch (error) {
+            message += 'Could not generate performance comparison.\n';
+            message += 'Error: ' + error.message;
+          }
+          
+          // Post comment
+          github.rest.issues.createComment({
+            issue_number: context.issue.number,
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            body: message
+          });
+    
+    - name: Fail if regressions found
+      run: |
+        if grep -q "❌ Found" .performance/results.json 2>/dev/null; then
+          echo "Performance regressions detected!"
+          exit 1
+        fi
+
+  profile-analysis:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Set up Go
+      uses: actions/setup-go@v4
+      with:
+        go-version: '1.23'
+    
+    - name: Generate CPU Profile
+      run: |
+        go test -cpuprofile=cpu.prof -bench=. -benchtime=10s ./pkg/storage || true
+        go tool pprof -top -nodecount=20 cpu.prof > cpu_profile.txt
+    
+    - name: Generate Memory Profile
+      run: |
+        go test -memprofile=mem.prof -bench=. -benchtime=10s ./pkg/storage || true
+        go tool pprof -top -nodecount=20 mem.prof > mem_profile.txt
+    
+    - name: Upload Profiles
+      uses: actions/upload-artifact@v3
+      with:
+        name: performance-profiles
+        path: |
+          cpu.prof
+          mem.prof
+          cpu_profile.txt
+          mem_profile.txt

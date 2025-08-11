@@ -1,0 +1,205 @@
+# golangci-lint configuration for govc
+# This configuration ensures high code quality and consistency
+
+run:
+  timeout: 5m
+  issues-exit-code: 1
+  tests: true
+  skip-dirs:
+    - vendor
+    - .git
+    - .github
+    - docs
+    - scripts
+  skip-files:
+    - ".*\\.pb\\.go$"
+    - ".*_test\\.go$" # We want to lint tests too, but with different rules
+
+output:
+  format: colored-line-number
+  print-issued-lines: true
+  print-linter-name: true
+  uniq-by-line: true
+
+linters-settings:
+  govet:
+    check-shadowing: true
+    enable-all: true
+  
+  golint:
+    min-confidence: 0.8
+  
+  gocyclo:
+    min-complexity: 15
+  
+  goconst:
+    min-len: 3
+    min-occurrences: 3
+  
+  gocritic:
+    enabled-tags:
+      - diagnostic
+      - experimental
+      - opinionated
+      - performance
+      - style
+    disabled-checks:
+      - wrapperFunc
+      - dupImport
+  
+  funlen:
+    lines: 100
+    statements: 50
+  
+  goimports:
+    local-prefixes: github.com/Caia-Tech/govc
+  
+  gomnd:
+    settings:
+      mnd:
+        checks: argument,case,condition,operation,return,assign
+        ignored-numbers: 0,1,2,3
+        ignored-functions: strconv.FormatInt,strconv.ParseInt
+  
+  gomodguard:
+    blocked:
+      modules:
+        - golang.org/x/exp:
+            recommendations:
+              - golang.org/x/exp/slices
+  
+  lll:
+    line-length: 120
+  
+  misspell:
+    locale: US
+  
+  nestif:
+    min-complexity: 4
+  
+  prealloc:
+    simple: true
+    range-loops: true
+    for-loops: false
+  
+  unparam:
+    check-exported: false
+  
+  unused:
+    check-exported: false
+  
+  whitespace:
+    multi-if: false
+    multi-func: false
+  
+  wsl:
+    strict-append: true
+    allow-assign-and-call: true
+    allow-multiline-assign: true
+    allow-case-traling-whitespace: true
+    allow-cuddle-declarations: false
+
+linters:
+  enable-all: true
+  disable:
+    # Disabled because they're too noisy or conflict with our style
+    - exhaustivestruct
+    - exhaustruct
+    - forbidigo
+    - gci # Conflicts with goimports
+    - gofumpt # We use gofmt
+    - godox # We allow TODO comments
+    - ifshort # Deprecated
+    - interfacer # Deprecated
+    - maligned # Deprecated
+    - nlreturn
+    - paralleltest # Not always applicable
+    - scopelint # Deprecated
+    - testpackage # We allow tests in same package
+    - wrapcheck # Too aggressive
+    - varnamelen # Too strict for our codebase
+    - tagliatelle # Not relevant for our use case
+    - ireturn # Too restrictive
+    - nonamedreturns # We sometimes use named returns for clarity
+
+issues:
+  exclude-rules:
+    # Exclude certain linters for test files
+    - path: _test\.go
+      linters:
+        - gocyclo
+        - errcheck
+        - dupl
+        - gosec
+        - funlen
+        - goconst
+        - gocognit
+        - maintidx
+    
+    # Exclude certain linters for example files
+    - path: example_.*\.go
+      linters:
+        - errcheck
+        - gosec
+        - goconst
+    
+    # Exclude certain linters for generated files
+    - path: \.pb\.go
+      linters:
+        - all
+    
+    # Allow long lines in build tags and imports
+    - source: "^//go:build"
+      linters: [lll]
+    - source: "^import"
+      linters: [lll]
+    
+    # Allow magic numbers in test files and configuration
+    - path: _test\.go
+      linters: [gomnd]
+    - path: config\.go
+      linters: [gomnd]
+    
+    # Allow empty functions in interfaces
+    - source: "type.*interface"
+      linters: [revive]
+    
+    # Ignore certain false positives
+    - text: "should have a package comment"
+      linters: [revive]
+    - text: "don't use underscores"
+      linters: [revive]
+    - text: "should not use dot imports"
+      linters: [revive]
+    - text: "cyclomatic complexity"
+      path: cmd/
+    - text: "Function 'main' is too long"
+      path: cmd/
+    
+    # Performance exceptions
+    - text: "prefer strings.Builder"
+      path: _test\.go
+    
+    # Security exceptions for test files
+    - text: "G101|G102|G103|G104|G107"
+      path: _test\.go
+  
+  max-issues-per-linter: 0
+  max-same-issues: 0
+  new: false
+  fix: true
+
+severity:
+  default-severity: error
+  case-sensitive: false
+  rules:
+    - linters:
+        - dupl
+        - goconst
+        - gocognit
+      severity: warning
+    - linters:
+        - gosec
+        - staticcheck
+        - govet
+      severity: error
