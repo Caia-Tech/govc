@@ -464,3 +464,35 @@ func (r *RefManager) UpdateRef(name string, newHash string, oldHash string) erro
 	}
 	return r.store.SetRef(name, newHash)
 }
+
+// GetRef gets a reference by name, returning the Ref object
+func (r *RefManager) GetRef(name string) (*Ref, error) {
+	hash, err := r.store.GetRef(name)
+	if err != nil {
+		return nil, err
+	}
+	return &Ref{
+		Name: name,
+		Hash: hash,
+		Type: inferRefType(name),
+	}, nil
+}
+
+// ListRefs lists all references
+func (r *RefManager) ListRefs() ([]Ref, error) {
+	return r.store.ListRefs("")
+}
+
+// inferRefType infers the type of a reference from its name
+func inferRefType(name string) RefType {
+	if strings.HasPrefix(name, "refs/heads/") {
+		return RefTypeBranch
+	}
+	if strings.HasPrefix(name, "refs/tags/") {
+		return RefTypeTag
+	}
+	if strings.HasPrefix(name, "refs/remotes/") {
+		return RefTypeRemote
+	}
+	return RefTypeBranch
+}

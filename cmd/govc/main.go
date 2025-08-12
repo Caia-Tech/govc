@@ -57,7 +57,12 @@ var initCmd = &cobra.Command{
 			os.Exit(1)
 		}
 
-		_, err = govc.Init(absPath)
+		// TODO: Implement proper path-based initialization
+		repo := govc.NewRepository()
+		err = nil
+		if repo == nil {
+			err = fmt.Errorf("failed to create repository")
+		}
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Error initializing repository: %v\n", err)
 			os.Exit(1)
@@ -78,9 +83,22 @@ var addCmd = &cobra.Command{
 			os.Exit(1)
 		}
 
-		if err := repo.Add(args...); err != nil {
-			fmt.Fprintf(os.Stderr, "Error adding files: %v\n", err)
-			os.Exit(1)
+		for _, path := range args {
+			// Read file content
+			content, err := os.ReadFile(path)
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "Error reading file %s: %v\n", path, err)
+				continue
+			}
+
+			// Add file to staging area
+			stagingArea := repo.GetStagingArea()
+			if err := stagingArea.Add(path, content); err != nil {
+				fmt.Fprintf(os.Stderr, "Error adding file %s: %v\n", path, err)
+				continue
+			}
+
+			fmt.Printf("Added %s\n", path)
 		}
 	},
 }
@@ -234,8 +252,8 @@ var branchCmd = &cobra.Command{
 
 		currentBranch, _ := repo.CurrentBranch()
 
-		for _, branch := range branches {
-			name := filepath.Base(branch.Name)
+		for _, branchName := range branches {
+			name := filepath.Base(branchName)
 			if name == currentBranch {
 				fmt.Printf("* %s\n", name)
 			} else {
@@ -335,12 +353,19 @@ func init() {
 }
 
 func openRepo() (*govc.Repository, error) {
+	// Find the repository root (current directory for now)
 	cwd, err := os.Getwd()
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to get current directory: %w", err)
 	}
-
-	return govc.Open(cwd)
+	
+	// Load or create repository at current path
+	repo, err := govc.LoadRepository(cwd)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load repository: %w", err)
+	}
+	
+	return repo, nil
 }
 
 func findRepoRoot() (string, error) {

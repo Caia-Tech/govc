@@ -51,7 +51,11 @@ func (s *Server) searchCommits(c *gin.Context) {
 	}
 
 	// Perform search
-	commits, total, err := repo.SearchCommits(query, author, since, until, limit, offset)
+	// TODO: Implement SearchCommits
+	// commits, total, err := repo.SearchCommits(query, author, since, until, limit, offset)
+	var commits []interface{}
+	var total int64
+	err = fmt.Errorf("SearchCommits not implemented")
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, ErrorResponse{
 			Error: fmt.Sprintf("search failed: %v", err),
@@ -113,7 +117,7 @@ func (s *Server) searchCommits(c *gin.Context) {
 // searchContent searches for text within file contents
 func (s *Server) searchContent(c *gin.Context) {
 	repoID := c.Param("repo_id")
-	repo, err := s.getRepository(repoID)
+	_, err := s.getRepository(repoID)
 	if err != nil {
 		c.JSON(http.StatusNotFound, ErrorResponse{
 			Error: err.Error(),
@@ -195,7 +199,7 @@ func (s *Server) searchContent(c *gin.Context) {
 // searchFiles searches for files by name
 func (s *Server) searchFiles(c *gin.Context) {
 	repoID := c.Param("repo_id")
-	repo, err := s.getRepository(repoID)
+	_, err := s.getRepository(repoID)
 	if err != nil {
 		c.JSON(http.StatusNotFound, ErrorResponse{
 			Error: err.Error(),
@@ -274,7 +278,7 @@ func (s *Server) searchFiles(c *gin.Context) {
 // grep performs advanced pattern matching similar to git grep
 func (s *Server) grep(c *gin.Context) {
 	repoID := c.Param("repo_id")
-	repo, err := s.getRepository(repoID)
+	_, err := s.getRepository(repoID)
 	if err != nil {
 		c.JSON(http.StatusNotFound, ErrorResponse{
 			Error: err.Error(),
@@ -350,7 +354,7 @@ func (s *Server) grep(c *gin.Context) {
 // fullTextSearch performs advanced full-text search with TF-IDF scoring
 func (s *Server) fullTextSearch(c *gin.Context) {
 	repoID := c.Param("repo_id")
-	repo, err := s.getRepository(repoID)
+	_, err := s.getRepository(repoID)
 	if err != nil {
 		c.JSON(http.StatusNotFound, ErrorResponse{
 			Error: err.Error(),
@@ -380,21 +384,24 @@ func (s *Server) fullTextSearch(c *gin.Context) {
 		return
 	}
 
+	// TODO: Implement FullTextSearch integration
 	// Build search request
-	searchReq := &govc.FullTextSearchRequest{
-		Query:           req.Query,
-		FileTypes:       req.FileTypes,
-		MaxSize:         req.MaxSize,
-		MinScore:        req.MinScore,
-		IncludeContent:  req.IncludeContent,
-		HighlightLength: req.HighlightLength,
-		Limit:           req.Limit,
-		Offset:          req.Offset,
-		SortBy:          req.SortBy,
-	}
+	// searchReq := &govc.FullTextSearchRequest{
+	//	Query:           req.Query,
+	//	FileTypes:       req.FileTypes,
+	//	MaxSize:         req.MaxSize,
+	//	MinScore:        req.MinScore,
+	//	IncludeContent:  req.IncludeContent,
+	//	HighlightLength: req.HighlightLength,
+	//	Limit:           req.Limit,
+	//	Offset:          req.Offset,
+	//	SortBy:          req.SortBy,
+	// }
 
 	// Perform search
-	response, err := repo.FullTextSearch(searchReq)
+	// response, err := repo.FullTextSearch(searchReq)
+	var response interface{}
+	err = fmt.Errorf("FullTextSearch not implemented")
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, ErrorResponse{
 			Error: fmt.Sprintf("search failed: %v", err),
@@ -409,7 +416,7 @@ func (s *Server) fullTextSearch(c *gin.Context) {
 // sqlQuery executes SQL-like queries
 func (s *Server) sqlQuery(c *gin.Context) {
 	repoID := c.Param("repo_id")
-	repo, err := s.getRepository(repoID)
+	_, err := s.getRepository(repoID)
 	if err != nil {
 		c.JSON(http.StatusNotFound, ErrorResponse{
 			Error: err.Error(),
@@ -432,7 +439,10 @@ func (s *Server) sqlQuery(c *gin.Context) {
 	}
 
 	// Execute SQL query
-	result, err := repo.ExecuteSQLQuery(req.Query)
+	// TODO: Implement ExecuteSQLQuery
+	// result, err := repo.ExecuteSQLQuery(req.Query)
+	var result interface{}
+	err = fmt.Errorf("ExecuteSQLQuery not implemented")
 	if err != nil {
 		c.JSON(http.StatusBadRequest, ErrorResponse{
 			Error: fmt.Sprintf("query failed: %v", err),
@@ -447,7 +457,7 @@ func (s *Server) sqlQuery(c *gin.Context) {
 // searchWithAggregation performs search with aggregation analytics
 func (s *Server) searchWithAggregation(c *gin.Context) {
 	repoID := c.Param("repo_id")
-	repo, err := s.getRepository(repoID)
+	_, err := s.getRepository(repoID)
 	if err != nil {
 		c.JSON(http.StatusNotFound, ErrorResponse{
 			Error: err.Error(),
@@ -458,7 +468,7 @@ func (s *Server) searchWithAggregation(c *gin.Context) {
 
 	// Parse request body
 	var req struct {
-		Query        govc.FullTextSearchRequest `json:"query" binding:"required"`
+		Query        interface{}                `json:"query" binding:"required"`  // TODO: use govc.FullTextSearchRequest
 		GroupBy      []string                   `json:"group_by"`
 		Aggregations []string                   `json:"aggregations"`
 		TimeRange    string                     `json:"time_range,omitempty"`
@@ -473,15 +483,19 @@ func (s *Server) searchWithAggregation(c *gin.Context) {
 	}
 
 	// Build aggregation request
-	aggReq := &govc.AggregationRequest{
-		Query:        &req.Query,
-		GroupBy:      req.GroupBy,
-		Aggregations: req.Aggregations,
-		TimeRange:    req.TimeRange,
-	}
+	// TODO: Implement AggregationRequest
+	// aggReq := &govc.AggregationRequest{
+	//	Query:        &req.Query,
+	//	GroupBy:      req.GroupBy,
+	//	Aggregations: req.Aggregations,
+	//	TimeRange:    req.TimeRange,
+	// }
 
 	// Perform aggregation
-	response, err := repo.SearchWithAggregation(aggReq)
+	// TODO: Implement SearchWithAggregation
+	// response, err := repo.SearchWithAggregation(aggReq)
+	var response interface{}
+	err = fmt.Errorf("SearchWithAggregation not implemented")
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, ErrorResponse{
 			Error: fmt.Sprintf("aggregation failed: %v", err),
@@ -496,7 +510,7 @@ func (s *Server) searchWithAggregation(c *gin.Context) {
 // getSearchIndexStatistics returns search index statistics
 func (s *Server) getSearchIndexStatistics(c *gin.Context) {
 	repoID := c.Param("repo_id")
-	repo, err := s.getRepository(repoID)
+	_, err := s.getRepository(repoID)
 	if err != nil {
 		c.JSON(http.StatusNotFound, ErrorResponse{
 			Error: err.Error(),
@@ -506,7 +520,10 @@ func (s *Server) getSearchIndexStatistics(c *gin.Context) {
 	}
 
 	// Get statistics
-	stats, err := repo.GetSearchIndexStatistics()
+	// TODO: Implement GetSearchIndexStatistics
+	// stats, err := repo.GetSearchIndexStatistics()
+	var stats interface{}
+	err = fmt.Errorf("GetSearchIndexStatistics not implemented")
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, ErrorResponse{
 			Error: fmt.Sprintf("failed to get statistics: %v", err),
@@ -521,7 +538,7 @@ func (s *Server) getSearchIndexStatistics(c *gin.Context) {
 // getSearchSuggestions provides query auto-completion suggestions
 func (s *Server) getSearchSuggestions(c *gin.Context) {
 	repoID := c.Param("repo_id")
-	repo, err := s.getRepository(repoID)
+	_, err := s.getRepository(repoID)
 	if err != nil {
 		c.JSON(http.StatusNotFound, ErrorResponse{
 			Error: err.Error(),
@@ -551,7 +568,10 @@ func (s *Server) getSearchSuggestions(c *gin.Context) {
 	}
 
 	// Get suggestions
-	suggestions, err := repo.GetSearchSuggestions(partialQuery, limit)
+	// TODO: Implement GetSearchSuggestions
+	// suggestions, err := repo.GetSearchSuggestions(partialQuery, limit)
+	var suggestions interface{}
+	err = fmt.Errorf("GetSearchSuggestions not implemented")
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, ErrorResponse{
 			Error: fmt.Sprintf("failed to get suggestions: %v", err),
@@ -570,7 +590,7 @@ func (s *Server) getSearchSuggestions(c *gin.Context) {
 // rebuildSearchIndex forces a rebuild of the search index
 func (s *Server) rebuildSearchIndex(c *gin.Context) {
 	repoID := c.Param("repo_id")
-	repo, err := s.getRepository(repoID)
+	_, err := s.getRepository(repoID)
 	if err != nil {
 		c.JSON(http.StatusNotFound, ErrorResponse{
 			Error: err.Error(),
@@ -580,7 +600,8 @@ func (s *Server) rebuildSearchIndex(c *gin.Context) {
 	}
 
 	// Rebuild index
-	err = repo.RebuildSearchIndex()
+	// TODO: Implement RebuildSearchIndex
+	err = fmt.Errorf("RebuildSearchIndex not implemented")
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, ErrorResponse{
 			Error: fmt.Sprintf("failed to rebuild index: %v", err),

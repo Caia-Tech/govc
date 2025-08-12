@@ -354,3 +354,21 @@ func (s *Store) ReadPack(r io.Reader) error {
 func (s *Store) SetMemoryPool(pool interface{}) {
 	s.memoryPool = pool
 }
+
+// GetAllObjects returns all objects in the store
+func (s *Store) GetAllObjects() ([]object.Object, error) {
+	hashes, err := s.backend.ListObjects()
+	if err != nil {
+		return nil, err
+	}
+	
+	var objects []object.Object
+	for _, hash := range hashes {
+		obj, err := s.GetObject(hash)
+		if err != nil {
+			continue // Skip invalid objects
+		}
+		objects = append(objects, obj)
+	}
+	return objects, nil
+}

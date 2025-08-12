@@ -523,7 +523,7 @@ func (po *PipelineOptimizer) executePipeline(ctx *OptimizedBuildContext) (*Build
 	defer ctx.Profiler.EndProfiling(ctx.Request.ID)
 	
 	// Execute build with resource monitoring
-	result, err := po.limiter.Do(ctx, func() error {
+	err := po.limiter.Do(ctx, func() error {
 		// Actual build execution would go here
 		return nil
 	})
@@ -535,14 +535,24 @@ func (po *PipelineOptimizer) executePipeline(ctx *OptimizedBuildContext) (*Build
 	// Create build result
 	buildResult := &BuildResult{
 		Success: true,
-		Output:  []byte("optimized build output"),
-		Artifacts: make(map[string][]byte),
-		Metadata: BuildMetadata{
-			StartTime: ctx.StartTime,
-			EndTime:   time.Now(),
-			Duration:  time.Since(ctx.StartTime),
-			Profile:   profile,
+		Output: &BuildOutput{
+			Stdout: "optimized build output",
+			Info:   []string{"Build completed with optimization"},
 		},
+		Artifacts: []BuildArtifact{
+			{
+				Name: "output",
+				Type: "binary",
+				Path: "bin/output",
+				Size: 2048,
+			},
+		},
+		Metadata: &BuildMetadata{
+			Timestamp: time.Now(),
+			Plugin:    "optimizer",
+			BuildID:   ctx.Request.ID,
+		},
+		Duration: time.Since(ctx.StartTime),
 	}
 	
 	return buildResult, nil

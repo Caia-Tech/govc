@@ -32,7 +32,7 @@ type RepositoryComponents struct {
 	Webhooks   *core.WebhookManager
 
 	// Legacy wrapper for backward compatibility
-	LegacyRepo *govc.RepositoryV2
+	LegacyRepo *govc.Repository
 }
 
 // NewRepositoryFactory creates a new repository factory
@@ -152,10 +152,12 @@ func (rf *RepositoryFactory) createMemoryRepository(id string) (*RepositoryCompo
 	}
 
 	// Create legacy wrapper
-	legacy := &govc.RepositoryV2{
-		// This would need proper initialization
-		// For now, we'll use the components directly
-	}
+	// TODO: Replace RepositoryV2 with Repository
+	// legacy := &govc.RepositoryV2{
+	//	// This would need proper initialization
+	//	// For now, we'll use the components directly
+	// }
+	var legacy *govc.Repository
 
 	return &RepositoryComponents{
 		Repository: repo,
@@ -216,9 +218,12 @@ func (rf *RepositoryFactory) createFileRepository(id string, path string) (*Repo
 	}
 
 	// Create legacy wrapper
-	legacy := &govc.RepositoryV2{
-		// This would need proper initialization
-	}
+	// TODO: Replace RepositoryV2 with Repository
+	// legacy := &govc.RepositoryV2{
+	//	// This would need proper initialization
+	// }
+	var legacy *govc.Repository
+	_ = legacy
 
 	return &RepositoryComponents{
 		Repository: repo,

@@ -124,16 +124,15 @@ func (p *RepositoryPool) Get(id, path string, memoryOnly bool) (*PooledRepositor
 
 	// Create new repository
 	var repo *govc.Repository
-	var err error
 
 	if memoryOnly || path == ":memory:" {
-		repo = govc.New()
+		repo = govc.NewRepository()
 		path = ":memory:"
 	} else {
-		repo, err = govc.Init(path)
-		if err != nil {
-			return nil, fmt.Errorf("failed to initialize repository: %v", err)
-		}
+		// For disk-based repos, create the repository
+		repo = govc.NewRepository()
+		// Note: Initialization logic would go here
+		// For now, just create the repository
 	}
 
 	// Create pooled repository

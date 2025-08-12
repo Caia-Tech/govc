@@ -1,8 +1,0 @@
-PASS
-ok  	github.com/caia-tech/govc/benchmarks	0.285s
-PASS
-ok  	github.com/caia-tech/govc/benchmarks	0.284s
-PASS
-ok  	github.com/caia-tech/govc/benchmarks	0.281s
-PASS
-ok  	github.com/caia-tech/govc/benchmarks	0.271s

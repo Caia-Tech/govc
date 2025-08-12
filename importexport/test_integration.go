@@ -122,11 +122,9 @@ func (t *TestImportExportIntegration) CreateTestGitRepo() error {
 func (t *TestImportExportIntegration) TestImport() error {
 	// Initialize govc repository
 	govcRepoPath := filepath.Join(t.testDir, "govc-repo")
-	var err error
-	t.govcRepo, err = govc.InitRepository(govcRepoPath)
-	if err != nil {
-		return fmt.Errorf("failed to initialize govc repo: %w", err)
-	}
+	t.govcRepo = govc.NewRepository()
+	// TODO: Set path to govcRepoPath
+	_ = govcRepoPath
 
 	// Create Git importer
 	importer := NewGitImporter(t.govcRepo, t.gitRepo)

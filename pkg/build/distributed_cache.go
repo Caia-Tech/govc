@@ -147,6 +147,7 @@ type IncrementalBuilder struct {
 
 // BuildRequest represents a build request
 type BuildRequest struct {
+	ID         string
 	Files      []string
 	Config     BuildConfig
 	Context    context.Context
@@ -255,14 +256,25 @@ func (ib *IncrementalBuilder) performBuild(request BuildRequest) BuildResponse {
 	
 	// Perform actual build (simplified)
 	result := &BuildResult{
-		Success:   true,
-		Output:    []byte("build output"),
-		Artifacts: make(map[string][]byte),
-		Metadata: BuildMetadata{
-			StartTime: time.Now(),
-			EndTime:   time.Now().Add(time.Second),
-			Duration:  time.Second,
+		Success: true,
+		Output: &BuildOutput{
+			Stdout: "build output",
+			Info:   []string{"Build completed successfully"},
 		},
+		Artifacts: []BuildArtifact{
+			{
+				Name: "output",
+				Type: "binary",
+				Path: "bin/output",
+				Size: 1024,
+			},
+		},
+		Metadata: &BuildMetadata{
+			Timestamp: time.Now(),
+			Plugin:    "go",
+			BuildID:   fmt.Sprintf("build-%d", time.Now().Unix()),
+		},
+		Duration: time.Second,
 	}
 	
 	// Cache result
@@ -292,7 +304,7 @@ func (ib *IncrementalBuilder) buildCacheKey(files []string, config BuildConfig) 
 	filesHash := ib.hasher.HashFiles(sortedFiles)
 	
 	return CacheKey{
-		Plugin:    config.Plugin,
+		Plugin:    "go", // Default to go plugin, should be passed in config
 		Config:    config,
 		FilesHash: filesHash,
 	}
@@ -378,6 +390,33 @@ func NewDependencyGraph() *DependencyGraph {
 	return &DependencyGraph{
 		graph: make(map[string][]string),
 	}
+}
+
+// AddNode adds a node to the graph
+func (dg *DependencyGraph) AddNode(node string) {
+	dg.mu.Lock()
+	defer dg.mu.Unlock()
+	
+	if _, exists := dg.graph[node]; !exists {
+		dg.graph[node] = []string{}
+	}
+}
+
+// AddEdge adds an edge from source to target
+func (dg *DependencyGraph) AddEdge(source, target string) {
+	dg.mu.Lock()
+	defer dg.mu.Unlock()
+	
+	// Ensure both nodes exist
+	if _, exists := dg.graph[source]; !exists {
+		dg.graph[source] = []string{}
+	}
+	if _, exists := dg.graph[target]; !exists {
+		dg.graph[target] = []string{}
+	}
+	
+	// Add edge
+	dg.graph[source] = append(dg.graph[source], target)
 }
 
 // AddDependency adds a dependency relationship

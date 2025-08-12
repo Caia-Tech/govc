@@ -42,11 +42,20 @@ func (s *Server) listBranches(c *gin.Context) {
 
 	// Convert to response format
 	branchResponses := make([]BranchResponse, len(branches))
-	for i, branch := range branches {
-		name := strings.TrimPrefix(branch.Name, "refs/heads/")
+	for i, branchName := range branches {
+		name := strings.TrimPrefix(branchName, "refs/heads/")
+		
+		// Get commit hash for this branch
+		refManager := repo.GetRefManager()
+		ref, err := refManager.GetRef("refs/heads/" + name)
+		commitHash := ""
+		if err == nil && ref != nil {
+			commitHash = ref.Hash
+		}
+		
 		branchResponses[i] = BranchResponse{
 			Name:      name,
-			Commit:    branch.Hash,
+			Commit:    commitHash,
 			IsCurrent: name == currentBranch,
 		}
 	}
@@ -105,8 +114,9 @@ func (s *Server) createBranch(c *gin.Context) {
 		}
 
 		branchExists := false
-		for _, branch := range branches {
-			if branch.Name == req.From {
+		for _, branchName := range branches {
+			cleanName := strings.TrimPrefix(branchName, "refs/heads/")
+			if cleanName == req.From {
 				branchExists = true
 				break
 			}
@@ -139,9 +149,9 @@ func (s *Server) createBranch(c *gin.Context) {
 		return
 	}
 
-	for _, branch := range branches {
-		branchName := strings.TrimPrefix(branch.Name, "refs/heads/")
-		if branchName == req.Name {
+	for _, branchName := range branches {
+		cleanName := strings.TrimPrefix(branchName, "refs/heads/")
+		if cleanName == req.Name {
 			c.JSON(http.StatusConflict, ErrorResponse{
 				Error: fmt.Sprintf("branch '%s' already exists", req.Name),
 				Code:  "BRANCH_EXISTS",

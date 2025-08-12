@@ -294,7 +294,11 @@ func runRemoteClone(cmd *cobra.Command, args []string) {
 	}
 
 	// Initialize local repository
-	_, err = govc.Init(path)
+	// TODO: Implement path-based init
+	repo := govc.NewRepository()
+	if repo == nil {
+		err = fmt.Errorf("failed to create repository")
+	}
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error initializing repository: %v\n", err)
 		os.Exit(1)

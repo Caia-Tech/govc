@@ -218,10 +218,7 @@ func (bm *BackupManager) collectMetadata(opts BackupOptions) (*BackupMetadata, e
 		return nil, err
 	}
 
-	branchNames := make([]string, len(branches))
-	for i, branch := range branches {
-		branchNames[i] = branch.Name
-	}
+	branchNames := branches
 
 	// Get tags
 	tags, err := bm.repo.ListTags()

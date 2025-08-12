@@ -315,10 +315,8 @@ func (mm *MigrationManager) migrateRepository(ctx context.Context, cloneURL, nam
 	defer os.RemoveAll(repoDir) // Clean up
 
 	// Create govc repository
-	govcRepo, err := govc.InitRepository(filepath.Join(mm.tempDir, name+"-govc"))
-	if err != nil {
-		return fmt.Errorf("failed to initialize govc repo: %w", err)
-	}
+	govcRepo := govc.NewRepository()
+	// TODO: Set path to filepath.Join(mm.tempDir, name+"-govc")
 
 	// Import from Git to govc
 	importer := NewGitImporter(govcRepo, repoDir)

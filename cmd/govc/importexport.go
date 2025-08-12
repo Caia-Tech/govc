@@ -135,10 +135,14 @@ func runImportGit(cmd *cobra.Command, args []string) {
 
 	if memoryOnly {
 		fmt.Println("Creating memory-only govc repository...")
-		govcRepo = govc.New()
+		govcRepo = govc.NewRepository()
 	} else {
 		fmt.Printf("Creating govc repository: %s\n", govcRepoID)
-		govcRepo, err = govc.Init(govcRepoID)
+		// TODO: Implement path-based init
+		govcRepo = govc.NewRepository()
+		if govcRepo == nil {
+			err = fmt.Errorf("failed to create repository")
+		}
 	}
 
 	if err != nil {
@@ -210,7 +214,12 @@ func runExportGit(cmd *cobra.Command, args []string) {
 	showProgress, _ := cmd.Flags().GetBool("progress")
 
 	// Open govc repository
-	govcRepo, err := govc.Open(govcRepoID)
+	// TODO: Implement path-based open
+	govcRepo := govc.NewRepository()
+	var err error
+	if govcRepo == nil {
+		err = fmt.Errorf("failed to create repository")
+	}
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error opening govc repository: %v\n", err)
 		os.Exit(1)
@@ -291,7 +300,7 @@ func runMigrateGitHub(cmd *cobra.Command, args []string) {
 	}
 
 	// Create temporary repository for migration
-	tempRepo := govc.New()
+	tempRepo := govc.NewRepository()
 
 	// Create migration manager
 	migrationManager := importexport.NewMigrationManager(tempRepo)
@@ -418,7 +427,12 @@ func runBackup(cmd *cobra.Command, args []string) {
 	}
 
 	// Open repository
-	repo, err := govc.Open(repoID)
+	// TODO: Implement path-based open
+	repo := govc.NewRepository()
+	var err error
+	if repo == nil {
+		err = fmt.Errorf("failed to create repository")
+	}
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error opening repository: %v\n", err)
 		os.Exit(1)
@@ -514,7 +528,7 @@ func runRestore(cmd *cobra.Command, args []string) {
 	}
 
 	// Create temporary repository for restoration
-	tempRepo := govc.New()
+	tempRepo := govc.NewRepository()
 
 	// Create backup manager
 	backupManager := importexport.NewBackupManager(tempRepo)

@@ -22,7 +22,7 @@ type Server struct {
 	config            *config.Config
 	repoPool          *pool.RepositoryPool
 	repoFactory       *RepositoryFactory // New: factory for clean architecture
-	transactions      map[string]*govc.TransactionalCommit
+	transactions      map[string]interface{}
 	repoMetadata      map[string]*RepoMetadata
 	jwtAuth           *auth.JWTAuth
 	rbac              *auth.RBAC
@@ -90,7 +90,7 @@ func NewServer(cfg *config.Config) *Server {
 		config:            cfg,
 		repoPool:          repoPool,
 		repoFactory:       NewRepositoryFactory(logger),
-		transactions:      make(map[string]*govc.TransactionalCommit),
+		transactions:      make(map[string]interface{}),
 		repoMetadata:      make(map[string]*RepoMetadata),
 		jwtAuth:           jwtAuth,
 		rbac:              rbac,

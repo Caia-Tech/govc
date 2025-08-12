@@ -326,14 +326,21 @@ func (ge *GitExporter) exportBranches() error {
 		return err
 	}
 
-	for _, branch := range branches {
+	for _, branchName := range branches {
+		// Get the commit hash for this branch
+		refManager := ge.repo.GetRefManager()
+		ref, err := refManager.GetRef("refs/heads/" + branchName)
+		if err != nil {
+			continue // Skip if branch not found
+		}
+		
 		// Get the Git hash for this branch's commit
-		if gitHash, ok := ge.objectMap[branch.Hash]; ok {
+		if gitHash, ok := ge.objectMap[ref.Hash]; ok {
 			// Remove refs/heads/ prefix if present to avoid double nesting
-			branchName := strings.TrimPrefix(branch.Name, "refs/heads/")
-			branchPath := filepath.Join(ge.exportPath, ".git", "refs", "heads", branchName)
+			cleanBranchName := strings.TrimPrefix(branchName, "refs/heads/")
+			branchPath := filepath.Join(ge.exportPath, ".git", "refs", "heads", cleanBranchName)
 			if err := os.WriteFile(branchPath, []byte(gitHash+"\n"), 0644); err != nil {
-				return fmt.Errorf("failed to write branch %s: %w", branchName, err)
+				return fmt.Errorf("failed to write branch %s: %w", cleanBranchName, err)
 			}
 		}
 	}
