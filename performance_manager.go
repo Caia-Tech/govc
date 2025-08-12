@@ -131,7 +131,7 @@ func (pm *PerformanceManager) OptimizeRepository(repo *Repository) {
 func (repo *Repository) OptimizedAdd(path string, content []byte) error {
 	if GlobalPerformanceManager == nil {
 		// Fallback to regular add
-		return repo.Add(path, content)
+		return repo.Add(path)
 	}
 	
 	pool := GlobalPerformanceManager.GetMemoryPool()
@@ -181,8 +181,8 @@ func (repo *Repository) OptimizedCommit(message string) (*object.Commit, error) 
 func (repo *Repository) BatchAdd(files map[string][]byte) error {
 	if GlobalPerformanceManager == nil {
 		// Fallback to individual adds
-		for path, content := range files {
-			if err := repo.Add(path, content); err != nil {
+		for path := range files {
+			if err := repo.Add(path); err != nil {
 				return err
 			}
 		}
@@ -261,9 +261,9 @@ func EnableProfiling(cpuProfile, memProfile string) {
 	if cpuProfile != "" {
 		f, err := os.Create(cpuProfile)
 		if err == nil {
-			runtime.StartCPUProfile(f)
+			pprof.StartCPUProfile(f)
 			defer f.Close()
-			defer runtime.StopCPUProfile()
+			defer pprof.StopCPUProfile()
 		}
 	}
 	
@@ -271,7 +271,7 @@ func EnableProfiling(cpuProfile, memProfile string) {
 		f, err := os.Create(memProfile)
 		if err == nil {
 			defer f.Close()
-			defer runtime.WriteHeapProfile(f)
+			defer pprof.WriteHeapProfile(f)
 		}
 	}
 }
