@@ -487,7 +487,7 @@ func (m *BuildManagerImpl) createVFSFromRepo(repo *govc.Repository) VirtualFileS
 // subscribeToRepoEvents subscribes to repository events for auto-build
 func (m *BuildManagerImpl) subscribeToRepoEvents(repoID string, repo *govc.Repository) {
 	// Subscribe to commit events
-	repo.Watch(func(event govc.Event) {
+	repo.Watch(func(event govc.CommitEvent) {
 		// Check event message for commit events
 		if strings.Contains(event.Message, "commit") {
 			// Auto-build on commit if configured
@@ -502,7 +502,7 @@ func (m *BuildManagerImpl) subscribeToRepoEvents(repoID string, repo *govc.Repos
 }
 
 // shouldAutoBuild determines if auto-build should trigger
-func (m *BuildManagerImpl) shouldAutoBuild(event govc.Event) bool {
+func (m *BuildManagerImpl) shouldAutoBuild(event govc.CommitEvent) bool {
 	// For now, auto-build on any commit event
 	// In production, check for source file changes in event.Message
 	return true

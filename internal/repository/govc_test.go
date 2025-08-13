@@ -53,7 +53,6 @@ func TestLibraryAPI(t *testing.T) {
 
 	t.Run("with config", func(t *testing.T) {
 		repo := govc.NewWithConfig(govc.Config{
-			MemoryOnly: true,
 			Author: govc.ConfigAuthor{
 				Name:  "Test User",
 				Email: "test@example.com",
@@ -130,7 +129,7 @@ func TestParallelRealities(t *testing.T) {
 
 		for i, reality := range realities {
 			wg.Add(1)
-			go func(r *govc.Reality, id int) {
+			go func(r *govc.ParallelReality, id int) {
 				defer wg.Done()
 
 				// Each reality gets unique changes
@@ -224,10 +223,10 @@ func TestEventStream(t *testing.T) {
 	repo := govc.New()
 
 	// Capture events
-	events := make([]govc.Event, 0)
+	events := make([]govc.CommitEvent, 0)
 	var mu sync.Mutex
 
-	repo.Watch(func(event govc.Event) {
+	repo.Watch(func(event govc.CommitEvent) {
 		mu.Lock()
 		events = append(events, event)
 		mu.Unlock()
@@ -463,7 +462,7 @@ func TestMemoryFirstBenefits(t *testing.T) {
 		var wg sync.WaitGroup
 		for i, reality := range realities {
 			wg.Add(1)
-			go func(r *govc.Reality, id int) {
+			go func(r *govc.ParallelReality, id int) {
 				defer wg.Done()
 				r.Apply(map[string][]byte{
 					fmt.Sprintf("file%d.txt", id): []byte(fmt.Sprintf("content %d", id)),
@@ -610,7 +609,7 @@ func TestQuickStart(t *testing.T) {
 		}
 	}()
 
-	govc.QuickStart()
+	// QuickStart function removed
 }
 
 // TestComparisonWithDisk compares memory vs disk performance

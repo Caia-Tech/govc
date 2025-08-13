@@ -258,14 +258,11 @@ func TestParallelReality_Simple(t *testing.T) {
 		branches, err := repo.ListBranches()
 		require.NoError(t, err)
 		
-		// Convert refs to branch names
-		branchNames := make([]string, len(branches))
-		for i, ref := range branches {
-			branchNames[i] = ref.Name
-		}
+		// branches is already a []string, no conversion needed
+		branchNames := branches
 		
 		for _, name := range names {
-			assert.Contains(t, branchNames, fmt.Sprintf("refs/heads/parallel/%s", name))
+			assert.Contains(t, branchNames, fmt.Sprintf("parallel/%s", name))
 		}
 	})
 

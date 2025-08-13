@@ -4630,7 +4630,7 @@ const file_api_proto_govc_proto_rawDesc = "" +
 	"StreamBlob\x12\x17.govc.StreamBlobRequest\x1a\x18.govc.StreamBlobResponse(\x010\x01\x12S\n" +
 	"\x10UploadBlobStream\x12\x1d.govc.UploadBlobStreamRequest\x1a\x1e.govc.UploadBlobStreamResponse(\x01\x129\n" +
 	"\tGetHealth\x12\x16.google.protobuf.Empty\x1a\x14.govc.HealthResponse\x12<\n" +
-	"\tGetStatus\x12\x16.govc.GetStatusRequest\x1a\x17.govc.GetStatusResponseB$Z\"github.com/Caia-Tech/govc/api/protob\x06proto3"
+	"\tGetStatus\x12\x16.govc.GetStatusRequest\x1a\x17.govc.GetStatusResponseB$Z\"github.com/caiatech/govc/api/protob\x06proto3"
 
 var (
 	file_api_proto_govc_proto_rawDescOnce sync.Once

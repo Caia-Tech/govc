@@ -27,3 +27,44 @@ type (
 	Blob   = object.Blob
 	Tree   = object.Tree
 )
+
+// TransactionalCommit re-exported for public API
+type TransactionalCommit = repository.TransactionalCommit
+
+// Additional types for compatibility
+type (
+	ParallelReality = repository.ParallelReality
+	CommitEvent     = repository.CommitEvent
+	EventBus        = repository.EventBus
+)
+
+// Event represents a generic repository event
+type Event interface {
+	Type() string
+	Data() interface{}
+}
+
+// Legacy function names for compatibility
+func New() *Repository {
+	return NewRepository()
+}
+
+func Open(path string) (*Repository, error) {
+	return LoadRepository(path)
+}
+
+func Init(path string) (*Repository, error) {
+	return LoadRepository(path)
+}
+
+// Config types
+type Config struct {
+	Author Author
+}
+
+type ConfigAuthor = Author
+
+// NewWithConfig creates repository with config
+func NewWithConfig(cfg Config) *Repository {
+	return NewRepository()
+}

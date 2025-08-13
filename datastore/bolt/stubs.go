@@ -67,12 +67,40 @@ func (s *StubMetadataStore) DeleteRef(repoID string, name string) error {
 	return datastore.ErrNotImplemented
 }
 
+func (s *StubMetadataStore) UpdateRef(repoID string, name string, newHash string) error {
+	return datastore.ErrNotImplemented
+}
+
 func (s *StubMetadataStore) SaveAuditEvent(event *datastore.AuditEvent) error {
 	return datastore.ErrNotImplemented
 }
 
 func (s *StubMetadataStore) CountEvents(filter datastore.EventFilter) (int64, error) {
 	return 0, datastore.ErrNotImplemented
+}
+
+func (s *StubMetadataStore) DeleteConfig(key string) error {
+	return datastore.ErrNotImplemented
+}
+
+func (s *StubMetadataStore) GetAllConfig() (map[string]string, error) {
+	return nil, datastore.ErrNotImplemented
+}
+
+func (s *StubMetadataStore) GetConfig(key string) (string, error) {
+	return "", datastore.ErrNotImplemented
+}
+
+func (s *StubMetadataStore) SetConfig(key string, value string) error {
+	return datastore.ErrNotImplemented
+}
+
+func (s *StubMetadataStore) LogEvent(event *datastore.AuditEvent) error {
+	return datastore.ErrNotImplemented
+}
+
+func (s *StubMetadataStore) QueryEvents(filter datastore.EventFilter) ([]*datastore.AuditEvent, error) {
+	return nil, datastore.ErrNotImplemented
 }
 
 // StubTransaction provides minimal transaction implementation
@@ -95,6 +123,10 @@ func (t *StubTransaction) MetadataStore() datastore.MetadataStore {
 }
 
 func (t *StubTransaction) CountEvents(filter datastore.EventFilter) (int64, error) {
+	return 0, datastore.ErrNotImplemented
+}
+
+func (t *StubTransaction) CountObjects() (int64, error) {
 	return 0, datastore.ErrNotImplemented
 }
 

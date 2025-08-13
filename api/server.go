@@ -22,7 +22,7 @@ type Server struct {
 	config            *config.Config
 	repoPool          *pool.RepositoryPool
 	repoFactory       *RepositoryFactory // New: factory for clean architecture
-	transactions      map[string]interface{}
+	transactions      map[string]*govc.TransactionalCommit
 	repoMetadata      map[string]*RepoMetadata
 	jwtAuth           *auth.JWTAuth
 	rbac              *auth.RBAC
@@ -90,7 +90,7 @@ func NewServer(cfg *config.Config) *Server {
 		config:            cfg,
 		repoPool:          repoPool,
 		repoFactory:       NewRepositoryFactory(logger),
-		transactions:      make(map[string]interface{}),
+		transactions:      make(map[string]*govc.TransactionalCommit),
 		repoMetadata:      make(map[string]*RepoMetadata),
 		jwtAuth:           jwtAuth,
 		rbac:              rbac,
@@ -428,15 +428,11 @@ func (s *Server) getRepository(id string) (*govc.Repository, error) {
 					// Create and store a legacy wrapper
 					var repo *govc.Repository
 					if metadata.Path == ":memory:" {
-						repo = govc.New()
+						repo = govc.NewRepository()
 					} else {
-						repo, err = govc.Open(metadata.Path)
+						repo, err = govc.LoadRepository(metadata.Path)
 						if err != nil {
-							// If can't open, initialize new one
-							repo, err = govc.Init(metadata.Path)
-							if err != nil {
-								return nil, fmt.Errorf("failed to init repository: %v", err)
-							}
+							return nil, fmt.Errorf("failed to load repository: %v", err)
 						}
 					}
 					// Store for future use
@@ -462,15 +458,12 @@ func (s *Server) getRepository(id string) (*govc.Repository, error) {
 		// Create new repository as fallback
 		var repo *govc.Repository
 		if metadata.Path == ":memory:" {
-			repo = govc.New()
+			repo = govc.NewRepository()
 		} else {
 			var err error
-			repo, err = govc.Open(metadata.Path)
+			repo, err = govc.LoadRepository(metadata.Path)
 			if err != nil {
-				repo, err = govc.Init(metadata.Path)
-				if err != nil {
-					return nil, fmt.Errorf("failed to init repository: %v", err)
-				}
+				return nil, fmt.Errorf("failed to load repository: %v", err)
 			}
 		}
 		

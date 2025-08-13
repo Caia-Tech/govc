@@ -228,6 +228,12 @@ func (r *Repository) Commit(message string) (*object.Commit, error) {
 		}
 	}
 
+	// Collect files before clearing staging
+	files := []string{}
+	r.staging.ForEach(func(path, hash string) {
+		files = append(files, path)
+	})
+
 	r.staging.Clear()
 
 	// Execute post-commit hooks
@@ -244,6 +250,9 @@ func (r *Repository) Commit(message string) (*object.Commit, error) {
 	if r.queryEngine != nil {
 		go r.queryEngine.TriggerIndexing() // Do this async to not block commit
 	}
+
+	// Publish commit event for subscribers
+	r.publishCommitEvent(commit.Hash(), files)
 
 	return commit, nil
 }

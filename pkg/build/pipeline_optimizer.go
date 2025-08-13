@@ -519,7 +519,7 @@ type OptimizedBuildContext struct {
 
 func (po *PipelineOptimizer) executePipeline(ctx *OptimizedBuildContext) (*BuildResult, error) {
 	// Start profiling
-	profile := ctx.Profiler.StartProfiling(ctx.Request.ID)
+	_ = ctx.Profiler.StartProfiling(ctx.Request.ID)
 	defer ctx.Profiler.EndProfiling(ctx.Request.ID)
 	
 	// Execute build with resource monitoring

@@ -91,7 +91,6 @@ func advancedExample() {
 
 	// Create repository with configuration
 	repo := govc.NewWithConfig(govc.Config{
-		MemoryOnly: true,
 		Author: govc.ConfigAuthor{
 			Name:  "John Doe",
 			Email: "john@example.com",
@@ -127,7 +126,7 @@ func advancedExample() {
 	}
 
 	// Watch for events
-	repo.Watch(func(event govc.Event) {
+	repo.Watch(func(event govc.CommitEvent) {
 		fmt.Printf("Event: %s by %s\n", event.Message, event.Author)
 	})
 
@@ -162,7 +161,7 @@ func infrastructureTestingPattern() {
 	}
 
 	// Test all configurations in parallel
-	realities := make([]*govc.Reality, 0)
+	realities := make([]*govc.ParallelReality, 0)
 	for _, cfg := range configs {
 		reality := repo.ParallelReality(cfg.name)
 		reality.Apply(cfg.data)

@@ -122,7 +122,7 @@ func (s *SimpleBoltStore) MetadataStore() datastore.MetadataStore {
 
 // BeginTx starts a new transaction (stub implementation)
 func (s *SimpleBoltStore) BeginTx(ctx context.Context, opts *datastore.TxOptions) (datastore.Transaction, error) {
-	return &StubTransaction{}, nil
+	return NewStubTransaction(), nil
 }
 
 // GetMetrics returns store metrics

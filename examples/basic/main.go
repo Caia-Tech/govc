@@ -86,7 +86,7 @@ func branchExample() {
 
 	fmt.Println("Branches:")
 	for _, branch := range branches {
-		fmt.Printf("  - %s\n", branch.Name)
+		fmt.Printf("  - %s\n", branch)
 	}
 
 	// Switch back to main

@@ -487,14 +487,7 @@ func (txn *AtomicTransaction) Commit(message string) (*object.Commit, error) {
 	txn.repo.txnManager.committedTxns[txn.id] = txn
 	txn.repo.txnManager.mu.Unlock()
 	
-	// Publish commit event
-	if txn.repo.eventBus != nil {
-		files := make([]string, 0, len(txn.writeSet))
-		for path := range txn.writeSet {
-			files = append(files, path)
-		}
-		txn.repo.publishCommitEvent(commit.Hash(), files)
-	}
+	// Don't publish event here - repo.Commit already publishes it
 	
 	close(txn.completedCh)
 	return commit, nil

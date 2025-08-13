@@ -33,6 +33,7 @@ func (r *Repository) OnCommit(handler CommitEventHandler) UnsubscribeFunc {
 	return r.eventBus.OnCommit(handler)
 }
 
+
 // GetSubscriptions returns all active subscriptions
 func (r *Repository) GetSubscriptions() []SubscriptionStats {
 	if r.eventBus == nil {

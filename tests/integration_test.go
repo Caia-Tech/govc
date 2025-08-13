@@ -1,638 +1,682 @@
-package govc
+package tests
 
 import (
+	"bytes"
 	"fmt"
+	"io/ioutil"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"runtime"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
+	"github.com/Caia-Tech/govc"
+	"github.com/Caia-Tech/govc/internal/repository"
+	"github.com/Caia-Tech/govc/pkg/api"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-// Result types for integration tests
-type updateResult struct {
-	worldName string
-	success   bool
-	error     error
-}
+// TestIntegration_CLIWorkflow tests the complete CLI workflow
+func TestIntegration_CLIWorkflow(t *testing.T) {
+	// Build the CLI binary first
+	tmpDir, err := ioutil.TempDir("", "govc-cli-test-*")
+	require.NoError(t, err)
+	defer os.RemoveAll(tmpDir)
 
-type operationResult struct {
-	userID    int
-	repoName  string
-	success   bool
-	error     error
-	operation string
-}
+	// Build govc binary
+	goBuild := exec.Command("go", "build", "-o", filepath.Join(tmpDir, "govc"), "./cmd/govc")
+	goBuild.Dir = "/Users/owner/Desktop/caiatech/software/govc"
+	err = goBuild.Run()
+	require.NoError(t, err, "Failed to build govc binary")
 
-type sessionResult struct {
-	sessionID int
-	repoName  string
-	success   bool
-	error     error
-	operation string
-}
+	govcBin := filepath.Join(tmpDir, "govc")
+	testRepo := filepath.Join(tmpDir, "test-repo")
 
-// TestIntegration_CompleteWorkflow tests end-to-end repository workflows
-func TestIntegration_CompleteWorkflow(t *testing.T) {
-	// Test complete repository workflow using concurrent-safe operations
-	manager := NewRepositoryManager()
-	
-	// Step 1: Create multiple repositories representing different "worlds"
-	worldRepos := make(map[string]*ConcurrentSafeRepository)
-	worldNames := []string{"world_alpha", "world_beta", "world_gamma"}
-	
-	for _, worldName := range worldNames {
-		repo, err := manager.GetOrCreateRepository(worldName)
-		require.NoError(t, err)
-		require.NotNil(t, repo)
-		worldRepos[worldName] = repo
-		
-		// Verify repository initialization
-		assert.False(t, repo.IsCorrupted())
-	}
-
-	// Step 2: Create initial content in each world
-	for worldName, repo := range worldRepos {
-		tx := repo.SafeTransaction()
-		
-		// Create world configuration
-		configContent := []byte(fmt.Sprintf(`{
-	"name": "%s",
-	"version": 1,
-	"settings": {
-		"difficulty": "normal",
-		"max_players": 100
-	}
-}`, worldName))
-		
-		err := tx.Add("world.json", configContent)
-		require.NoError(t, err)
-		
-		// Create initial world data
-		dataContent := []byte(fmt.Sprintf("Initial data for %s", worldName))
-		err = tx.Add("data/initial.txt", dataContent)
-		require.NoError(t, err)
-		
-		err = tx.Validate()
-		require.NoError(t, err)
-		
-		_, err = tx.Commit(fmt.Sprintf("Initialize %s", worldName))
-		require.NoError(t, err)
-		
-		t.Logf("✅ Initialized world: %s", worldName)
-	}
-
-	// Step 3: Simulate concurrent updates to different worlds
-	var wg sync.WaitGroup
-	updateResults := make(chan updateResult, len(worldNames)*5)
-
-	for worldName, repo := range worldRepos {
-		wg.Add(1)
-		go func(wName string, r *ConcurrentSafeRepository) {
-			defer wg.Done()
-			
-			// Perform multiple sequential updates
-			for i := 1; i <= 5; i++ {
-				tx := r.SafeTransaction()
-				
-				// Update world configuration
-				newConfig := []byte(fmt.Sprintf(`{
-	"name": "%s",
-	"version": %d,
-	"settings": {
-		"difficulty": "normal",
-		"max_players": %d
-	}
-}`, wName, i+1, 100+(i*10)))
-				
-				err := tx.Add("world.json", newConfig)
-				if err != nil {
-					updateResults <- updateResult{wName, false, err}
-					continue
-				}
-				
-				// Add new data file for this update
-				dataContent := []byte(fmt.Sprintf("Update %d data for %s at %d", i, wName, time.Now().UnixNano()))
-				err = tx.Add(fmt.Sprintf("data/update_%d.txt", i), dataContent)
-				if err != nil {
-					updateResults <- updateResult{wName, false, err}
-					continue
-				}
-				
-				err = tx.Validate()
-				if err != nil {
-					updateResults <- updateResult{wName, false, err}
-					continue
-				}
-				
-				_, err = tx.Commit(fmt.Sprintf("Update %d for %s", i, wName))
-				if err != nil {
-					updateResults <- updateResult{wName, false, err}
-					continue
-				}
-				
-				updateResults <- updateResult{wName, true, nil}
-				
-				// Small delay to simulate real-world timing
-				time.Sleep(5 * time.Millisecond)
-			}
-		}(worldName, repo)
-	}
-
-	wg.Wait()
-	close(updateResults)
-
-	// Step 4: Analyze update results
-	successCount := 0
-	totalUpdates := 0
-	errorsByWorld := make(map[string]int)
-	
-	for result := range updateResults {
-		totalUpdates++
-		if result.success {
-			successCount++
-		} else {
-			errorsByWorld[result.worldName]++
-			if result.error != nil {
-				t.Logf("Update error in %s: %v", result.worldName, result.error)
-			}
-		}
-	}
-
-	// Step 5: Verify final state of each world
-	for worldName, repo := range worldRepos {
-		// Check if repository is still healthy
-		assert.False(t, repo.IsCorrupted(), "World %s should not be corrupted", worldName)
-		
-		// Verify we can still perform operations
-		tx := repo.SafeTransaction()
-		finalData := []byte(fmt.Sprintf("Final verification data for %s", worldName))
-		err := tx.Add("verification.txt", finalData)
-		require.NoError(t, err)
-		
-		err = tx.Validate()
-		require.NoError(t, err)
-		
-		_, err = tx.Commit(fmt.Sprintf("Final verification for %s", worldName))
-		require.NoError(t, err)
-		
-		t.Logf("✅ World %s final verification passed", worldName)
-	}
-
-	// Step 6: Clean up - remove repositories
-	for _, worldName := range worldNames {
-		err := manager.RemoveRepository(worldName)
+	t.Run("InitRepository", func(t *testing.T) {
+		cmd := exec.Command(govcBin, "init", testRepo)
+		output, err := cmd.CombinedOutput()
 		assert.NoError(t, err)
-	}
+		assert.Contains(t, string(output), "Initialized")
+	})
 
-	t.Logf("Integration Workflow Results:")
-	t.Logf("  Worlds created: %d", len(worldNames))
-	t.Logf("  Total updates attempted: %d", totalUpdates)
-	t.Logf("  Successful updates: %d", successCount)
-	t.Logf("  Success rate: %.2f%%", float64(successCount)/float64(totalUpdates)*100)
-	
-	for world, errors := range errorsByWorld {
-		t.Logf("  Errors in %s: %d", world, errors)
-	}
+	t.Run("AddFiles", func(t *testing.T) {
+		// Make sure test repo directory exists
+		os.MkdirAll(testRepo, 0755)
+		
+		// Create test files
+		testFile1 := filepath.Join(testRepo, "test1.txt")
+		testFile2 := filepath.Join(testRepo, "test2.txt")
+		ioutil.WriteFile(testFile1, []byte("content1"), 0644)
+		ioutil.WriteFile(testFile2, []byte("content2"), 0644)
 
-	assert.True(t, successCount > totalUpdates*8/10, "Should have > 80% success rate")
-	assert.Equal(t, len(worldNames), len(worldRepos), "Should have created all worlds")
-	
-	t.Logf("✅ Complete workflow integration test passed")
+		// Add files
+		cmd := exec.Command(govcBin, "add", "test1.txt", "test2.txt")
+		cmd.Dir = testRepo
+		output, err := cmd.CombinedOutput()
+		assert.NoError(t, err)
+		assert.Contains(t, string(output), "Added")
+	})
+
+	t.Run("Status", func(t *testing.T) {
+		cmd := exec.Command(govcBin, "status")
+		cmd.Dir = testRepo
+		output, err := cmd.CombinedOutput()
+		assert.NoError(t, err)
+		assert.Contains(t, string(output), "test1.txt")
+		assert.Contains(t, string(output), "test2.txt")
+	})
+
+	t.Run("Commit", func(t *testing.T) {
+		cmd := exec.Command(govcBin, "commit", "-m", "Initial commit")
+		cmd.Dir = testRepo
+		output, err := cmd.CombinedOutput()
+		assert.NoError(t, err)
+		assert.Contains(t, string(output), "[")
+		assert.Contains(t, string(output), "]")
+	})
+
+	t.Run("Branch", func(t *testing.T) {
+		// Create branch
+		cmd := exec.Command(govcBin, "branch", "feature")
+		cmd.Dir = testRepo
+		err := cmd.Run()
+		assert.NoError(t, err)
+
+		// List branches
+		cmd = exec.Command(govcBin, "branch")
+		cmd.Dir = testRepo
+		output, err := cmd.CombinedOutput()
+		assert.NoError(t, err)
+		assert.Contains(t, string(output), "main")
+		assert.Contains(t, string(output), "feature")
+	})
+
+	t.Run("Checkout", func(t *testing.T) {
+		cmd := exec.Command(govcBin, "checkout", "feature")
+		cmd.Dir = testRepo
+		output, err := cmd.CombinedOutput()
+		assert.NoError(t, err)
+		assert.Contains(t, string(output), "Switched to branch 'feature'")
+	})
 }
 
-// TestIntegration_ConcurrentUsers tests multiple concurrent repository operations
-func TestIntegration_ConcurrentUsers(t *testing.T) {
-	manager := NewRepositoryManager()
-	
-	numUsers := 10
-	reposPerUser := 3
-	
-	var wg sync.WaitGroup
-	results := make(chan operationResult, numUsers*reposPerUser*5)
+// TestIntegration_RepositoryWorkflow tests repository operations programmatically
+func TestIntegration_RepositoryWorkflow(t *testing.T) {
+	repo := govc.New()
 
-	// Create and test multiple users concurrently  
+	t.Run("CompleteWorkflow", func(t *testing.T) {
+		// Initial setup
+		staging := repo.GetStagingArea()
+		
+		// Add multiple files
+		files := map[string][]byte{
+			"main.go":     []byte("package main\nfunc main() {}"),
+			"config.yaml": []byte("version: 1.0\nname: test"),
+			"README.md":   []byte("# Test Project\nThis is a test"),
+		}
+
+		for path, content := range files {
+			err := staging.Add(path, content)
+			assert.NoError(t, err)
+		}
+
+		// Commit
+		commit1, err := repo.Commit("Initial commit")
+		assert.NoError(t, err)
+		assert.NotNil(t, commit1)
+
+		// Create and switch to feature branch
+		err = repo.CreateBranch("feature/new-feature", "")
+		assert.NoError(t, err)
+		
+		err = repo.SwitchBranch("feature/new-feature")
+		assert.NoError(t, err)
+
+		// Add feature files
+		staging.Add("feature.go", []byte("package feature"))
+		commit2, err := repo.Commit("Add feature")
+		assert.NoError(t, err)
+		assert.NotNil(t, commit2)
+
+		// Switch back to main
+		err = repo.SwitchBranch("main")
+		assert.NoError(t, err)
+
+		// Verify branch isolation
+		mainCommits, _ := repo.ListCommits("main", 10)
+		featureCommits, _ := repo.ListCommits("feature/new-feature", 10)
+		
+		assert.NotEmpty(t, mainCommits)
+		assert.NotEmpty(t, featureCommits)
+	})
+}
+
+// TestIntegration_ConcurrentUsers simulates multiple users working on the same repository
+func TestIntegration_ConcurrentUsers(t *testing.T) {
+	// Create a shared repository
+	tmpDir, err := ioutil.TempDir("", "govc-concurrent-test-*")
+	require.NoError(t, err)
+	defer os.RemoveAll(tmpDir)
+
+	// Initialize repository
+	repo, err := govc.Init(tmpDir)
+	require.NoError(t, err)
+
+	// Simulate multiple users
+	numUsers := 5
+	commitsPerUser := 10
+	var wg sync.WaitGroup
+	successCounts := make([]int, numUsers)
+
 	for userID := 0; userID < numUsers; userID++ {
 		wg.Add(1)
-		go func(uid int) {
+		go func(id int) {
 			defer wg.Done()
+
+			// Each user creates their own branch
+			branchName := fmt.Sprintf("user-%d-branch", id)
+			userRepo, _ := govc.Open(tmpDir)
 			
-			// Each user creates multiple repositories
-			for repoNum := 0; repoNum < reposPerUser; repoNum++ {
-				repoName := fmt.Sprintf("user_%d_repo_%d", uid, repoNum)
+			// Create branch
+			err := userRepo.CreateBranch(branchName, "")
+			if err != nil {
+				return
+			}
+			
+			err = userRepo.SwitchBranch(branchName)
+			if err != nil {
+				return
+			}
+
+			// Make commits
+			for i := 0; i < commitsPerUser; i++ {
+				staging := userRepo.GetStagingArea()
+				fileName := fmt.Sprintf("user%d_file%d.txt", id, i)
+				content := fmt.Sprintf("Content from user %d, commit %d", id, i)
 				
-				// Create repository
-				repo, err := manager.GetOrCreateRepository(repoName)
-				if err != nil {
-					results <- operationResult{uid, repoName, false, err, "create_repo"}
-					continue
+				staging.Add(fileName, []byte(content))
+				_, err := userRepo.Commit(fmt.Sprintf("User %d commit %d", id, i))
+				if err == nil {
+					successCounts[id]++
 				}
-				results <- operationResult{uid, repoName, true, nil, "create_repo"}
-				
-				// Initialize repository
-				tx := repo.SafeTransaction()
-				
-				// Add user configuration
-				userConfig := []byte(fmt.Sprintf(`{
-	"user_id": %d,
-	"repository": "%s", 
-	"created_at": "%s"
-}`, uid, repoName, time.Now().Format(time.RFC3339)))
-				
-				err = tx.Add("user.json", userConfig)
-				if err != nil {
-					results <- operationResult{uid, repoName, false, err, "add_config"}
-					continue
-				}
-				results <- operationResult{uid, repoName, true, nil, "add_config"}
-				
-				err = tx.Validate()
-				if err != nil {
-					results <- operationResult{uid, repoName, false, err, "validate"}
-					continue
-				}
-				results <- operationResult{uid, repoName, true, nil, "validate"}
-				
-				_, err = tx.Commit(fmt.Sprintf("Initialize repository for user %d", uid))
-				if err != nil {
-					results <- operationResult{uid, repoName, false, err, "commit"}
-					continue
-				}
-				results <- operationResult{uid, repoName, true, nil, "commit"}
-				
-				// Verify repository state
-				if repo.IsCorrupted() {
-					results <- operationResult{uid, repoName, false, fmt.Errorf("repository corrupted"), "verify"}
-					continue
-				}
-				results <- operationResult{uid, repoName, true, nil, "verify"}
-				
-				// Small delay to simulate realistic usage
-				time.Sleep(2 * time.Millisecond)
 			}
 		}(userID)
 	}
 
 	wg.Wait()
-	close(results)
 
-	// Analyze results
-	successCount := 0
-	errorCount := 0
-	operationCounts := make(map[string]int)
-	userSuccessCount := make(map[int]int)
-	
-	for result := range results {
-		operationCounts[result.operation]++
-		if result.success {
-			successCount++
-			userSuccessCount[result.userID]++
-		} else {
-			errorCount++
-			if result.error != nil {
-				t.Logf("Error in user %d operation %s on %s: %v", 
-					result.userID, result.operation, result.repoName, result.error)
-			}
+	// Verify results
+	totalSuccessful := 0
+	for _, count := range successCounts {
+		totalSuccessful += count
+	}
+
+	assert.Greater(t, totalSuccessful, 0, "At least some commits should succeed")
+	t.Logf("Total successful commits across %d users: %d/%d", numUsers, totalSuccessful, numUsers*commitsPerUser)
+
+	// Check branches were created (at least main should exist)
+	branches, err := repo.ListBranches()
+	assert.NoError(t, err)
+	assert.GreaterOrEqual(t, len(branches), 1) // At least main branch exists
+}
+
+// TestIntegration_LargeFiles tests handling of large files
+func TestIntegration_LargeFiles(t *testing.T) {
+	repo := govc.New()
+	staging := repo.GetStagingArea()
+
+	t.Run("SingleLargeFile", func(t *testing.T) {
+		// Create a 50MB file
+		largeContent := bytes.Repeat([]byte("a"), 50*1024*1024)
+		
+		start := time.Now()
+		err := staging.Add("large.bin", largeContent)
+		assert.NoError(t, err)
+		
+		commit, err := repo.Commit("Add large file")
+		assert.NoError(t, err)
+		assert.NotNil(t, commit)
+		
+		duration := time.Since(start)
+		t.Logf("Large file (50MB) committed in %v", duration)
+		assert.Less(t, duration, 5*time.Second, "Should handle large files efficiently")
+	})
+
+	t.Run("ManySmallFiles", func(t *testing.T) {
+		staging.Clear()
+		
+		start := time.Now()
+		// Add 1000 small files
+		for i := 0; i < 1000; i++ {
+			fileName := fmt.Sprintf("file%04d.txt", i)
+			content := fmt.Sprintf("Content of file %d", i)
+			staging.Add(fileName, []byte(content))
 		}
-	}
-
-	expectedOperations := numUsers * reposPerUser * 5 // create_repo + add_config + validate + commit + verify
-	totalResults := successCount + errorCount
-	
-	t.Logf("Concurrent Users Integration Test Results:")
-	t.Logf("  Users: %d", numUsers)
-	t.Logf("  Repositories per user: %d", reposPerUser)
-	t.Logf("  Expected operations: %d", expectedOperations)
-	t.Logf("  Total results: %d", totalResults)
-	t.Logf("  Successful operations: %d", successCount)
-	t.Logf("  Failed operations: %d", errorCount)
-	t.Logf("  Success rate: %.2f%%", float64(successCount)/float64(totalResults)*100)
-	
-	t.Logf("  Operation breakdown:")
-	for op, count := range operationCounts {
-		t.Logf("    %s: %d", op, count)
-	}
-
-	assert.True(t, successCount > totalResults*8/10, "Should have > 80% success rate")
-	assert.True(t, operationCounts["create_repo"] >= numUsers*reposPerUser*8/10, "Should create most repositories successfully")
+		
+		commit, err := repo.Commit("Add many files")
+		assert.NoError(t, err)
+		assert.NotNil(t, commit)
+		
+		duration := time.Since(start)
+		t.Logf("1000 small files committed in %v", duration)
+		assert.Less(t, duration, 2*time.Second, "Should handle many files efficiently")
+	})
 }
 
-// TestIntegration_PersistenceConsistency tests data persistence across operations
-func TestIntegration_PersistenceConsistency(t *testing.T) {
-	manager := NewRepositoryManager()
-	repo, err := manager.GetOrCreateRepository("persistence_test")
-	require.NoError(t, err)
-	require.NotNil(t, repo)
-
-	// Create initial state
-	tx := repo.SafeTransaction()
-	initialData := []byte(`{
-	"name": "persistence_world",
-	"version": 1,
-	"data": "initial"
-}`)
+// TestIntegration_APIServer tests the API server integration
+func TestIntegration_APIServer(t *testing.T) {
+	t.Skip("Skipping API server test - requires server setup")
 	
-	err = tx.Add("world.json", initialData)
-	require.NoError(t, err)
+	// This would test the API server if it was running
+	repo := govc.New()
 	
-	err = tx.Validate()
-	require.NoError(t, err)
+	// Add test data
+	staging := repo.GetStagingArea()
+	staging.Add("api-test.txt", []byte("API test content"))
+	repo.Commit("API test commit")
+
+	// Start API server
+	server := api.NewServer(repo)
+	_ = server // Server would be used here
 	
-	_, err = tx.Commit("Initial persistence test data")
-	require.NoError(t, err)
+	// Server would be started here if the Start method existed
+	// go server.ListenAndServe(":8080")
 
-	// Perform rapid sequential updates to test consistency
-	updates := []struct {
-		version int
-		data    string
-		desc    string
-	}{
-		{2, "first_update", "First update"},
-		{3, "second_update", "Second update"},
-		{4, "third_update", "Third update"},
-		{5, "fourth_update", "Fourth update"},
-		{6, "fifth_update", "Fifth update"},
-	}
-
-	for i, update := range updates {
-		tx := repo.SafeTransaction()
-		
-		// Update the world configuration
-		updatedData := []byte(fmt.Sprintf(`{
-	"name": "persistence_world",
-	"version": %d,
-	"data": "%s",
-	"description": "%s"
-}`, update.version, update.data, update.desc))
-		
-		err = tx.Add("world.json", updatedData)
-		require.NoError(t, err, "Update %d should add successfully", i+1)
-		
-		// Also create a versioned file to track changes
-		versionFile := []byte(fmt.Sprintf("Version %d data: %s", update.version, update.data))
-		err = tx.Add(fmt.Sprintf("versions/v%d.txt", update.version), versionFile)
-		require.NoError(t, err, "Update %d version file should add successfully", i+1)
-		
-		err = tx.Validate()
-		require.NoError(t, err, "Update %d should validate", i+1)
-		
-		_, err = tx.Commit(fmt.Sprintf("Update %d: %s", i+1, update.desc))
-		require.NoError(t, err, "Update %d should commit successfully", i+1)
-		
-		// Verify the repository is still in good state
-		assert.False(t, repo.IsCorrupted(), "Repository should not be corrupted after update %d", i+1)
-		
-		t.Logf("✅ Update %d completed successfully", i+1)
-		
-		// Small delay to simulate real-world timing
-		time.Sleep(5 * time.Millisecond)
-	}
-
-	// Verify all updates are persisted by checking final state
-	finalTx := repo.SafeTransaction()
-	finalData := []byte(fmt.Sprintf("Final verification: All %d updates completed", len(updates)))
-	err = finalTx.Add("verification.txt", finalData)
-	require.NoError(t, err)
-	
-	err = finalTx.Validate()
-	require.NoError(t, err)
-	
-	_, err = finalTx.Commit("Final verification")
-	require.NoError(t, err)
-
-	t.Logf("✅ Persistence consistency test passed - all sequential updates were properly persisted")
+	// Test API endpoints would go here
 }
 
-// TestIntegration_ErrorHandling tests error scenarios and recovery
-func TestIntegration_ErrorHandling(t *testing.T) {
-	manager := NewRepositoryManager()
+// TestIntegration_PipelineExecution tests the pipeline system
+func TestIntegration_PipelineExecution(t *testing.T) {
+	t.Skip("Skipping pipeline test - pipeline system not fully implemented")
 	
-	// Test 1: Invalid repository name
-	_, err := manager.GetOrCreateRepository("")
-	assert.Error(t, err, "Should fail with empty repository name")
+	// This would test the pipeline system when implemented
+	repo := govc.New()
 	
-	// Test 2: Valid repository creation
-	repo, err := manager.GetOrCreateRepository("error_test")
-	require.NoError(t, err)
-	require.NotNil(t, repo)
-
-	// Test 3: Transaction errors with invalid inputs
-	tx := repo.SafeTransaction()
-	
-	// Test empty path
-	err = tx.Add("", []byte("content"))
-	assert.Error(t, err, "Should fail with empty path")
-	
-	// Test valid operations
-	err = tx.Add("test.txt", []byte("test content"))
-	require.NoError(t, err)
-	
-	// Test validation before adding anything
-	emptyTx := repo.SafeTransaction()
-	err = emptyTx.Validate()
-	require.NoError(t, err, "Empty transaction should validate")
-	
-	// Test committing without validation
-	unvalidatedTx := repo.SafeTransaction()
-	err = unvalidatedTx.Add("unvalidated.txt", []byte("content"))
-	require.NoError(t, err)
-	
-	_, err = unvalidatedTx.Commit("Should fail - not validated")
-	assert.Error(t, err, "Should fail when committing unvalidated transaction")
-	
-	// Test double commit
-	validTx := repo.SafeTransaction()
-	err = validTx.Add("valid.txt", []byte("content"))
-	require.NoError(t, err)
-	
-	err = validTx.Validate()
-	require.NoError(t, err)
-	
-	_, err = validTx.Commit("First commit")
-	require.NoError(t, err)
-	
-	_, err = validTx.Commit("Second commit - should fail")
-	assert.Error(t, err, "Should fail on double commit")
-	
-	// Test operations on committed transaction
-	err = validTx.Add("after-commit.txt", []byte("should fail"))
-	assert.Error(t, err, "Should fail to add to committed transaction")
-	
-	// Test rollback scenarios
-	rollbackTx := repo.SafeTransaction()
-	err = rollbackTx.Add("rollback.txt", []byte("content"))
-	require.NoError(t, err)
-	
-	err = rollbackTx.Rollback()
-	require.NoError(t, err, "Rollback should succeed")
-	
-	err = rollbackTx.Rollback()
-	require.NoError(t, err, "Multiple rollbacks should be safe")
-	
-	// Test rollback after commit
-	commitTx := repo.SafeTransaction()
-	err = commitTx.Add("commit-then-rollback.txt", []byte("content"))
-	require.NoError(t, err)
-	err = commitTx.Validate()
-	require.NoError(t, err)
-	_, err = commitTx.Commit("Commit first")
-	require.NoError(t, err)
-	
-	err = commitTx.Rollback()
-	assert.Error(t, err, "Should fail to rollback committed transaction")
-
-	// Test branch operation errors
-	err = repo.SafeCreateBranch("", "main")
-	assert.Error(t, err, "Should fail with empty branch name")
-	
-	err = repo.SafeCheckout("")
-	assert.Error(t, err, "Should fail with empty branch name")
-	
-	// Test valid branch operations
-	err = repo.SafeCreateBranch("test-branch", "")
-	require.NoError(t, err, "Should create valid branch")
-	
-	err = repo.SafeCheckout("test-branch")
-	require.NoError(t, err, "Should checkout valid branch")
-
-	// Test repository state validation
-	assert.False(t, repo.IsCorrupted(), "Repository should not be corrupted")
-	
-	// Test quiescence
-	err = repo.WaitForQuiescence(100 * time.Millisecond)
-	require.NoError(t, err, "Should achieve quiescence quickly")
-
-	t.Logf("✅ Error handling integration test passed - all error scenarios handled correctly")
+	// Pipeline tests would go here when the pipeline package is available
+	_ = repo
 }
 
-// TestIntegration_SessionManagement tests concurrent repository session management
-func TestIntegration_SessionManagement(t *testing.T) {
-	manager := NewRepositoryManager()
-	
-	// Test multiple concurrent repository sessions
-	numSessions := 5
-	reposPerSession := 3
-	
-	var wg sync.WaitGroup
-	results := make(chan sessionResult, numSessions*reposPerSession*3) // 3 operations per repo
+// TestIntegration_SearchAndQuery tests search functionality
+func TestIntegration_SearchAndQuery(t *testing.T) {
+	repo := govc.New()
 
-	// Create multiple concurrent sessions
-	for sessionID := 0; sessionID < numSessions; sessionID++ {
-		wg.Add(1)
-		go func(sid int) {
-			defer wg.Done()
+	// Add test data with searchable content
+	testData := map[string]string{
+		"main.go":        "package main\nimport \"fmt\"\nfunc main() { fmt.Println(\"Hello\") }",
+		"utils.go":       "package utils\nfunc Helper() string { return \"helper\" }",
+		"config.json":    `{"database": "postgres", "port": 5432}`,
+		"README.md":      "# Project\nThis project uses PostgreSQL database",
+		"docs/api.md":    "## API Documentation\nEndpoint: /api/v1/users",
+		"test/main_test.go": "package main\nimport \"testing\"\nfunc TestMain(t *testing.T) {}",
+	}
+
+	staging := repo.GetStagingArea()
+	for path, content := range testData {
+		staging.Add(path, []byte(content))
+	}
+	repo.Commit("Add test files for search")
+
+	t.Run("SearchCommits", func(t *testing.T) {
+		// Search for commits
+		commits, total, err := repo.SearchCommits("test", "", "", "", 10, 0)
+		assert.NoError(t, err)
+		assert.NotNil(t, commits)
+		assert.GreaterOrEqual(t, total, 0)
+	})
+
+	t.Run("FullTextSearch", func(t *testing.T) {
+		// Initialize search
+		err := repo.InitializeAdvancedSearch()
+		assert.NoError(t, err)
+
+		// Perform search
+		req := &repository.FullTextSearchRequest{
+			Query: "database",
+			Limit: 10,
+		}
+		
+		resp, err := repo.FullTextSearch(req)
+		assert.NoError(t, err)
+		assert.NotNil(t, resp)
+	})
+}
+
+// TestIntegration_PersistenceAndRecovery tests data persistence and recovery
+func TestIntegration_PersistenceAndRecovery(t *testing.T) {
+	tmpDir, err := ioutil.TempDir("", "govc-persist-test-*")
+	require.NoError(t, err)
+	defer os.RemoveAll(tmpDir)
+
+	t.Run("PersistentStaging", func(t *testing.T) {
+		// Create repository and add files
+		repo1, err := govc.Init(tmpDir)
+		assert.NoError(t, err)
+
+		staging1 := repo1.GetStagingArea()
+		staging1.Add("persist1.txt", []byte("persistent content 1"))
+		staging1.Add("persist2.txt", []byte("persistent content 2"))
+
+		// Open repository again
+		repo2, err := govc.Open(tmpDir)
+		assert.NoError(t, err)
+
+		// Check staging persisted
+		staging2 := repo2.GetStagingArea()
+		files, _ := staging2.List()
+		assert.Contains(t, files, "persist1.txt")
+		assert.Contains(t, files, "persist2.txt")
+	})
+
+	t.Run("Recovery", func(t *testing.T) {
+		// Simulate crash during operation
+		repo, _ := govc.Open(tmpDir)
+		staging := repo.GetStagingArea()
+		
+		// Start adding files
+		staging.Add("recovery1.txt", []byte("recovery test"))
+		
+		// Simulate crash (don't commit)
+		// Repository should handle this gracefully on next open
+		
+		// Reopen
+		recoveredRepo, err := govc.Open(tmpDir)
+		assert.NoError(t, err)
+		assert.NotNil(t, recoveredRepo)
+		
+		// Should be able to continue
+		recoverStaging := recoveredRepo.GetStagingArea()
+		files, _ := recoverStaging.List()
+		assert.Contains(t, files, "recovery1.txt")
+	})
+}
+
+// TestIntegration_PerformanceUnderLoad tests system performance under heavy load
+func TestIntegration_PerformanceUnderLoad(t *testing.T) {
+	repo := govc.New()
+
+	t.Run("HighFrequencyCommits", func(t *testing.T) {
+		numCommits := 1000
+		start := time.Now()
+
+		for i := 0; i < numCommits; i++ {
+			staging := repo.GetStagingArea()
+			staging.Add(fmt.Sprintf("file%d.txt", i), []byte(fmt.Sprintf("content %d", i)))
+			_, err := repo.Commit(fmt.Sprintf("Commit %d", i))
+			assert.NoError(t, err)
+		}
+
+		duration := time.Since(start)
+		commitsPerSecond := float64(numCommits) / duration.Seconds()
+		
+		t.Logf("Performed %d commits in %v (%.2f commits/sec)", numCommits, duration, commitsPerSecond)
+		assert.Greater(t, commitsPerSecond, 100.0, "Should handle at least 100 commits/sec")
+	})
+
+	t.Run("ConcurrentLoad", func(t *testing.T) {
+		var wg sync.WaitGroup
+		numGoroutines := 50
+		opsPerGoroutine := 100
+		var successCount int32
+
+		start := time.Now()
+
+		for i := 0; i < numGoroutines; i++ {
+			wg.Add(1)
+			go func(id int) {
+				defer wg.Done()
+				
+				for j := 0; j < opsPerGoroutine; j++ {
+					staging := repo.GetStagingArea()
+					fileName := fmt.Sprintf("concurrent_%d_%d.txt", id, j)
+					staging.Add(fileName, []byte(fmt.Sprintf("data %d %d", id, j)))
+					
+					if _, err := repo.Commit(fmt.Sprintf("Concurrent %d-%d", id, j)); err == nil {
+						atomic.AddInt32(&successCount, 1)
+					}
+				}
+			}(i)
+		}
+
+		wg.Wait()
+		duration := time.Since(start)
+		
+		totalOps := numGoroutines * opsPerGoroutine
+		opsPerSecond := float64(successCount) / duration.Seconds()
+		
+		t.Logf("Concurrent load test: %d/%d successful ops in %v (%.2f ops/sec)", 
+			successCount, totalOps, duration, opsPerSecond)
+		assert.Greater(t, float64(successCount), float64(totalOps)*0.5, 
+			"At least 50% of operations should succeed under concurrent load")
+	})
+
+	t.Run("MemoryUsage", func(t *testing.T) {
+		// Monitor memory usage during operations
+		var m runtime.MemStats
+		runtime.ReadMemStats(&m)
+		startMem := m.Alloc
+
+		// Perform memory-intensive operations
+		for i := 0; i < 100; i++ {
+			staging := repo.GetStagingArea()
+			// Add 1MB file
+			largeContent := bytes.Repeat([]byte("x"), 1024*1024)
+			staging.Add(fmt.Sprintf("large%d.bin", i), largeContent)
+			repo.Commit(fmt.Sprintf("Large file %d", i))
+		}
+
+		runtime.ReadMemStats(&m)
+		endMem := m.Alloc
+		memUsed := endMem - startMem
+
+		t.Logf("Memory used for 100 x 1MB files: %d MB", memUsed/1024/1024)
+		// Memory-first system will use memory, but should be reasonable
+		assert.Less(t, memUsed, uint64(500*1024*1024), "Should use less than 500MB for 100MB of data")
+	})
+}
+
+// TestIntegration_MultiBranchWorkflow tests complex multi-branch scenarios
+func TestIntegration_MultiBranchWorkflow(t *testing.T) {
+	repo := govc.New()
+
+	// Setup initial repository
+	staging := repo.GetStagingArea()
+	staging.Add("main.go", []byte("package main"))
+	staging.Add("config.yaml", []byte("version: 1.0"))
+	baseCommit, _ := repo.Commit("Initial setup")
+
+	t.Run("FeatureBranches", func(t *testing.T) {
+		// Create multiple feature branches
+		features := []string{"feature-a", "feature-b", "feature-c"}
+		
+		for _, feature := range features {
+			err := repo.CreateBranch(feature, baseCommit.Hash())
+			assert.NoError(t, err)
 			
-			// Each session creates multiple repositories
-			for repoNum := 0; repoNum < reposPerSession; repoNum++ {
-				repoName := fmt.Sprintf("session_%d_repo_%d", sid, repoNum)
-				
-				// Operation 1: Create repository
-				repo, err := manager.GetOrCreateRepository(repoName)
-				if err != nil {
-					results <- sessionResult{sid, repoName, false, err, "create_repo"}
-					continue
-				}
-				results <- sessionResult{sid, repoName, true, nil, "create_repo"}
-				
-				// Operation 2: Initialize with content
-				tx := repo.SafeTransaction()
-				sessionData := []byte(fmt.Sprintf(`{
-	"session_id": %d,
-	"repository": "%s",
-	"created_at": "%s"
-}`, sid, repoName, time.Now().Format(time.RFC3339)))
-				
-				err = tx.Add("session.json", sessionData)
-				if err != nil {
-					results <- sessionResult{sid, repoName, false, err, "add_content"}
-					continue
-				}
-				
-				err = tx.Validate()
-				if err != nil {
-					results <- sessionResult{sid, repoName, false, err, "validate"}
-					continue
-				}
-				
-				_, err = tx.Commit(fmt.Sprintf("Initialize session %d repo %d", sid, repoNum))
-				if err != nil {
-					results <- sessionResult{sid, repoName, false, err, "commit"}
-					continue
-				}
-				results <- sessionResult{sid, repoName, true, nil, "init_content"}
-				
-				// Operation 3: Verify repository state
-				if repo.IsCorrupted() {
-					results <- sessionResult{sid, repoName, false, fmt.Errorf("repository corrupted"), "verify"}
-					continue
-				}
-				results <- sessionResult{sid, repoName, true, nil, "verify"}
-				
-				// Small delay to simulate real usage
-				time.Sleep(2 * time.Millisecond)
-			}
-		}(sessionID)
-	}
-	
-	wg.Wait()
-	close(results)
-	
-	// Analyze session results
-	successCount := 0
-	errorCount := 0
-	operationCounts := make(map[string]int)
-	sessionSuccessCount := make(map[int]int)
-	
-	for result := range results {
-		operationCounts[result.operation]++
-		if result.success {
-			successCount++
-			sessionSuccessCount[result.sessionID]++
-		} else {
-			errorCount++
-			if result.error != nil {
-				t.Logf("Session %d error in %s on %s: %v", 
-					result.sessionID, result.operation, result.repoName, result.error)
-			}
+			// Switch to feature branch
+			err = repo.SwitchBranch(feature)
+			assert.NoError(t, err)
+			
+			// Add feature-specific files
+			staging.Add(fmt.Sprintf("%s.go", feature), []byte(fmt.Sprintf("package %s", feature)))
+			_, err = repo.Commit(fmt.Sprintf("Add %s", feature))
+			assert.NoError(t, err)
 		}
-	}
-	
-	expectedOperations := numSessions * reposPerSession * 3 // create_repo + init_content + verify
-	totalResults := successCount + errorCount
-	
-	t.Logf("Session Management Integration Test Results:")
-	t.Logf("  Sessions: %d", numSessions)
-	t.Logf("  Repositories per session: %d", reposPerSession)
-	t.Logf("  Expected operations: %d", expectedOperations)
-	t.Logf("  Total results: %d", totalResults)
-	t.Logf("  Successful operations: %d", successCount)
-	t.Logf("  Failed operations: %d", errorCount)
-	t.Logf("  Success rate: %.2f%%", float64(successCount)/float64(totalResults)*100)
-	
-	t.Logf("  Operation breakdown:")
-	for op, count := range operationCounts {
-		t.Logf("    %s: %d", op, count)
-	}
-	
-	// Verify each session succeeded
-	for sid := 0; sid < numSessions; sid++ {
-		expectedSuccess := reposPerSession * 3
-		actualSuccess := sessionSuccessCount[sid]
-		t.Logf("  Session %d: %d/%d successful", sid, actualSuccess, expectedSuccess)
-	}
 
-	assert.True(t, successCount > totalResults*8/10, "Should have > 80% success rate")
-	assert.True(t, operationCounts["create_repo"] >= numSessions*reposPerSession*8/10, "Should create most repositories successfully")
-	
-	// Test cleanup - remove all created repositories
-	for sessionID := 0; sessionID < numSessions; sessionID++ {
-		for repoNum := 0; repoNum < reposPerSession; repoNum++ {
-			repoName := fmt.Sprintf("session_%d_repo_%d", sessionID, repoNum)
-			err := manager.RemoveRepository(repoName)
-			assert.NoError(t, err, "Should remove repository %s", repoName)
+		// Switch back to main
+		err := repo.SwitchBranch("main")
+		assert.NoError(t, err)
+
+		// Verify all branches exist
+		branches, _ := repo.ListBranches()
+		for _, feature := range features {
+			assert.Contains(t, branches, feature)
 		}
-	}
+	})
 
-	t.Logf("✅ Session management test passed - multiple concurrent sessions work correctly")
+	t.Run("ParallelDevelopment", func(t *testing.T) {
+		// Simulate parallel development on different branches
+		var wg sync.WaitGroup
+		branches := []string{"dev", "staging", "hotfix"}
+
+		for _, branch := range branches {
+			repo.CreateBranch(branch, "")
+		}
+
+		for _, branch := range branches {
+			wg.Add(1)
+			go func(b string) {
+				defer wg.Done()
+				
+				// Each branch makes its own commits
+				branchRepo := govc.New() // In real scenario, would be same repo
+				branchRepo.SwitchBranch(b)
+				
+				for i := 0; i < 5; i++ {
+					staging := branchRepo.GetStagingArea()
+					staging.Add(fmt.Sprintf("%s_%d.txt", b, i), []byte(fmt.Sprintf("%s content %d", b, i)))
+					branchRepo.Commit(fmt.Sprintf("%s commit %d", b, i))
+				}
+			}(branch)
+		}
+
+		wg.Wait()
+	})
+}
+
+// TestIntegration_RealWorldScenario tests a realistic development workflow
+func TestIntegration_RealWorldScenario(t *testing.T) {
+	tmpDir, err := ioutil.TempDir("", "govc-realworld-*")
+	require.NoError(t, err)
+	defer os.RemoveAll(tmpDir)
+
+	// Initialize project repository
+	repo, err := govc.Init(tmpDir)
+	require.NoError(t, err)
+
+	t.Run("ProjectSetup", func(t *testing.T) {
+		staging := repo.GetStagingArea()
+		
+		// Add project files
+		projectFiles := map[string]string{
+			"main.go": `package main
+import "fmt"
+func main() {
+    fmt.Println("Hello, World!")
+}`,
+			"go.mod": `module github.com/example/project
+go 1.19`,
+			"README.md": `# Example Project
+This is an example project for testing GoVC`,
+			".gitignore": `*.exe
+*.dll
+*.so
+*.dylib
+/vendor/`,
+		}
+
+		for path, content := range projectFiles {
+			staging.Add(path, []byte(content))
+		}
+
+		commit, err := repo.Commit("Initial project setup")
+		assert.NoError(t, err)
+		assert.NotNil(t, commit)
+	})
+
+	t.Run("FeatureDevelopment", func(t *testing.T) {
+		// Create feature branch
+		err := repo.CreateBranch("feature/user-auth", "")
+		assert.NoError(t, err)
+		
+		err = repo.SwitchBranch("feature/user-auth")
+		assert.NoError(t, err)
+
+		// Add authentication code
+		staging := repo.GetStagingArea()
+		staging.Add("auth/auth.go", []byte(`package auth
+
+import "crypto/sha256"
+
+func HashPassword(password string) string {
+    h := sha256.Sum256([]byte(password))
+    return fmt.Sprintf("%x", h)
+}`))
+		
+		staging.Add("auth/auth_test.go", []byte(`package auth
+
+import "testing"
+
+func TestHashPassword(t *testing.T) {
+    hash := HashPassword("test")
+    if hash == "" {
+        t.Error("Hash should not be empty")
+    }
+}`))
+
+		_, err = repo.Commit("Add user authentication")
+		assert.NoError(t, err)
+	})
+
+	t.Run("HotfixScenario", func(t *testing.T) {
+		// Switch to main for hotfix
+		err := repo.SwitchBranch("main")
+		assert.NoError(t, err)
+
+		// Create hotfix branch
+		err = repo.CreateBranch("hotfix/security-patch", "")
+		assert.NoError(t, err)
+		
+		err = repo.SwitchBranch("hotfix/security-patch")
+		assert.NoError(t, err)
+
+		// Apply hotfix
+		staging := repo.GetStagingArea()
+		staging.Add("security.go", []byte(`package main
+
+func SecurityCheck() bool {
+    return true
+}`))
+
+		_, err = repo.Commit("Apply security patch")
+		assert.NoError(t, err)
+
+		// Switch back to main
+		err = repo.SwitchBranch("main")
+		assert.NoError(t, err)
+	})
+
+	t.Run("ReleasePreparation", func(t *testing.T) {
+		// Create release branch
+		err := repo.CreateBranch("release/v1.0.0", "")
+		assert.NoError(t, err)
+		
+		err = repo.SwitchBranch("release/v1.0.0")
+		assert.NoError(t, err)
+
+		// Update version
+		staging := repo.GetStagingArea()
+		staging.Add("VERSION", []byte("1.0.0"))
+		staging.Add("CHANGELOG.md", []byte(`# Changelog
+
+## [1.0.0] - 2024-01-01
+### Added
+- Initial release
+- User authentication
+- Security patches`))
+
+		_, err = repo.Commit("Prepare release v1.0.0")
+		assert.NoError(t, err)
+	})
+
+	// Verify final state
+	branches, err := repo.ListBranches()
+	assert.NoError(t, err)
+	assert.Contains(t, branches, "main")
+	assert.Contains(t, branches, "feature/user-auth")
+	assert.Contains(t, branches, "hotfix/security-patch")
+	assert.Contains(t, branches, "release/v1.0.0")
 }

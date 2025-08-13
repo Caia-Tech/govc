@@ -64,7 +64,7 @@ func (s *Server) handleInfoRefs(w http.ResponseWriter, r *http.Request) {
 	packet := fmt.Sprintf("# service=%s\n", service)
 	fmt.Fprintf(w, "%04x%s0000", len(packet)+4, packet)
 
-	branches, err := s.repo.ListBranches()
+	branches, err := s.repo.ListBranchesDetailed()
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -82,7 +82,7 @@ func (s *Server) handleInfoRefs(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleDumbInfoRefs(w http.ResponseWriter, r *http.Request) {
-	branches, err := s.repo.ListBranches()
+	branches, err := s.repo.ListBranchesDetailed()
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -145,7 +145,7 @@ func (s *Server) handleAPIStatus(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleAPIBranches(w http.ResponseWriter, r *http.Request) {
-	branches, err := s.repo.ListBranches()
+	branches, err := s.repo.ListBranchesDetailed()
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return

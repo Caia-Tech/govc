@@ -282,14 +282,14 @@ func TestAdvancedSearchPerformance(t *testing.T) {
 			t.Fatalf("Search failed: %v", err)
 		}
 		
-		t.Logf("Search completed in %v, found %d results", duration, response.Total)
+		t.Logf("Search completed in %v, found %d results", duration, response.TotalCount)
 		
 		// Performance assertion for search
 		if duration > 10*time.Millisecond {
 			t.Logf("Warning: Search took longer than expected: %v", duration)
 		}
 		
-		if response.Total == 0 {
+		if response.TotalCount == 0 {
 			t.Log("Warning: No search results found")
 		}
 	})
@@ -304,7 +304,7 @@ func TestAdvancedSearchPerformance(t *testing.T) {
 			t.Fatalf("SQL query failed: %v", err)
 		}
 		
-		t.Logf("SQL query completed in %v, returned %d rows", duration, result.Total)
+		t.Logf("SQL query completed in %v, returned %d rows", duration, len(result))
 		
 		if duration > 5*time.Millisecond {
 			t.Logf("Warning: SQL query took longer than expected: %v", duration)

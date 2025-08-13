@@ -6,7 +6,6 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/Caia-Tech/govc"
 	"github.com/gin-gonic/gin"
 )
 
@@ -51,11 +50,7 @@ func (s *Server) searchCommits(c *gin.Context) {
 	}
 
 	// Perform search
-	// TODO: Implement SearchCommits
-	// commits, total, err := repo.SearchCommits(query, author, since, until, limit, offset)
-	var commits []interface{}
-	var total int64
-	err = fmt.Errorf("SearchCommits not implemented")
+	commits, total, err := repo.SearchCommits(query, author, since, until, limit, offset)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, ErrorResponse{
 			Error: fmt.Sprintf("search failed: %v", err),
@@ -117,7 +112,7 @@ func (s *Server) searchCommits(c *gin.Context) {
 // searchContent searches for text within file contents
 func (s *Server) searchContent(c *gin.Context) {
 	repoID := c.Param("repo_id")
-	_, err := s.getRepository(repoID)
+	repo, err := s.getRepository(repoID)
 	if err != nil {
 		c.JSON(http.StatusNotFound, ErrorResponse{
 			Error: err.Error(),
@@ -199,7 +194,7 @@ func (s *Server) searchContent(c *gin.Context) {
 // searchFiles searches for files by name
 func (s *Server) searchFiles(c *gin.Context) {
 	repoID := c.Param("repo_id")
-	_, err := s.getRepository(repoID)
+	repo, err := s.getRepository(repoID)
 	if err != nil {
 		c.JSON(http.StatusNotFound, ErrorResponse{
 			Error: err.Error(),
@@ -278,7 +273,7 @@ func (s *Server) searchFiles(c *gin.Context) {
 // grep performs advanced pattern matching similar to git grep
 func (s *Server) grep(c *gin.Context) {
 	repoID := c.Param("repo_id")
-	_, err := s.getRepository(repoID)
+	repo, err := s.getRepository(repoID)
 	if err != nil {
 		c.JSON(http.StatusNotFound, ErrorResponse{
 			Error: err.Error(),

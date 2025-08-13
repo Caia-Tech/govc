@@ -1,4 +1,4 @@
-package govc_test
+package tests
 
 import (
 	"fmt"
@@ -96,7 +96,7 @@ func ExampleRepository_Watch() {
 	repo := govc.New()
 
 	// Set up event handler
-	repo.Watch(func(event govc.Event) {
+	repo.Watch(func(event govc.CommitEvent) {
 		// React to different types of commits
 		switch {
 		case event.Message == "EMERGENCY_ROLLBACK":
@@ -173,7 +173,6 @@ func ExampleNew() {
 
 	// Repository with custom configuration
 	configuredRepo := govc.NewWithConfig(govc.Config{
-		MemoryOnly: true,
 		Author: govc.ConfigAuthor{
 			Name:  "Infrastructure Bot",
 			Email: "bot@example.com",

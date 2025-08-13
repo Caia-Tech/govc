@@ -255,6 +255,6 @@ func concurrentExample() {
 	allBranches, _ := repo.ListBranches()
 	fmt.Println("Created branches:")
 	for _, branch := range allBranches {
-		fmt.Printf("  - %s\n", branch.Name)
+		fmt.Printf("  - %s\n", branch)
 	}
 }
