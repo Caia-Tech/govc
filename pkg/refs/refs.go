@@ -109,7 +109,12 @@ func (m *MemoryRefStore) GetHEAD() (string, error) {
 		ref := strings.TrimPrefix(m.head, "ref: ")
 		hash, exists := m.refs[ref]
 		if !exists {
-			return "", fmt.Errorf("HEAD points to non-existent ref: %s", ref)
+			// Branch exists but has no commits yet - return empty string
+			return "", nil
+		}
+		// If hash is empty, branch has no commits yet
+		if hash == "" {
+			return "", nil
 		}
 		return hash, nil
 	}

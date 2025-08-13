@@ -490,6 +490,12 @@ func (r *Repository) Log(limit int) ([]*object.Commit, error) {
 		// No commits yet, return empty slice
 		return commits, nil
 	}
+	
+	// If HEAD is empty (no commits on branch), return empty
+	if headHash == "" {
+		return commits, nil
+	}
+	
 	currentHash := headHash
 
 	for i := 0; (limit <= 0 || i < limit) && currentHash != ""; i++ {
@@ -3883,23 +3889,16 @@ func (r *Repository) ListCommits(branch string, limit int) ([]*object.Commit, er
 
 // LoadRepository loads or creates a repository at the specified path
 func LoadRepository(repoPath string) (*Repository, error) {
-	// Create .govc directory if it doesn't exist
 	govcDir := filepath.Join(repoPath, ".govc")
-	if err := os.MkdirAll(govcDir, 0755); err != nil {
-		return nil, fmt.Errorf("failed to create .govc directory: %w", err)
+	
+	// Check if repository already exists
+	if _, err := os.Stat(govcDir); err == nil {
+		// Repository exists, open it
+		return OpenRepository(repoPath)
 	}
 	
-	// Create a new repository with persistent staging area
-	repo := New()
-	
-	// Replace the staging area with a persistent one
-	persistentStagingArea := NewStagingAreaWithPath(repoPath)
-	if err := persistentStagingArea.Load(repoPath); err != nil {
-		return nil, fmt.Errorf("failed to load staging area: %w", err)
-	}
-	repo.staging = persistentStagingArea
-	
-	return repo, nil
+	// Repository doesn't exist, initialize it
+	return InitRepository(repoPath)
 }
 
 // Save saves the repository state to disk

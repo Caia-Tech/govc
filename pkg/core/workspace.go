@@ -17,6 +17,7 @@ type CleanWorkspace struct {
 	working WorkingStorage
 	staging *CleanStagingArea
 	branch  string // Current branch
+	diag    *DiagnosticLogger
 }
 
 // NewCleanWorkspace creates a new workspace
@@ -26,6 +27,7 @@ func NewCleanWorkspace(repo *CleanRepository, working WorkingStorage) *CleanWork
 		working: working,
 		staging: NewCleanStagingArea(),
 		branch:  "main", // Default branch
+		diag:    NewDiagnosticLogger("Workspace"),
 	}
 }
 
@@ -170,23 +172,31 @@ func (w *CleanWorkspace) Status() (*Status, error) {
 
 // Checkout switches branches and updates working directory
 func (w *CleanWorkspace) Checkout(branch string) error {
+	w.diag.Log("Checkout: Starting checkout to branch %s", branch)
+	
 	// Get branch commit
 	commitHash, err := w.repo.GetBranch(branch)
 	if err != nil {
+		w.diag.LogError(fmt.Sprintf("GetBranch %s", branch), err)
 		return fmt.Errorf("branch not found: %s", branch)
 	}
+	w.diag.Log("Checkout: Branch %s points to commit %s", branch, commitHash)
 
 	// Get commit
 	commit, err := w.repo.GetCommit(commitHash)
 	if err != nil {
+		w.diag.LogError("GetCommit", err)
 		return err
 	}
+	w.diag.Log("Checkout: Got commit with tree %s", commit.TreeHash)
 
 	// Get tree
 	tree, err := w.repo.GetTree(commit.TreeHash)
 	if err != nil {
+		w.diag.LogError("GetTree", err)
 		return err
 	}
+	w.diag.Log("Checkout: Tree has %d entries", len(tree.Entries))
 
 	// Clear working directory
 	if err := w.working.Clear(); err != nil {

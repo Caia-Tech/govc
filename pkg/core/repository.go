@@ -13,6 +13,7 @@ import (
 type CleanRepository struct {
 	objects ObjectStore
 	refs    RefStore
+	diag    *DiagnosticLogger
 }
 
 // NewCleanRepository creates a new clean repository
@@ -20,6 +21,7 @@ func NewCleanRepository(objects ObjectStore, refs RefStore) *CleanRepository {
 	return &CleanRepository{
 		objects: objects,
 		refs:    refs,
+		diag:    NewDiagnosticLogger("Repository"),
 	}
 }
 
@@ -101,7 +103,15 @@ func (r *CleanRepository) ListBranches() ([]Branch, error) {
 
 // GetBranch retrieves a specific branch
 func (r *CleanRepository) GetBranch(name string) (string, error) {
-	return r.refs.GetRef("refs/heads/" + name)
+	refPath := "refs/heads/" + name
+	r.diag.Log("GetBranch: Looking up %s", refPath)
+	hash, err := r.refs.GetRef(refPath)
+	if err != nil {
+		r.diag.LogError(fmt.Sprintf("GetBranch %s", name), err)
+	} else {
+		r.diag.Log("GetBranch: Found %s -> %s", name, hash)
+	}
+	return hash, err
 }
 
 // ListTags returns all tags
@@ -172,6 +182,7 @@ func (r *CleanRepository) ResolveRef(ref string) (string, error) {
 
 // Log returns commit history starting from a given commit
 func (r *CleanRepository) Log(startHash string, limit int) ([]*object.Commit, error) {
+	r.diag.Log("Log: Starting from %s with limit %d", startHash, limit)
 	var commits []*object.Commit
 	visited := make(map[string]bool)
 
@@ -188,8 +199,10 @@ func (r *CleanRepository) Log(startHash string, limit int) ([]*object.Commit, er
 
 		commit, err := r.GetCommit(hash)
 		if err != nil {
+			r.diag.LogError(fmt.Sprintf("GetCommit %s", hash), err)
 			return err
 		}
+		r.diag.Log("Log: Found commit %s with parent %s", hash, commit.ParentHash)
 
 		commits = append(commits, commit)
 

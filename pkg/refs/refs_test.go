@@ -7,6 +7,9 @@ import (
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestMemoryRefStore(t *testing.T) {
@@ -472,4 +475,52 @@ func TestInstantBranchOperations(t *testing.T) {
 	}
 
 	t.Logf("Listed %d branches in %v", len(branches), listDuration)
+}
+
+// Tests for GetHEAD with empty branches (fix verification)
+func TestMemoryRefStore_GetHEAD_EmptyBranch(t *testing.T) {
+	store := NewMemoryRefStore()
+	
+	// Set HEAD to point to a branch with no commits
+	err := store.SetHEAD("ref: refs/heads/main")
+	require.NoError(t, err)
+	
+	// GetHEAD should return empty string, not error
+	head, err := store.GetHEAD()
+	assert.NoError(t, err, "Should not error on empty branch")
+	assert.Equal(t, "", head, "Should return empty string for branch with no commits")
+}
+
+func TestMemoryRefStore_GetHEAD_BranchWithCommit(t *testing.T) {
+	store := NewMemoryRefStore()
+	
+	// Create a branch with a commit
+	err := store.SetRef("refs/heads/main", "abc123")
+	require.NoError(t, err)
+	
+	// Set HEAD to point to the branch
+	err = store.SetHEAD("ref: refs/heads/main")
+	require.NoError(t, err)
+	
+	// GetHEAD should return the commit hash
+	head, err := store.GetHEAD()
+	assert.NoError(t, err)
+	assert.Equal(t, "abc123", head)
+}
+
+func TestMemoryRefStore_GetHEAD_EmptyCommitRef(t *testing.T) {
+	store := NewMemoryRefStore()
+	
+	// Create a branch explicitly pointing to empty string
+	err := store.SetRef("refs/heads/empty", "")
+	require.NoError(t, err)
+	
+	// Set HEAD to point to the empty branch
+	err = store.SetHEAD("ref: refs/heads/empty")
+	require.NoError(t, err)
+	
+	// GetHEAD should return empty string, not error
+	head, err := store.GetHEAD()
+	assert.NoError(t, err, "Should not error on branch with empty commit")
+	assert.Equal(t, "", head, "Should return empty string for branch with empty commit")
 }

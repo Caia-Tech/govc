@@ -57,12 +57,8 @@ var initCmd = &cobra.Command{
 			os.Exit(1)
 		}
 
-		// TODO: Implement proper path-based initialization
-		repo := govc.NewRepository()
-		err = nil
-		if repo == nil {
-			err = fmt.Errorf("failed to create repository")
-		}
+		// Initialize repository at the specified path
+		_, err = govc.LoadRepository(absPath)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Error initializing repository: %v\n", err)
 			os.Exit(1)
